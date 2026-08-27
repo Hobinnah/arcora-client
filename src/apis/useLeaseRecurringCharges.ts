@@ -76,7 +76,7 @@ export const fetchLeaseRecurringCharges = async ({
   }
 };
 
-export const getLeaseRecurringCharges = async (id?: string): Promise<LeaseRecurringCharges> => {
+export const getLeaseRecurringChargesById = async (id?: string): Promise<LeaseRecurringCharges> => {
   try {
     const url = `${BASE_URL}api/leaserecurringcharges/getLeaseRecurringChargesById/${id}`;
     const response = await axios.get(url);

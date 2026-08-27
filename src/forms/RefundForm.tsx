@@ -161,7 +161,7 @@ export default function RefundForm({ onAlert, initialRefund = null, isEditMode =
     if (isEditMode && initialRefund && opts_paymentID.length > 0) {
       const currentpaymentID = (initialRefund as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -174,7 +174,7 @@ export default function RefundForm({ onAlert, initialRefund = null, isEditMode =
     if (isEditMode && initialRefund && opts_tenantID.length > 0) {
       const currenttenantID = (initialRefund as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

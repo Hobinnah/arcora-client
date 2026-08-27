@@ -121,7 +121,7 @@ export default function ListingRuleForm({ onAlert, initialListingRule = null, is
     if (isEditMode && initialListingRule && opts_listingID.length > 0) {
       const currentlistingID = (initialListingRule as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }

@@ -171,7 +171,7 @@ export default function ReservationHoldForm({ onAlert, initialReservationHold = 
     if (isEditMode && initialReservationHold && opts_listingID.length > 0) {
       const currentlistingID = (initialReservationHold as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }
@@ -184,7 +184,7 @@ export default function ReservationHoldForm({ onAlert, initialReservationHold = 
     if (isEditMode && initialReservationHold && opts_rentalApplicationID.length > 0) {
       const currentrentalApplicationID = (initialReservationHold as any)?.rentalApplicationID ;
       if (currentrentalApplicationID !== undefined && currentrentalApplicationID!== null) {
-        const rentalApplicationIDValue = Number(currentrentalApplicationID);
+        const rentalApplicationIDValue = String(currentrentalApplicationID);
         if (opts_rentalApplicationID.some(opt => opt.value === String(rentalApplicationIDValue))) {
           setValue('rentalApplicationID', rentalApplicationIDValue);
         }
@@ -197,7 +197,7 @@ export default function ReservationHoldForm({ onAlert, initialReservationHold = 
     if (isEditMode && initialReservationHold && opts_tenantID.length > 0) {
       const currenttenantID = (initialReservationHold as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

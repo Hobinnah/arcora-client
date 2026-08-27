@@ -127,7 +127,7 @@ export default function PaymentReminderForm({ onAlert, initialPaymentReminder = 
     if (isEditMode && initialPaymentReminder && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialPaymentReminder as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }

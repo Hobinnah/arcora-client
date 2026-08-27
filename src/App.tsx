@@ -1,6 +1,6 @@
-import Overview from './overview/Overview';
+import MarketplaceHome from './marketplace/MarketplaceHome';
 
 export default function App()
-{ 
-    return <Overview />; 
+{
+    return <MarketplaceHome />;
 }

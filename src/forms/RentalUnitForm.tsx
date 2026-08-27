@@ -167,7 +167,7 @@ export default function RentalUnitForm({ onAlert, initialRentalUnit = null, isEd
     if (isEditMode && initialRentalUnit && opts_propertyID.length > 0) {
       const currentpropertyID = (initialRentalUnit as any)?.propertyID ;
       if (currentpropertyID !== undefined && currentpropertyID!== null) {
-        const propertyIDValue = Number(currentpropertyID);
+        const propertyIDValue = String(currentpropertyID);
         if (opts_propertyID.some(opt => opt.value === String(propertyIDValue))) {
           setValue('propertyID', propertyIDValue);
         }
@@ -180,7 +180,7 @@ export default function RentalUnitForm({ onAlert, initialRentalUnit = null, isEd
     if (isEditMode && initialRentalUnit && opts_unitTypeID.length > 0) {
       const currentunitTypeID = (initialRentalUnit as any)?.unitTypeID ;
       if (currentunitTypeID !== undefined && currentunitTypeID!== null) {
-        const unitTypeIDValue = Number(currentunitTypeID);
+        const unitTypeIDValue = String(currentunitTypeID);
         if (opts_unitTypeID.some(opt => opt.value === String(unitTypeIDValue))) {
           setValue('unitTypeID', unitTypeIDValue);
         }

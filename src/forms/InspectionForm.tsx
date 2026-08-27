@@ -220,7 +220,7 @@ export default function InspectionForm({ onAlert, initialInspection = null, isEd
     if (isEditMode && initialInspection && opts_propertyID.length > 0) {
       const currentpropertyID = (initialInspection as any)?.propertyID ;
       if (currentpropertyID !== undefined && currentpropertyID!== null) {
-        const propertyIDValue = Number(currentpropertyID);
+        const propertyIDValue = String(currentpropertyID);
         if (opts_propertyID.some(opt => opt.value === String(propertyIDValue))) {
           setValue('propertyID', propertyIDValue);
         }
@@ -233,7 +233,7 @@ export default function InspectionForm({ onAlert, initialInspection = null, isEd
     if (isEditMode && initialInspection && opts_rentalUnitID.length > 0) {
       const currentrentalUnitID = (initialInspection as any)?.rentalUnitID ;
       if (currentrentalUnitID !== undefined && currentrentalUnitID!== null) {
-        const rentalUnitIDValue = Number(currentrentalUnitID);
+        const rentalUnitIDValue = String(currentrentalUnitID);
         if (opts_rentalUnitID.some(opt => opt.value === String(rentalUnitIDValue))) {
           setValue('rentalUnitID', rentalUnitIDValue);
         }
@@ -246,7 +246,7 @@ export default function InspectionForm({ onAlert, initialInspection = null, isEd
     if (isEditMode && initialInspection && opts_leaseID.length > 0) {
       const currentleaseID = (initialInspection as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -259,7 +259,7 @@ export default function InspectionForm({ onAlert, initialInspection = null, isEd
     if (isEditMode && initialInspection && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialInspection as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -281,14 +281,15 @@ export default function InspectionForm({ onAlert, initialInspection = null, isEd
         status: data.status ?? '',
         scheduledFor: data.scheduledFor || null,
         startedAt: data.startedAt || null,
-        completedAt: data.completedAt || null,
         overallCondition: data.overallCondition ?? '',
         notes: data.notes ?? '',
         capturedDate: data.capturedDate || new Date().toISOString().split('T')[0],
         capturedBy: (data.capturedBy || ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
         updatedDate: data.updatedDate || null,
         updatedBy: (data.updatedBy || ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
-        completedAt: (data.status === 'Completed' ? ((initialInspection as any)?.completedAt || new Date().toISOString().split('T')[0]) : (initialInspection as any)?.completedAt || null),
+        completedAt: data.status === 'Completed'
+          ? ((initialInspection as any)?.completedAt || new Date().toISOString().split('T')[0])
+          : (initialInspection as any)?.completedAt || null,
       };
       let result: any;
       result = isEditMode ? await updateInspection(payload as Inspection) : await createInspection(payload as Inspection);

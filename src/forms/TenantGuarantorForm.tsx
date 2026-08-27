@@ -163,7 +163,7 @@ export default function TenantGuarantorForm({ onAlert, initialTenantGuarantor = 
     if (isEditMode && initialTenantGuarantor && opts_tenantID.length > 0) {
       const currenttenantID = (initialTenantGuarantor as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -176,7 +176,7 @@ export default function TenantGuarantorForm({ onAlert, initialTenantGuarantor = 
     if (isEditMode && initialTenantGuarantor && opts_userID.length > 0) {
       const currentuserID = (initialTenantGuarantor as any)?.userID ;
       if (currentuserID !== undefined && currentuserID!== null) {
-        const userIDValue = Number(currentuserID);
+        const userIDValue = String(currentuserID);
         if (opts_userID.some(opt => opt.value === String(userIDValue))) {
           setValue('userID', userIDValue);
         }

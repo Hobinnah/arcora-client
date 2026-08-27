@@ -15,7 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 // Zod validation schema (numeric values preprocessed to numbers to support <select> sources)
 const creditReportingConsentAuditSchema = z.object({
   creditReportingEnrollmentID: z.string().max(256, "Credit Reporting Enrollment must be less than 256 characters").min(1, "Credit Reporting Enrollment is required"),
-  tenantID: z.boolean(),
+  tenantID: z.string().optional(),
   action: z.string().max(50, "Action must be less than 50 characters").min(1, "Action is required"),
   consentVersion: z.string().max(50, "Consent Version must be less than 50 characters").optional(),
   consentTextHash: z.string().max(255, "Consent Text Hash must be less than 255 characters").optional(),
@@ -111,7 +111,7 @@ export default function CreditReportingConsentAuditForm({ onAlert, initialCredit
     if (isEditMode && initialCreditReportingConsentAudit) {
       return {
         creditReportingEnrollmentID: (src?.creditReportingEnrollmentID ?? ""),
-        tenantID: Boolean(src?.tenantID),
+        tenantID: src?.tenantID ? String(src.tenantID) : '',
         action: (src?.action ?? ""),
         consentVersion: (src?.consentVersion ?? ""),
         consentTextHash: (src?.consentTextHash ?? ""),
@@ -121,7 +121,7 @@ export default function CreditReportingConsentAuditForm({ onAlert, initialCredit
     }
     return {
       creditReportingEnrollmentID: "",
-      tenantID: false,
+      tenantID: '',
       action: "",
       consentVersion: "",
       consentTextHash: "",
@@ -146,7 +146,7 @@ export default function CreditReportingConsentAuditForm({ onAlert, initialCredit
     if (isEditMode && initialCreditReportingConsentAudit && opts_creditReportingEnrollmentID.length > 0) {
       const currentcreditReportingEnrollmentID = (initialCreditReportingConsentAudit as any)?.creditReportingEnrollmentID ;
       if (currentcreditReportingEnrollmentID !== undefined && currentcreditReportingEnrollmentID!== null) {
-        const creditReportingEnrollmentIDValue = Number(currentcreditReportingEnrollmentID);
+        const creditReportingEnrollmentIDValue = String(currentcreditReportingEnrollmentID);
         if (opts_creditReportingEnrollmentID.some(opt => opt.value === String(creditReportingEnrollmentIDValue))) {
           setValue('creditReportingEnrollmentID', creditReportingEnrollmentIDValue);
         }
@@ -159,7 +159,7 @@ export default function CreditReportingConsentAuditForm({ onAlert, initialCredit
     if (isEditMode && initialCreditReportingConsentAudit && opts_tenantID.length > 0) {
       const currenttenantID = (initialCreditReportingConsentAudit as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

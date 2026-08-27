@@ -9,7 +9,6 @@ import { ArrowLeftIcon, XIcon, CheckIcon } from '../components/Icons';
 import type { AlertType } from '../env';
 import type { PaymentProviderEvent } from '../types/PaymentProviderEvent';
 import { createPaymentProviderEvent, updatePaymentProviderEvent } from '../apis/usePaymentProviderEvent';
-import { useAuth } from '../hooks/useAuth';
 
 // Zod validation schema (numeric values preprocessed to numbers to support <select> sources)
 const paymentProviderEventSchema = z.object({
@@ -34,7 +33,6 @@ interface PaymentProviderEventFormProps {
 
 export default function PaymentProviderEventForm({ onAlert, initialPaymentProviderEvent = null, isEditMode = false }: PaymentProviderEventFormProps) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {

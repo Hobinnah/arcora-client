@@ -82,7 +82,7 @@ export const fetchLeaseDocuments = async ({
   }
 };
 
-export const getLeaseDocuments = async (id?: string): Promise<LeaseDocuments> => {
+export const getLeaseDocumentsById = async (id?: string): Promise<LeaseDocuments> => {
   try {
     const url = `${BASE_URL}api/leasedocuments/getLeaseDocumentsById/${id}`;
     const response = await axios.get(url);

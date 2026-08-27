@@ -254,7 +254,7 @@ export default function CalendarEventForm({ onAlert, initialCalendarEvent = null
     if (isEditMode && initialCalendarEvent && opts_listingID.length > 0) {
       const currentlistingID = (initialCalendarEvent as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }
@@ -267,7 +267,7 @@ export default function CalendarEventForm({ onAlert, initialCalendarEvent = null
     if (isEditMode && initialCalendarEvent && opts_leaseID.length > 0) {
       const currentleaseID = (initialCalendarEvent as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -280,7 +280,7 @@ export default function CalendarEventForm({ onAlert, initialCalendarEvent = null
     if (isEditMode && initialCalendarEvent && opts_rentalApplicationID.length > 0) {
       const currentrentalApplicationID = (initialCalendarEvent as any)?.rentalApplicationID ;
       if (currentrentalApplicationID !== undefined && currentrentalApplicationID!== null) {
-        const rentalApplicationIDValue = Number(currentrentalApplicationID);
+        const rentalApplicationIDValue = String(currentrentalApplicationID);
         if (opts_rentalApplicationID.some(opt => opt.value === String(rentalApplicationIDValue))) {
           setValue('rentalApplicationID', rentalApplicationIDValue);
         }
@@ -293,7 +293,7 @@ export default function CalendarEventForm({ onAlert, initialCalendarEvent = null
     if (isEditMode && initialCalendarEvent && opts_reservationHoldID.length > 0) {
       const currentreservationHoldID = (initialCalendarEvent as any)?.reservationHoldID ;
       if (currentreservationHoldID !== undefined && currentreservationHoldID!== null) {
-        const reservationHoldIDValue = Number(currentreservationHoldID);
+        const reservationHoldIDValue = String(currentreservationHoldID);
         if (opts_reservationHoldID.some(opt => opt.value === String(reservationHoldIDValue))) {
           setValue('reservationHoldID', reservationHoldIDValue);
         }
@@ -306,7 +306,7 @@ export default function CalendarEventForm({ onAlert, initialCalendarEvent = null
     if (isEditMode && initialCalendarEvent && opts_maintenanceRequestID.length > 0) {
       const currentmaintenanceRequestID = (initialCalendarEvent as any)?.maintenanceRequestID ;
       if (currentmaintenanceRequestID !== undefined && currentmaintenanceRequestID!== null) {
-        const maintenanceRequestIDValue = Number(currentmaintenanceRequestID);
+        const maintenanceRequestIDValue = String(currentmaintenanceRequestID);
         if (opts_maintenanceRequestID.some(opt => opt.value === String(maintenanceRequestIDValue))) {
           setValue('maintenanceRequestID', maintenanceRequestIDValue);
         }

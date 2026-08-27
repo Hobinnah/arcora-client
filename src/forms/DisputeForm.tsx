@@ -311,7 +311,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_tenantID.length > 0) {
       const currenttenantID = (initialDispute as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -324,7 +324,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_organizationID.length > 0) {
       const currentorganizationID = (initialDispute as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -337,7 +337,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_leaseID.length > 0) {
       const currentleaseID = (initialDispute as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -350,7 +350,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialDispute as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -363,7 +363,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialDispute as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -376,7 +376,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_paymentID.length > 0) {
       const currentpaymentID = (initialDispute as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -389,7 +389,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_chargebackID.length > 0) {
       const currentchargebackID = (initialDispute as any)?.chargebackID ;
       if (currentchargebackID !== undefined && currentchargebackID!== null) {
-        const chargebackIDValue = Number(currentchargebackID);
+        const chargebackIDValue = String(currentchargebackID);
         if (opts_chargebackID.some(opt => opt.value === String(chargebackIDValue))) {
           setValue('chargebackID', chargebackIDValue);
         }
@@ -402,7 +402,7 @@ export default function DisputeForm({ onAlert, initialDispute = null, isEditMode
     if (isEditMode && initialDispute && opts_maintenanceRequestID.length > 0) {
       const currentmaintenanceRequestID = (initialDispute as any)?.maintenanceRequestID ;
       if (currentmaintenanceRequestID !== undefined && currentmaintenanceRequestID!== null) {
-        const maintenanceRequestIDValue = Number(currentmaintenanceRequestID);
+        const maintenanceRequestIDValue = String(currentmaintenanceRequestID);
         if (opts_maintenanceRequestID.some(opt => opt.value === String(maintenanceRequestIDValue))) {
           setValue('maintenanceRequestID', maintenanceRequestIDValue);
         }

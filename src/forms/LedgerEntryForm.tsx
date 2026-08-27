@@ -143,7 +143,7 @@ export default function LedgerEntryForm({ onAlert, initialLedgerEntry = null, is
     if (isEditMode && initialLedgerEntry && opts_ledgerTransactionID.length > 0) {
       const currentledgerTransactionID = (initialLedgerEntry as any)?.ledgerTransactionID ;
       if (currentledgerTransactionID !== undefined && currentledgerTransactionID!== null) {
-        const ledgerTransactionIDValue = Number(currentledgerTransactionID);
+        const ledgerTransactionIDValue = String(currentledgerTransactionID);
         if (opts_ledgerTransactionID.some(opt => opt.value === String(ledgerTransactionIDValue))) {
           setValue('ledgerTransactionID', ledgerTransactionIDValue);
         }
@@ -156,7 +156,7 @@ export default function LedgerEntryForm({ onAlert, initialLedgerEntry = null, is
     if (isEditMode && initialLedgerEntry && opts_ledgerAccountID.length > 0) {
       const currentledgerAccountID = (initialLedgerEntry as any)?.ledgerAccountID ;
       if (currentledgerAccountID !== undefined && currentledgerAccountID!== null) {
-        const ledgerAccountIDValue = Number(currentledgerAccountID);
+        const ledgerAccountIDValue = String(currentledgerAccountID);
         if (opts_ledgerAccountID.some(opt => opt.value === String(ledgerAccountIDValue))) {
           setValue('ledgerAccountID', ledgerAccountIDValue);
         }

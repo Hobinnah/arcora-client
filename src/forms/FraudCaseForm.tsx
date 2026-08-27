@@ -286,7 +286,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_tenantID.length > 0) {
       const currenttenantID = (initialFraudCase as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -299,7 +299,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_organizationID.length > 0) {
       const currentorganizationID = (initialFraudCase as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -312,7 +312,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_leaseID.length > 0) {
       const currentleaseID = (initialFraudCase as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -325,7 +325,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialFraudCase as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -338,7 +338,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_paymentIntentID.length > 0) {
       const currentpaymentIntentID = (initialFraudCase as any)?.paymentIntentID ;
       if (currentpaymentIntentID !== undefined && currentpaymentIntentID!== null) {
-        const paymentIntentIDValue = Number(currentpaymentIntentID);
+        const paymentIntentIDValue = String(currentpaymentIntentID);
         if (opts_paymentIntentID.some(opt => opt.value === String(paymentIntentIDValue))) {
           setValue('paymentIntentID', paymentIntentIDValue);
         }
@@ -351,7 +351,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_paymentID.length > 0) {
       const currentpaymentID = (initialFraudCase as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -364,7 +364,7 @@ export default function FraudCaseForm({ onAlert, initialFraudCase = null, isEdit
     if (isEditMode && initialFraudCase && opts_chargebackID.length > 0) {
       const currentchargebackID = (initialFraudCase as any)?.chargebackID ;
       if (currentchargebackID !== undefined && currentchargebackID!== null) {
-        const chargebackIDValue = Number(currentchargebackID);
+        const chargebackIDValue = String(currentchargebackID);
         if (opts_chargebackID.some(opt => opt.value === String(chargebackIDValue))) {
           setValue('chargebackID', chargebackIDValue);
         }

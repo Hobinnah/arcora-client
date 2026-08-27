@@ -230,7 +230,7 @@ export default function SecurityDepositTransactionForm({ onAlert, initialSecurit
     if (isEditMode && initialSecurityDepositTransaction && opts_securityDepositID.length > 0) {
       const currentsecurityDepositID = (initialSecurityDepositTransaction as any)?.securityDepositID ;
       if (currentsecurityDepositID !== undefined && currentsecurityDepositID!== null) {
-        const securityDepositIDValue = Number(currentsecurityDepositID);
+        const securityDepositIDValue = String(currentsecurityDepositID);
         if (opts_securityDepositID.some(opt => opt.value === String(securityDepositIDValue))) {
           setValue('securityDepositID', securityDepositIDValue);
         }
@@ -243,7 +243,7 @@ export default function SecurityDepositTransactionForm({ onAlert, initialSecurit
     if (isEditMode && initialSecurityDepositTransaction && opts_paymentID.length > 0) {
       const currentpaymentID = (initialSecurityDepositTransaction as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -256,7 +256,7 @@ export default function SecurityDepositTransactionForm({ onAlert, initialSecurit
     if (isEditMode && initialSecurityDepositTransaction && opts_refundID.length > 0) {
       const currentrefundID = (initialSecurityDepositTransaction as any)?.refundID ;
       if (currentrefundID !== undefined && currentrefundID!== null) {
-        const refundIDValue = Number(currentrefundID);
+        const refundIDValue = String(currentrefundID);
         if (opts_refundID.some(opt => opt.value === String(refundIDValue))) {
           setValue('refundID', refundIDValue);
         }
@@ -269,7 +269,7 @@ export default function SecurityDepositTransactionForm({ onAlert, initialSecurit
     if (isEditMode && initialSecurityDepositTransaction && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialSecurityDepositTransaction as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -282,7 +282,7 @@ export default function SecurityDepositTransactionForm({ onAlert, initialSecurit
     if (isEditMode && initialSecurityDepositTransaction && opts_invoiceDetailID.length > 0) {
       const currentinvoiceDetailID = (initialSecurityDepositTransaction as any)?.invoiceDetailID ;
       if (currentinvoiceDetailID !== undefined && currentinvoiceDetailID!== null) {
-        const invoiceDetailIDValue = Number(currentinvoiceDetailID);
+        const invoiceDetailIDValue = String(currentinvoiceDetailID);
         if (opts_invoiceDetailID.some(opt => opt.value === String(invoiceDetailIDValue))) {
           setValue('invoiceDetailID', invoiceDetailIDValue);
         }

@@ -55,7 +55,7 @@ export default function SubscriptionPlanList() {
   const convertToCSV = (rows: SubscriptionPlan[]): string => {
     if (!rows || rows.length === 0) return 'No data to export';
     const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
-    const fmt = (k: string, v: any) => {
+    const fmt = (v: any) => {
       try {
         if (!v) return '';
         return v;
@@ -63,7 +63,7 @@ export default function SubscriptionPlanList() {
     };
     const headers = ["Code", "Name", "Monthly Price", "Annual Price", "Currency", "Max Properties", "Max Rental Units", "Max Active Listings", "Max Organization Members", "Is Active"];
     const keys = ["code", "name", "monthlyPrice", "annualPrice", "currency", "maxProperties", "maxRentalUnits", "maxActiveListings", "maxOrganizationMembers", "isActive"];
-    const body = rows.map(r => keys.map(k => `"${esc(fmt(k, (r as any)?.[k]))}"`).join(','));
+    const body = rows.map(r => keys.map(k => `"${esc(fmt((r as any)?.[k]))}"`).join(','));
     return [headers.join(','), ...body].join('\n');
   };
 

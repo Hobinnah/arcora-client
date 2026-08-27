@@ -16,7 +16,7 @@ import '../../themes/theme.css';
 /* default import for the form component */
 import ViewingAppointmentsForm from '../../forms/ViewingAppointmentsForm.tsx';
 import type {ViewingAppointments} from '../../types/ViewingAppointments';
-import { getViewingAppointments } from '../../apis/useViewingAppointments';
+import { getViewingAppointmentsById } from '../../apis/useViewingAppointments';
 
 export default function ViewingAppointmentsDetails() {
 
@@ -50,7 +50,7 @@ export default function ViewingAppointmentsDetails() {
         setLoading(true);
         setIsEditMode(true);
         try {
-          const data = await getViewingAppointments(idParam!);
+          const data = await getViewingAppointmentsById(idParam!);
           setViewingAppointments(data);
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to load record';

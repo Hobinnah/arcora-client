@@ -70,7 +70,7 @@ export const fetchLeaseSignatories = async ({
   }
 };
 
-export const getLeaseSignatories = async (id?: string): Promise<LeaseSignatories> => {
+export const getLeaseSignatoriesById = async (id?: string): Promise<LeaseSignatories> => {
   try {
     const url = `${BASE_URL}api/leasesignatories/getLeaseSignatoriesById/${id}`;
     const response = await axios.get(url);

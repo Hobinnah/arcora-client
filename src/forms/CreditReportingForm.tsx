@@ -180,7 +180,7 @@ export default function CreditReportingForm({ onAlert, initialCreditReporting = 
     if (isEditMode && initialCreditReporting && opts_creditReportingEnrollmentID.length > 0) {
       const currentcreditReportingEnrollmentID = (initialCreditReporting as any)?.creditReportingEnrollmentID ;
       if (currentcreditReportingEnrollmentID !== undefined && currentcreditReportingEnrollmentID!== null) {
-        const creditReportingEnrollmentIDValue = Number(currentcreditReportingEnrollmentID);
+        const creditReportingEnrollmentIDValue = String(currentcreditReportingEnrollmentID);
         if (opts_creditReportingEnrollmentID.some(opt => opt.value === String(creditReportingEnrollmentIDValue))) {
           setValue('creditReportingEnrollmentID', creditReportingEnrollmentIDValue);
         }
@@ -193,7 +193,7 @@ export default function CreditReportingForm({ onAlert, initialCreditReporting = 
     if (isEditMode && initialCreditReporting && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialCreditReporting as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -206,7 +206,7 @@ export default function CreditReportingForm({ onAlert, initialCreditReporting = 
     if (isEditMode && initialCreditReporting && opts_paymentID.length > 0) {
       const currentpaymentID = (initialCreditReporting as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }

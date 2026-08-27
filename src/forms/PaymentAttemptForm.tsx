@@ -10,7 +10,6 @@ import type { AlertType } from '../env';
 import type { PaymentAttempt } from '../types/PaymentAttempt';
 import { createPaymentAttempt, updatePaymentAttempt } from '../apis/usePaymentAttempt';
 import { fetchData } from '../apis/useApi';
-import { useAuth } from '../hooks/useAuth';
 
 // Zod validation schema (numeric values preprocessed to numbers to support <select> sources)
 const paymentAttemptSchema = z.object({
@@ -37,7 +36,6 @@ interface PaymentAttemptFormProps {
 
 export default function PaymentAttemptForm({ onAlert, initialPaymentAttempt = null, isEditMode = false }: PaymentAttemptFormProps) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const [isMobile, setIsMobile] = React.useState(false);
 
   const [opts_paymentIntentID, setOpts_paymentIntentID] = React.useState<Array<{ label: string; value: string }>>([]);
@@ -133,7 +131,7 @@ export default function PaymentAttemptForm({ onAlert, initialPaymentAttempt = nu
     if (isEditMode && initialPaymentAttempt && opts_paymentIntentID.length > 0) {
       const currentpaymentIntentID = (initialPaymentAttempt as any)?.paymentIntentID ;
       if (currentpaymentIntentID !== undefined && currentpaymentIntentID!== null) {
-        const paymentIntentIDValue = Number(currentpaymentIntentID);
+        const paymentIntentIDValue = String(currentpaymentIntentID);
         if (opts_paymentIntentID.some(opt => opt.value === String(paymentIntentIDValue))) {
           setValue('paymentIntentID', paymentIntentIDValue);
         }
@@ -155,11 +153,12 @@ export default function PaymentAttemptForm({ onAlert, initialPaymentAttempt = nu
         failureCode: data.failureCode ?? '',
         failureMessage: data.failureMessage ?? '',
         attemptedAt: data.attemptedAt || null,
-        completedAt: data.completedAt || null,
         nextRetryAt: data.nextRetryAt || null,
         providerResponse: data.providerResponse ?? '',
         capturedDate : (isEditMode ? ((initialPaymentAttempt as any)?.capturedDate ?? new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]),
-        completedAt: (data.status === 'Completed' ? ((initialPaymentAttempt as any)?.completedAt || new Date().toISOString().split('T')[0]) : (initialPaymentAttempt as any)?.completedAt || null),
+        completedAt: data.status === 'Completed'
+          ? ((initialPaymentAttempt as any)?.completedAt || new Date().toISOString().split('T')[0])
+          : (initialPaymentAttempt as any)?.completedAt || null,
       };
       let result: any;
       result = isEditMode ? await updatePaymentAttempt(payload as PaymentAttempt) : await createPaymentAttempt(payload as PaymentAttempt);

@@ -180,7 +180,7 @@ export default function SecurityDepositForm({ onAlert, initialSecurityDeposit = 
     if (isEditMode && initialSecurityDeposit && opts_leaseID.length > 0) {
       const currentleaseID = (initialSecurityDeposit as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -193,7 +193,7 @@ export default function SecurityDepositForm({ onAlert, initialSecurityDeposit = 
     if (isEditMode && initialSecurityDeposit && opts_tenantID.length > 0) {
       const currenttenantID = (initialSecurityDeposit as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -206,7 +206,7 @@ export default function SecurityDepositForm({ onAlert, initialSecurityDeposit = 
     if (isEditMode && initialSecurityDeposit && opts_organizationID.length > 0) {
       const currentorganizationID = (initialSecurityDeposit as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

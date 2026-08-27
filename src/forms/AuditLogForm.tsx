@@ -10,7 +10,6 @@ import type { AlertType } from '../env';
 import type { AuditLog } from '../types/AuditLog';
 import { createAuditLog, updateAuditLog } from '../apis/useAuditLog';
 import { fetchData } from '../apis/useApi';
-import { useAuth } from '../hooks/useAuth';
 
 // Zod validation schema (numeric values preprocessed to numbers to support <select> sources)
 const auditLogSchema = z.object({
@@ -40,7 +39,6 @@ interface AuditLogFormProps {
 
 export default function AuditLogForm({ onAlert, initialAuditLog = null, isEditMode = false }: AuditLogFormProps) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const [isMobile, setIsMobile] = React.useState(false);
 
   const [opts_actorUserID, setOpts_actorUserID] = React.useState<Array<{ label: string; value: string }>>([]);
@@ -222,7 +220,7 @@ export default function AuditLogForm({ onAlert, initialAuditLog = null, isEditMo
     if (isEditMode && initialAuditLog && opts_actorUserID.length > 0) {
       const currentactorUserID = (initialAuditLog as any)?.actorUserID ;
       if (currentactorUserID !== undefined && currentactorUserID!== null) {
-        const actorUserIDValue = Number(currentactorUserID);
+        const actorUserIDValue = String(currentactorUserID);
         if (opts_actorUserID.some(opt => opt.value === String(actorUserIDValue))) {
           setValue('actorUserID', actorUserIDValue);
         }
@@ -235,7 +233,7 @@ export default function AuditLogForm({ onAlert, initialAuditLog = null, isEditMo
     if (isEditMode && initialAuditLog && opts_tenantID.length > 0) {
       const currenttenantID = (initialAuditLog as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -248,7 +246,7 @@ export default function AuditLogForm({ onAlert, initialAuditLog = null, isEditMo
     if (isEditMode && initialAuditLog && opts_organizationMemberID.length > 0) {
       const currentorganizationMemberID = (initialAuditLog as any)?.organizationMemberID ;
       if (currentorganizationMemberID !== undefined && currentorganizationMemberID!== null) {
-        const organizationMemberIDValue = Number(currentorganizationMemberID);
+        const organizationMemberIDValue = String(currentorganizationMemberID);
         if (opts_organizationMemberID.some(opt => opt.value === String(organizationMemberIDValue))) {
           setValue('organizationMemberID', organizationMemberIDValue);
         }
@@ -261,7 +259,7 @@ export default function AuditLogForm({ onAlert, initialAuditLog = null, isEditMo
     if (isEditMode && initialAuditLog && opts_organizationID.length > 0) {
       const currentorganizationID = (initialAuditLog as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

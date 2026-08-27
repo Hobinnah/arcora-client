@@ -1,0 +1,22 @@
+.hosting-listings-content { margin: 0 auto; max-width: 1180px; padding: 40px clamp(20px, 4vw, 48px) 90px; }
+.hosting-listings-toolbar { align-items: center; display: flex; justify-content: space-between; margin-bottom: 28px; }
+.hosting-listings-toolbar h1 { font-family: 'DM Sans', sans-serif; font-size: 26px; font-weight: 700; margin: 0; }
+.hosting-listings-actions { display: flex; gap: 10px; }
+.hosting-listings-icon-button { align-items: center; background: #f1f2f1; border: 0; border-radius: 50%; color: var(--ink); display: inline-flex; height: 38px; justify-content: center; width: 38px; }
+.hosting-listings-icon-button:hover { background: #e4e9e7; }
+.hosting-listings-search { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; display: flex; gap: 10px; margin-bottom: 22px; max-width: 340px; padding: 10px 14px; }
+.hosting-listings-search svg { color: var(--muted); flex: 0 0 auto; }
+.hosting-listings-search input {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--ink);
+  flex: 1;
+  font-size: 13px;
+  outline: none;
+  min-width: 0;
+}
+.hosting-listings-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.hosting-listings-empty { color: var(--muted); font-size: 13px; padding: 18px 0; }

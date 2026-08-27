@@ -172,7 +172,7 @@ export default function FeeForm({ onAlert, initialFee = null, isEditMode = false
     if (isEditMode && initialFee && opts_feeTypeID.length > 0) {
       const currentfeeTypeID = (initialFee as any)?.feeTypeID ;
       if (currentfeeTypeID !== undefined && currentfeeTypeID!== null) {
-        const feeTypeIDValue = Number(currentfeeTypeID);
+        const feeTypeIDValue = String(currentfeeTypeID);
         if (opts_feeTypeID.some(opt => opt.value === String(feeTypeIDValue))) {
           setValue('feeTypeID', feeTypeIDValue);
         }
@@ -185,7 +185,7 @@ export default function FeeForm({ onAlert, initialFee = null, isEditMode = false
     if (isEditMode && initialFee && opts_organizationID.length > 0) {
       const currentorganizationID = (initialFee as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

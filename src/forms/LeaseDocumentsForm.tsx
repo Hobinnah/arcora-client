@@ -164,7 +164,7 @@ export default function LeaseDocumentsForm({ onAlert, initialLeaseDocuments = nu
     if (isEditMode && initialLeaseDocuments && opts_leaseID.length > 0) {
       const currentleaseID = (initialLeaseDocuments as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -177,7 +177,7 @@ export default function LeaseDocumentsForm({ onAlert, initialLeaseDocuments = nu
     if (isEditMode && initialLeaseDocuments && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialLeaseDocuments as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }

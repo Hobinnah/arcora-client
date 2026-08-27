@@ -57,7 +57,7 @@ export default function ContractorList() {
   const convertToCSV = (rows: Contractor[]): string => {
     if (!rows || rows.length === 0) return 'No data to export';
     const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
-    const fmt = (k: string, v: any) => {
+    const fmt = (v: any) => {
       try {
         if (!v) return '';
         return v;
@@ -65,7 +65,7 @@ export default function ContractorList() {
     };
     const headers = ["Company Name", "Contact Name", "Email", "Phone Number", "Status"];
     const keys = ["companyName", "contactName", "email", "phoneNumber", "status"];
-    const body = rows.map(r => keys.map(k => `"${esc(fmt(k, (r as any)?.[k]))}"`).join(','));
+    const body = rows.map(r => keys.map(k => `"${esc(fmt((r as any)?.[k]))}"`).join(','));
     return [headers.join(','), ...body].join('\n');
   };
 

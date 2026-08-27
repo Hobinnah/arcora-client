@@ -134,7 +134,7 @@ export default function ListingAmenityForm({ onAlert, initialListingAmenity = nu
     if (isEditMode && initialListingAmenity && opts_listingID.length > 0) {
       const currentlistingID = (initialListingAmenity as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }
@@ -147,7 +147,7 @@ export default function ListingAmenityForm({ onAlert, initialListingAmenity = nu
     if (isEditMode && initialListingAmenity && opts_amenityID.length > 0) {
       const currentamenityID = (initialListingAmenity as any)?.amenityID ;
       if (currentamenityID !== undefined && currentamenityID!== null) {
-        const amenityIDValue = Number(currentamenityID);
+        const amenityIDValue = String(currentamenityID);
         if (opts_amenityID.some(opt => opt.value === String(amenityIDValue))) {
           setValue('amenityID', amenityIDValue);
         }

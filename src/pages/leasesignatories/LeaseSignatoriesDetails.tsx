@@ -16,7 +16,7 @@ import '../../themes/theme.css';
 /* default import for the form component */
 import LeaseSignatoriesForm from '../../forms/LeaseSignatoriesForm.tsx';
 import type {LeaseSignatories} from '../../types/LeaseSignatories';
-import { getLeaseSignatories } from '../../apis/useLeaseSignatories';
+import { getLeaseSignatoriesById } from '../../apis/useLeaseSignatories';
 
 export default function LeaseSignatoriesDetails() {
 
@@ -50,7 +50,7 @@ export default function LeaseSignatoriesDetails() {
         setLoading(true);
         setIsEditMode(true);
         try {
-          const data = await getLeaseSignatories(idParam!);
+          const data = await getLeaseSignatoriesById(idParam!);
           setLeaseSignatories(data);
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to load record';

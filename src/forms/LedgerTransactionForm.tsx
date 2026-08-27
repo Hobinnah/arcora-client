@@ -263,7 +263,7 @@ export default function LedgerTransactionForm({ onAlert, initialLedgerTransactio
     if (isEditMode && initialLedgerTransaction && opts_organizationID.length > 0) {
       const currentorganizationID = (initialLedgerTransaction as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -276,7 +276,7 @@ export default function LedgerTransactionForm({ onAlert, initialLedgerTransactio
     if (isEditMode && initialLedgerTransaction && opts_paymentID.length > 0) {
       const currentpaymentID = (initialLedgerTransaction as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -289,7 +289,7 @@ export default function LedgerTransactionForm({ onAlert, initialLedgerTransactio
     if (isEditMode && initialLedgerTransaction && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialLedgerTransaction as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -302,7 +302,7 @@ export default function LedgerTransactionForm({ onAlert, initialLedgerTransactio
     if (isEditMode && initialLedgerTransaction && opts_refundID.length > 0) {
       const currentrefundID = (initialLedgerTransaction as any)?.refundID ;
       if (currentrefundID !== undefined && currentrefundID!== null) {
-        const refundIDValue = Number(currentrefundID);
+        const refundIDValue = String(currentrefundID);
         if (opts_refundID.some(opt => opt.value === String(refundIDValue))) {
           setValue('refundID', refundIDValue);
         }
@@ -315,7 +315,7 @@ export default function LedgerTransactionForm({ onAlert, initialLedgerTransactio
     if (isEditMode && initialLedgerTransaction && opts_payoutID.length > 0) {
       const currentpayoutID = (initialLedgerTransaction as any)?.payoutID ;
       if (currentpayoutID !== undefined && currentpayoutID!== null) {
-        const payoutIDValue = Number(currentpayoutID);
+        const payoutIDValue = String(currentpayoutID);
         if (opts_payoutID.some(opt => opt.value === String(payoutIDValue))) {
           setValue('payoutID', payoutIDValue);
         }
@@ -328,7 +328,7 @@ export default function LedgerTransactionForm({ onAlert, initialLedgerTransactio
     if (isEditMode && initialLedgerTransaction && opts_reversedTransactionID.length > 0) {
       const currentreversedTransactionID = (initialLedgerTransaction as any)?.reversedTransactionID ;
       if (currentreversedTransactionID !== undefined && currentreversedTransactionID!== null) {
-        const reversedTransactionIDValue = Number(currentreversedTransactionID);
+        const reversedTransactionIDValue = String(currentreversedTransactionID);
         if (opts_reversedTransactionID.some(opt => opt.value === String(reversedTransactionIDValue))) {
           setValue('reversedTransactionID', reversedTransactionIDValue);
         }

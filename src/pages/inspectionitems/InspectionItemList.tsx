@@ -55,7 +55,7 @@ export default function InspectionItemList() {
   const convertToCSV = (rows: InspectionItem[]): string => {
     if (!rows || rows.length === 0) return 'No data to export';
     const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
-    const fmt = (k: string, v: any) => {
+    const fmt = (v: any) => {
       try {
         if (!v) return '';
         return v;
@@ -63,7 +63,7 @@ export default function InspectionItemList() {
     };
     const headers = ["Area", "Item Name", "Condition", "Requires Repair", "Estimated Repair Cost"];
     const keys = ["area", "itemName", "condition", "requiresRepair", "estimatedRepairCost"];
-    const body = rows.map(r => keys.map(k => `"${esc(fmt(k, (r as any)?.[k]))}"`).join(','));
+    const body = rows.map(r => keys.map(k => `"${esc(fmt((r as any)?.[k]))}"`).join(','));
     return [headers.join(','), ...body].join('\n');
   };
 

@@ -37,6 +37,7 @@ const listingSchema = z.object({
   applicationDeadline: z.string().optional(),
   notes: z.string().max(1000, "Notes must be less than 1000 characters").min(1, "Notes is required"),
   wIFINetwork: z.string().max(50, "WiFi Network must be less than 50 characters").optional(),
+  wIFIPassword: z.string().max(100, "WiFi Password must be less than 100 characters").optional(),
   acceptingApplications: z.boolean(),
 });
 
@@ -222,7 +223,7 @@ export default function ListingForm({ onAlert, initialListing = null, isEditMode
     if (isEditMode && initialListing && opts_rentalUnitID.length > 0) {
       const currentrentalUnitID = (initialListing as any)?.rentalUnitID ;
       if (currentrentalUnitID !== undefined && currentrentalUnitID!== null) {
-        const rentalUnitIDValue = Number(currentrentalUnitID);
+        const rentalUnitIDValue = String(currentrentalUnitID);
         if (opts_rentalUnitID.some(opt => opt.value === String(rentalUnitIDValue))) {
           setValue('rentalUnitID', rentalUnitIDValue);
         }
@@ -235,7 +236,7 @@ export default function ListingForm({ onAlert, initialListing = null, isEditMode
     if (isEditMode && initialListing && opts_listingTypeID.length > 0) {
       const currentlistingTypeID = (initialListing as any)?.listingTypeID ;
       if (currentlistingTypeID !== undefined && currentlistingTypeID!== null) {
-        const listingTypeIDValue = Number(currentlistingTypeID);
+        const listingTypeIDValue = String(currentlistingTypeID);
         if (opts_listingTypeID.some(opt => opt.value === String(listingTypeIDValue))) {
           setValue('listingTypeID', listingTypeIDValue);
         }
@@ -248,7 +249,7 @@ export default function ListingForm({ onAlert, initialListing = null, isEditMode
     if (isEditMode && initialListing && opts_organizationID.length > 0) {
       const currentorganizationID = (initialListing as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

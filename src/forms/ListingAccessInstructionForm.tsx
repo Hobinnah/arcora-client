@@ -21,6 +21,7 @@ const listingAccessInstructionSchema = z.object({
   availableFrom: z.string().optional(),
   availableUntil: z.string().optional(),
   isActive: z.boolean(),
+  secretReference: z.string().optional(),
 });
 
 type ListingAccessInstructionFormData = z.infer<typeof listingAccessInstructionSchema>;
@@ -146,7 +147,7 @@ export default function ListingAccessInstructionForm({ onAlert, initialListingAc
     if (isEditMode && initialListingAccessInstruction && opts_listingID.length > 0) {
       const currentlistingID = (initialListingAccessInstruction as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }
@@ -159,7 +160,7 @@ export default function ListingAccessInstructionForm({ onAlert, initialListingAc
     if (isEditMode && initialListingAccessInstruction && opts_leaseID.length > 0) {
       const currentleaseID = (initialListingAccessInstruction as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }

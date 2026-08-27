@@ -214,7 +214,7 @@ export default function ConversationForm({ onAlert, initialConversation = null, 
     if (isEditMode && initialConversation && opts_leaseID.length > 0) {
       const currentleaseID = (initialConversation as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -227,7 +227,7 @@ export default function ConversationForm({ onAlert, initialConversation = null, 
     if (isEditMode && initialConversation && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialConversation as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -240,7 +240,7 @@ export default function ConversationForm({ onAlert, initialConversation = null, 
     if (isEditMode && initialConversation && opts_maintenanceRequestID.length > 0) {
       const currentmaintenanceRequestID = (initialConversation as any)?.maintenanceRequestID ;
       if (currentmaintenanceRequestID !== undefined && currentmaintenanceRequestID!== null) {
-        const maintenanceRequestIDValue = Number(currentmaintenanceRequestID);
+        const maintenanceRequestIDValue = String(currentmaintenanceRequestID);
         if (opts_maintenanceRequestID.some(opt => opt.value === String(maintenanceRequestIDValue))) {
           setValue('maintenanceRequestID', maintenanceRequestIDValue);
         }
@@ -253,7 +253,7 @@ export default function ConversationForm({ onAlert, initialConversation = null, 
     if (isEditMode && initialConversation && opts_disputeID.length > 0) {
       const currentdisputeID = (initialConversation as any)?.disputeID ;
       if (currentdisputeID !== undefined && currentdisputeID!== null) {
-        const disputeIDValue = Number(currentdisputeID);
+        const disputeIDValue = String(currentdisputeID);
         if (opts_disputeID.some(opt => opt.value === String(disputeIDValue))) {
           setValue('disputeID', disputeIDValue);
         }

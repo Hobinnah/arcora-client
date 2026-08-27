@@ -238,7 +238,7 @@ export default function AutopayMandateForm({ onAlert, initialAutopayMandate = nu
     if (isEditMode && initialAutopayMandate && opts_leaseID.length > 0) {
       const currentleaseID = (initialAutopayMandate as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -251,7 +251,7 @@ export default function AutopayMandateForm({ onAlert, initialAutopayMandate = nu
     if (isEditMode && initialAutopayMandate && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialAutopayMandate as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -264,7 +264,7 @@ export default function AutopayMandateForm({ onAlert, initialAutopayMandate = nu
     if (isEditMode && initialAutopayMandate && opts_tenantID.length > 0) {
       const currenttenantID = (initialAutopayMandate as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -277,7 +277,7 @@ export default function AutopayMandateForm({ onAlert, initialAutopayMandate = nu
     if (isEditMode && initialAutopayMandate && opts_paymentMethodID.length > 0) {
       const currentpaymentMethodID = (initialAutopayMandate as any)?.paymentMethodID ;
       if (currentpaymentMethodID !== undefined && currentpaymentMethodID!== null) {
-        const paymentMethodIDValue = Number(currentpaymentMethodID);
+        const paymentMethodIDValue = String(currentpaymentMethodID);
         if (opts_paymentMethodID.some(opt => opt.value === String(paymentMethodIDValue))) {
           setValue('paymentMethodID', paymentMethodIDValue);
         }

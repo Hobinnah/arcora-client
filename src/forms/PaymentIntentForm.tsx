@@ -223,7 +223,7 @@ export default function PaymentIntentForm({ onAlert, initialPaymentIntent = null
     if (isEditMode && initialPaymentIntent && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialPaymentIntent as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -236,7 +236,7 @@ export default function PaymentIntentForm({ onAlert, initialPaymentIntent = null
     if (isEditMode && initialPaymentIntent && opts_autopayMandateID.length > 0) {
       const currentautopayMandateID = (initialPaymentIntent as any)?.autopayMandateID ;
       if (currentautopayMandateID !== undefined && currentautopayMandateID!== null) {
-        const autopayMandateIDValue = Number(currentautopayMandateID);
+        const autopayMandateIDValue = String(currentautopayMandateID);
         if (opts_autopayMandateID.some(opt => opt.value === String(autopayMandateIDValue))) {
           setValue('autopayMandateID', autopayMandateIDValue);
         }
@@ -249,7 +249,7 @@ export default function PaymentIntentForm({ onAlert, initialPaymentIntent = null
     if (isEditMode && initialPaymentIntent && opts_tenantID.length > 0) {
       const currenttenantID = (initialPaymentIntent as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -262,7 +262,7 @@ export default function PaymentIntentForm({ onAlert, initialPaymentIntent = null
     if (isEditMode && initialPaymentIntent && opts_paymentMethodID.length > 0) {
       const currentpaymentMethodID = (initialPaymentIntent as any)?.paymentMethodID ;
       if (currentpaymentMethodID !== undefined && currentpaymentMethodID!== null) {
-        const paymentMethodIDValue = Number(currentpaymentMethodID);
+        const paymentMethodIDValue = String(currentpaymentMethodID);
         if (opts_paymentMethodID.some(opt => opt.value === String(paymentMethodIDValue))) {
           setValue('paymentMethodID', paymentMethodIDValue);
         }
@@ -289,14 +289,15 @@ export default function PaymentIntentForm({ onAlert, initialPaymentIntent = null
         idempotencyKey: data.idempotencyKey ?? '',
         scheduledChargeAt: data.scheduledChargeAt || null,
         startedAt: data.startedAt || null,
-        completedAt: data.completedAt || null,
         cancelledAt: data.cancelledAt || null,
         failureReason: data.failureReason ?? '',
         capturedDate : (isEditMode ? ((initialPaymentIntent as any)?.capturedDate ?? new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]),
         capturedBy: (isEditMode ? ((initialPaymentIntent as any)?.capturedBy ?? ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()) : ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
         updatedDate : (isEditMode ? ((initialPaymentIntent as any)?.updatedDate ?? null) : null),
         updatedBy: (isEditMode ? ((initialPaymentIntent as any)?.updatedBy ?? ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()) : ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
-        completedAt: (data.status === 'Completed' ? ((initialPaymentIntent as any)?.completedAt || new Date().toISOString().split('T')[0]) : (initialPaymentIntent as any)?.completedAt || null),
+        completedAt: data.status === 'Completed'
+          ? ((initialPaymentIntent as any)?.completedAt || new Date().toISOString().split('T')[0])
+          : (initialPaymentIntent as any)?.completedAt || null,
       };
       let result: any;
       result = isEditMode ? await updatePaymentIntent(payload as PaymentIntent) : await createPaymentIntent(payload as PaymentIntent);

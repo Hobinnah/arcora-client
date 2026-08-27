@@ -166,7 +166,7 @@ export default function ContractorForm({ onAlert, initialContractor = null, isEd
     if (isEditMode && initialContractor && opts_organizationID.length > 0) {
       const currentorganizationID = (initialContractor as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -179,7 +179,7 @@ export default function ContractorForm({ onAlert, initialContractor = null, isEd
     if (isEditMode && initialContractor && opts_categoryID.length > 0) {
       const currentcategoryID = (initialContractor as any)?.categoryID ;
       if (currentcategoryID !== undefined && currentcategoryID!== null) {
-        const categoryIDValue = Number(currentcategoryID);
+        const categoryIDValue = String(currentcategoryID);
         if (opts_categoryID.some(opt => opt.value === String(categoryIDValue))) {
           setValue('categoryID', categoryIDValue);
         }

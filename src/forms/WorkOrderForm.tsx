@@ -257,7 +257,7 @@ export default function WorkOrderForm({ onAlert, initialWorkOrder = null, isEdit
     if (isEditMode && initialWorkOrder && opts_maintenanceRequestID.length > 0) {
       const currentmaintenanceRequestID = (initialWorkOrder as any)?.maintenanceRequestID ;
       if (currentmaintenanceRequestID !== undefined && currentmaintenanceRequestID!== null) {
-        const maintenanceRequestIDValue = Number(currentmaintenanceRequestID);
+        const maintenanceRequestIDValue = String(currentmaintenanceRequestID);
         if (opts_maintenanceRequestID.some(opt => opt.value === String(maintenanceRequestIDValue))) {
           setValue('maintenanceRequestID', maintenanceRequestIDValue);
         }
@@ -270,7 +270,7 @@ export default function WorkOrderForm({ onAlert, initialWorkOrder = null, isEdit
     if (isEditMode && initialWorkOrder && opts_contractorID.length > 0) {
       const currentcontractorID = (initialWorkOrder as any)?.contractorID ;
       if (currentcontractorID !== undefined && currentcontractorID!== null) {
-        const contractorIDValue = Number(currentcontractorID);
+        const contractorIDValue = String(currentcontractorID);
         if (opts_contractorID.some(opt => opt.value === String(contractorIDValue))) {
           setValue('contractorID', contractorIDValue);
         }
@@ -283,7 +283,7 @@ export default function WorkOrderForm({ onAlert, initialWorkOrder = null, isEdit
     if (isEditMode && initialWorkOrder && opts_assignedOrganizationMemberID.length > 0) {
       const currentassignedOrganizationMemberID = (initialWorkOrder as any)?.assignedOrganizationMemberID ;
       if (currentassignedOrganizationMemberID !== undefined && currentassignedOrganizationMemberID!== null) {
-        const assignedOrganizationMemberIDValue = Number(currentassignedOrganizationMemberID);
+        const assignedOrganizationMemberIDValue = String(currentassignedOrganizationMemberID);
         if (opts_assignedOrganizationMemberID.some(opt => opt.value === String(assignedOrganizationMemberIDValue))) {
           setValue('assignedOrganizationMemberID', assignedOrganizationMemberIDValue);
         }
@@ -296,7 +296,7 @@ export default function WorkOrderForm({ onAlert, initialWorkOrder = null, isEdit
     if (isEditMode && initialWorkOrder && opts_leaseID.length > 0) {
       const currentleaseID = (initialWorkOrder as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -309,7 +309,7 @@ export default function WorkOrderForm({ onAlert, initialWorkOrder = null, isEdit
     if (isEditMode && initialWorkOrder && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialWorkOrder as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -336,13 +336,14 @@ export default function WorkOrderForm({ onAlert, initialWorkOrder = null, isEdit
         currency: data.currency ?? '',
         scheduledAt: data.scheduledAt || null,
         startedAt: data.startedAt || null,
-        completedAt: data.completedAt || null,
         cancelledAt: data.cancelledAt || null,
         capturedDate: data.capturedDate || new Date().toISOString().split('T')[0],
         capturedBy: (data.capturedBy || ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
         updatedDate: data.updatedDate || null,
         updatedBy: (data.updatedBy || ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
-        completedAt: (data.status === 'Completed' ? ((initialWorkOrder as any)?.completedAt || new Date().toISOString().split('T')[0]) : (initialWorkOrder as any)?.completedAt || null),
+        completedAt: data.status === 'Completed'
+          ? ((initialWorkOrder as any)?.completedAt || new Date().toISOString().split('T')[0])
+          : (initialWorkOrder as any)?.completedAt || null,
       };
       let result: any;
       result = isEditMode ? await updateWorkOrder(payload as WorkOrder) : await createWorkOrder(payload as WorkOrder);

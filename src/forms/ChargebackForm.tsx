@@ -192,7 +192,7 @@ export default function ChargebackForm({ onAlert, initialChargeback = null, isEd
     if (isEditMode && initialChargeback && opts_paymentID.length > 0) {
       const currentpaymentID = (initialChargeback as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -205,7 +205,7 @@ export default function ChargebackForm({ onAlert, initialChargeback = null, isEd
     if (isEditMode && initialChargeback && opts_tenantID.length > 0) {
       const currenttenantID = (initialChargeback as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -218,7 +218,7 @@ export default function ChargebackForm({ onAlert, initialChargeback = null, isEd
     if (isEditMode && initialChargeback && opts_organizationID.length > 0) {
       const currentorganizationID = (initialChargeback as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

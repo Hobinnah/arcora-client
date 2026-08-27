@@ -167,7 +167,7 @@ export default function OrgSubscriptionForm({ onAlert, initialOrgSubscription = 
     if (isEditMode && initialOrgSubscription && opts_organizationID.length > 0) {
       const currentorganizationID = (initialOrgSubscription as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -180,7 +180,7 @@ export default function OrgSubscriptionForm({ onAlert, initialOrgSubscription = 
     if (isEditMode && initialOrgSubscription && opts_subscriptionPlanID.length > 0) {
       const currentsubscriptionPlanID = (initialOrgSubscription as any)?.subscriptionPlanID ;
       if (currentsubscriptionPlanID !== undefined && currentsubscriptionPlanID!== null) {
-        const subscriptionPlanIDValue = Number(currentsubscriptionPlanID);
+        const subscriptionPlanIDValue = String(currentsubscriptionPlanID);
         if (opts_subscriptionPlanID.some(opt => opt.value === String(subscriptionPlanIDValue))) {
           setValue('subscriptionPlanID', subscriptionPlanIDValue);
         }

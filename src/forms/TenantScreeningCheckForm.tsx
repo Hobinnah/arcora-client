@@ -164,7 +164,7 @@ export default function TenantScreeningCheckForm({ onAlert, initialTenantScreeni
     if (isEditMode && initialTenantScreeningCheck && opts_tenantID.length > 0) {
       const currenttenantID = (initialTenantScreeningCheck as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -177,7 +177,7 @@ export default function TenantScreeningCheckForm({ onAlert, initialTenantScreeni
     if (isEditMode && initialTenantScreeningCheck && opts_rentalApplicationID.length > 0) {
       const currentrentalApplicationID = (initialTenantScreeningCheck as any)?.rentalApplicationID ;
       if (currentrentalApplicationID !== undefined && currentrentalApplicationID!== null) {
-        const rentalApplicationIDValue = Number(currentrentalApplicationID);
+        const rentalApplicationIDValue = String(currentrentalApplicationID);
         if (opts_rentalApplicationID.some(opt => opt.value === String(rentalApplicationIDValue))) {
           setValue('rentalApplicationID', rentalApplicationIDValue);
         }
@@ -202,12 +202,13 @@ export default function TenantScreeningCheckForm({ onAlert, initialTenantScreeni
         resultSummary: data.resultSummary ?? '',
         reportReference: data.reportReference ?? '',
         requestedAt : (isEditMode ? ((initialTenantScreeningCheck as any)?.requestedAt ?? null) : null),
-        completedAt: data.completedAt || null,
         expiresAt: data.expiresAt || null,
         failureReason: data.failureReason ?? '',
         capturedDate : (isEditMode ? ((initialTenantScreeningCheck as any)?.capturedDate ?? new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]),
         capturedBy: (isEditMode ? ((initialTenantScreeningCheck as any)?.capturedBy ?? ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()) : ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
-        completedAt: (data.status === 'Completed' ? ((initialTenantScreeningCheck as any)?.completedAt || new Date().toISOString().split('T')[0]) : (initialTenantScreeningCheck as any)?.completedAt || null),
+        completedAt: data.status === 'Completed'
+          ? ((initialTenantScreeningCheck as any)?.completedAt || new Date().toISOString().split('T')[0])
+          : (initialTenantScreeningCheck as any)?.completedAt || null,
       };
       let result: any;
       result = isEditMode ? await updateTenantScreeningCheck(payload as TenantScreeningCheck) : await createTenantScreeningCheck(payload as TenantScreeningCheck);

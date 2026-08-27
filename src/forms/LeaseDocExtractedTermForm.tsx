@@ -10,7 +10,6 @@ import type { AlertType } from '../env';
 import type { LeaseDocExtractedTerm } from '../types/LeaseDocExtractedTerm';
 import { createLeaseDocExtractedTerm, updateLeaseDocExtractedTerm } from '../apis/useLeaseDocExtractedTerm';
 import { fetchData } from '../apis/useApi';
-import { useAuth } from '../hooks/useAuth';
 
 // Zod validation schema (numeric values preprocessed to numbers to support <select> sources)
 const leaseDocExtractedTermSchema = z.object({
@@ -25,6 +24,7 @@ const leaseDocExtractedTermSchema = z.object({
   extractedDate: z.string().optional(),
   reviewedAt: z.string().optional(),
   reviewedBy: z.string().max(100, "Reviewed By must be less than 100 characters").optional(),
+  rawExtractionJson: z.string().optional(),
 });
 
 type LeaseDocExtractedTermFormData = z.infer<typeof leaseDocExtractedTermSchema>;
@@ -37,7 +37,6 @@ interface LeaseDocExtractedTermFormProps {
 
 export default function LeaseDocExtractedTermForm({ onAlert, initialLeaseDocExtractedTerm = null, isEditMode = false }: LeaseDocExtractedTermFormProps) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const [isMobile, setIsMobile] = React.useState(false);
 
   const [opts_leaseDocumentID, setOpts_leaseDocumentID] = React.useState<Array<{ label: string; value: string }>>([]);
@@ -158,7 +157,7 @@ export default function LeaseDocExtractedTermForm({ onAlert, initialLeaseDocExtr
     if (isEditMode && initialLeaseDocExtractedTerm && opts_leaseDocumentID.length > 0) {
       const currentleaseDocumentID = (initialLeaseDocExtractedTerm as any)?.leaseDocumentID ;
       if (currentleaseDocumentID !== undefined && currentleaseDocumentID!== null) {
-        const leaseDocumentIDValue = Number(currentleaseDocumentID);
+        const leaseDocumentIDValue = String(currentleaseDocumentID);
         if (opts_leaseDocumentID.some(opt => opt.value === String(leaseDocumentIDValue))) {
           setValue('leaseDocumentID', leaseDocumentIDValue);
         }
@@ -171,7 +170,7 @@ export default function LeaseDocExtractedTermForm({ onAlert, initialLeaseDocExtr
     if (isEditMode && initialLeaseDocExtractedTerm && opts_reviewedBy.length > 0) {
       const currentreviewedBy = (initialLeaseDocExtractedTerm as any)?.reviewedBy ;
       if (currentreviewedBy !== undefined && currentreviewedBy!== null) {
-        const reviewedByValue = Number(currentreviewedBy);
+        const reviewedByValue = String(currentreviewedBy);
         if (opts_reviewedBy.some(opt => opt.value === String(reviewedByValue))) {
           setValue('reviewedBy', reviewedByValue);
         }

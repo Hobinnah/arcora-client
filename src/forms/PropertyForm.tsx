@@ -149,7 +149,7 @@ export default function PropertyForm({ onAlert, initialProperty = null, isEditMo
     if (isEditMode && initialProperty && opts_organizationID.length > 0) {
       const currentorganizationID = (initialProperty as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -162,7 +162,7 @@ export default function PropertyForm({ onAlert, initialProperty = null, isEditMo
     if (isEditMode && initialProperty && opts_addressID.length > 0) {
       const currentaddressID = (initialProperty as any)?.addressID ;
       if (currentaddressID !== undefined && currentaddressID!== null) {
-        const addressIDValue = Number(currentaddressID);
+        const addressIDValue = String(currentaddressID);
         if (opts_addressID.some(opt => opt.value === String(addressIDValue))) {
           setValue('addressID', addressIDValue);
         }

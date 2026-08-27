@@ -225,7 +225,7 @@ export default function LeaseOccupantsForm({ onAlert, initialLeaseOccupants = nu
     if (isEditMode && initialLeaseOccupants && opts_leaseID.length > 0) {
       const currentleaseID = (initialLeaseOccupants as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -238,7 +238,7 @@ export default function LeaseOccupantsForm({ onAlert, initialLeaseOccupants = nu
     if (isEditMode && initialLeaseOccupants && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialLeaseOccupants as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -251,7 +251,7 @@ export default function LeaseOccupantsForm({ onAlert, initialLeaseOccupants = nu
     if (isEditMode && initialLeaseOccupants && opts_tenantID.length > 0) {
       const currenttenantID = (initialLeaseOccupants as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -264,7 +264,7 @@ export default function LeaseOccupantsForm({ onAlert, initialLeaseOccupants = nu
     if (isEditMode && initialLeaseOccupants && opts_userID.length > 0) {
       const currentuserID = (initialLeaseOccupants as any)?.userID ;
       if (currentuserID !== undefined && currentuserID!== null) {
-        const userIDValue = Number(currentuserID);
+        const userIDValue = String(currentuserID);
         if (opts_userID.some(opt => opt.value === String(userIDValue))) {
           setValue('userID', userIDValue);
         }

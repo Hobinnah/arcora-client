@@ -31,6 +31,8 @@ import { useNavigate } from 'react-router-dom';
  * @constant ROLE_ROUTES
  */
 const ROLE_ROUTES = {
+  /** Landlord role - redirects to the hosting dashboard */
+  landlord: "/hosting",
   /** Standard user role - redirects to personal course management */
     user: "/overview",
   /** Administrator role - redirects to system administration dashboard */
@@ -109,7 +111,7 @@ export const useAuthRedirect = () => {
      * 2. Add new roles to both ROLE_ROUTES object and this priority array
      * 3. Consider access level hierarchy when setting priorities
      */
-    for (const role of ['admin', 'user', 'viewer'] as const) {
+    for (const role of ['landlord', 'admin', 'user', 'viewer'] as const) {
       if (normalizedRoles.includes(role)) {
         return ROLE_ROUTES[role];
       }

@@ -20,6 +20,29 @@
 
 import { useContext } from "react";
 import { AuthContext } from "../contexts/AuthProvider";
+import type { AuthResponse } from "../types/AuthResponse";
+
+const fallbackAuthContext = {
+    authToken: null,
+    currentUser: null,
+    isAuthenticated: false,
+    handleLogin: async () => {
+        throw new Error("Authentication is not initialized.");
+    },
+    handleLogout: async () => {
+        return;
+    },
+    complete2FA: async (_finalToken: string) => {
+        throw new Error("Authentication is not initialized.");
+    },
+} as {
+    authToken?: string | null;
+    currentUser?: AuthResponse | null;
+    isAuthenticated?: boolean | null;
+    handleLogin: (username: string, password: string) => Promise<AuthResponse>;
+    handleLogout: () => Promise<void>;
+    complete2FA: (finalToken: string) => Promise<void>;
+};
 
 /**
  * Custom React hook for accessing authentication context and methods
@@ -143,7 +166,8 @@ import { AuthContext } from "../contexts/AuthProvider";
 export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {
-        throw new Error("useAuth must be used within an AuthProvider");
+        console.warn("useAuth called outside AuthProvider. Falling back to unauthenticated context.");
+        return fallbackAuthContext;
     }
     return context;
 }

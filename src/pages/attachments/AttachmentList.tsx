@@ -55,7 +55,7 @@ export default function AttachmentList() {
   const convertToCSV = (rows: Attachment[]): string => {
     if (!rows || rows.length === 0) return 'No data to export';
     const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
-    const fmt = (k: string, v: any) => {
+    const fmt = (v: any) => {
       try {
         if (!v) return '';
         return v;
@@ -63,7 +63,7 @@ export default function AttachmentList() {
     };
     const headers = ["Entity Type", "Entity ID", "File Name", "MIME Type", "File Size (Bytes)", "Storage Provider", "Attachment Type"];
     const keys = ["entityType", "entityID", "fileName", "mimeType", "fileSizeBytes", "storageProvider", "attachmentType"];
-    const body = rows.map(r => keys.map(k => `"${esc(fmt(k, (r as any)?.[k]))}"`).join(','));
+    const body = rows.map(r => keys.map(k => `"${esc(fmt((r as any)?.[k]))}"`).join(','));
     return [headers.join(','), ...body].join('\n');
   };
 

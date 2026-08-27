@@ -168,7 +168,7 @@ export default function CreditReportingEnrollmentForm({ onAlert, initialCreditRe
     if (isEditMode && initialCreditReportingEnrollment && opts_leaseID.length > 0) {
       const currentleaseID = (initialCreditReportingEnrollment as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -181,7 +181,7 @@ export default function CreditReportingEnrollmentForm({ onAlert, initialCreditRe
     if (isEditMode && initialCreditReportingEnrollment && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialCreditReportingEnrollment as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -194,7 +194,7 @@ export default function CreditReportingEnrollmentForm({ onAlert, initialCreditRe
     if (isEditMode && initialCreditReportingEnrollment && opts_tenantID.length > 0) {
       const currenttenantID = (initialCreditReportingEnrollment as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

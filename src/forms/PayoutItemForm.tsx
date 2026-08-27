@@ -148,7 +148,7 @@ export default function PayoutItemForm({ onAlert, initialPayoutItem = null, isEd
     if (isEditMode && initialPayoutItem && opts_payoutID.length > 0) {
       const currentpayoutID = (initialPayoutItem as any)?.payoutID ;
       if (currentpayoutID !== undefined && currentpayoutID!== null) {
-        const payoutIDValue = Number(currentpayoutID);
+        const payoutIDValue = String(currentpayoutID);
         if (opts_payoutID.some(opt => opt.value === String(payoutIDValue))) {
           setValue('payoutID', payoutIDValue);
         }
@@ -161,7 +161,7 @@ export default function PayoutItemForm({ onAlert, initialPayoutItem = null, isEd
     if (isEditMode && initialPayoutItem && opts_paymentID.length > 0) {
       const currentpaymentID = (initialPayoutItem as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }

@@ -24,6 +24,7 @@ const Header: React.FC<HeaderProps> = (props) => {
   } = props;
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = React.useState(false);
 
   const handleLogout = () => {
     navigate('/logout');
@@ -73,7 +74,7 @@ const Header: React.FC<HeaderProps> = (props) => {
       <div className="top-identity"><span className="top-app">{clientName}</span><span className="top-sep"> : </span><span className="top-tenant">{branchName}</span></div>
       <div style={{ flex: 1 }} />
       <button className="icon-btn" title="Command palette (Ctrl/Cmd+K)" onClick={onSearch}><SearchIcon /></button>
-      <button className="icon-btn" title="Language"><GlobeIcon /></button>
+      <button className="icon-btn" title="Languages and currency" onClick={() => setLanguageMenuOpen(true)}><GlobeIcon /></button>
       <button className="icon-btn" title="Notifications" onClick={onNotify}><BellIcon /></button>
       <button className="icon-btn" title="Logout" onClick={handleLogout}><PadlockIcon /></button>
       <div
@@ -115,6 +116,7 @@ const Header: React.FC<HeaderProps> = (props) => {
           setDensity={setDensity}
         />
       )}
+      {languageMenuOpen && <div className="header-language-overlay" onClick={() => setLanguageMenuOpen(false)}><section className="header-language-modal" role="dialog" aria-modal="true" aria-label="Language and region settings" onClick={(event) => event.stopPropagation()}><button type="button" className="header-language-close" aria-label="Close" onClick={() => setLanguageMenuOpen(false)}>×</button><div className="header-language-tabs"><button type="button" className="is-selected">Language and region</button><button type="button">Currency</button></div><div className="header-language-content"><div className="header-translation"><div><strong>Translation</strong><small>Automatically translate descriptions and reviews to English.</small></div><span className="header-language-toggle">✓</span></div><h2>Suggested language and region</h2><p className="header-suggested-language"><strong>English</strong><span>United Kingdom</span></p><h2>Choose a language and region</h2><div className="header-option-grid">{[['English', 'United States'], ['English', 'Canada'], ['English', 'Australia'], ['Français', 'France'], ['Español', 'España'], ['Deutsch', 'Deutschland'], ['Italiano', 'Italia'], ['Português', 'Portugal']].map(([language, region]) => <button type="button" key={`${language}-${region}`} onClick={() => setLanguageMenuOpen(false)}>{language}<small>{region}</small></button>)}</div></div></section></div>}
     </div>
   );
 };

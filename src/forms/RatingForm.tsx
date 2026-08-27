@@ -169,7 +169,7 @@ export default function RatingForm({ onAlert, initialRating = null, isEditMode =
     if (isEditMode && initialRating && opts_leaseID.length > 0) {
       const currentleaseID = (initialRating as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -182,7 +182,7 @@ export default function RatingForm({ onAlert, initialRating = null, isEditMode =
     if (isEditMode && initialRating && opts_reviewerUserID.length > 0) {
       const currentreviewerUserID = (initialRating as any)?.reviewerUserID ;
       if (currentreviewerUserID !== undefined && currentreviewerUserID!== null) {
-        const reviewerUserIDValue = Number(currentreviewerUserID);
+        const reviewerUserIDValue = String(currentreviewerUserID);
         if (opts_reviewerUserID.some(opt => opt.value === String(reviewerUserIDValue))) {
           setValue('reviewerUserID', reviewerUserIDValue);
         }

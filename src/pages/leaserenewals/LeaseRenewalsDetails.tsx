@@ -16,7 +16,7 @@ import '../../themes/theme.css';
 /* default import for the form component */
 import LeaseRenewalsForm from '../../forms/LeaseRenewalsForm.tsx';
 import type {LeaseRenewals} from '../../types/LeaseRenewals';
-import { getLeaseRenewals } from '../../apis/useLeaseRenewals';
+import { getLeaseRenewalsById } from '../../apis/useLeaseRenewals';
 
 export default function LeaseRenewalsDetails() {
 
@@ -50,7 +50,7 @@ export default function LeaseRenewalsDetails() {
         setLoading(true);
         setIsEditMode(true);
         try {
-          const data = await getLeaseRenewals(idParam!);
+          const data = await getLeaseRenewalsById(idParam!);
           setLeaseRenewals(data);
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to load record';

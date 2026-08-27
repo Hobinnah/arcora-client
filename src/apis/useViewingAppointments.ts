@@ -76,7 +76,7 @@ export const fetchViewingAppointments = async ({
   }
 };
 
-export const getViewingAppointments = async (id?: string): Promise<ViewingAppointments> => {
+export const getViewingAppointmentsById = async (id?: string): Promise<ViewingAppointments> => {
   try {
     const url = `${BASE_URL}api/viewingappointments/getViewingAppointmentsById/${id}`;
     const response = await axios.get(url);

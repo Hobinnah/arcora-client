@@ -145,7 +145,7 @@ export default function PaymentMethodForm({ onAlert, initialPaymentMethod = null
     if (isEditMode && initialPaymentMethod && opts_tenantID.length > 0) {
       const currenttenantID = (initialPaymentMethod as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

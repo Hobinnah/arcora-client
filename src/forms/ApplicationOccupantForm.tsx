@@ -188,7 +188,7 @@ export default function ApplicationOccupantForm({ onAlert, initialApplicationOcc
     if (isEditMode && initialApplicationOccupant && opts_rentalApplicationID.length > 0) {
       const currentrentalApplicationID = (initialApplicationOccupant as any)?.rentalApplicationID ;
       if (currentrentalApplicationID !== undefined && currentrentalApplicationID!== null) {
-        const rentalApplicationIDValue = Number(currentrentalApplicationID);
+        const rentalApplicationIDValue = String(currentrentalApplicationID);
         if (opts_rentalApplicationID.some(opt => opt.value === String(rentalApplicationIDValue))) {
           setValue('rentalApplicationID', rentalApplicationIDValue);
         }
@@ -201,7 +201,7 @@ export default function ApplicationOccupantForm({ onAlert, initialApplicationOcc
     if (isEditMode && initialApplicationOccupant && opts_tenantID.length > 0) {
       const currenttenantID = (initialApplicationOccupant as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -214,7 +214,7 @@ export default function ApplicationOccupantForm({ onAlert, initialApplicationOcc
     if (isEditMode && initialApplicationOccupant && opts_userID.length > 0) {
       const currentuserID = (initialApplicationOccupant as any)?.userID ;
       if (currentuserID !== undefined && currentuserID!== null) {
-        const userIDValue = Number(currentuserID);
+        const userIDValue = String(currentuserID);
         if (opts_userID.some(opt => opt.value === String(userIDValue))) {
           setValue('userID', userIDValue);
         }

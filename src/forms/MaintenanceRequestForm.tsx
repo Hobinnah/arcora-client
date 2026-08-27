@@ -318,7 +318,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_propertyID.length > 0) {
       const currentpropertyID = (initialMaintenanceRequest as any)?.propertyID ;
       if (currentpropertyID !== undefined && currentpropertyID!== null) {
-        const propertyIDValue = Number(currentpropertyID);
+        const propertyIDValue = String(currentpropertyID);
         if (opts_propertyID.some(opt => opt.value === String(propertyIDValue))) {
           setValue('propertyID', propertyIDValue);
         }
@@ -331,7 +331,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_rentalUnitID.length > 0) {
       const currentrentalUnitID = (initialMaintenanceRequest as any)?.rentalUnitID ;
       if (currentrentalUnitID !== undefined && currentrentalUnitID!== null) {
-        const rentalUnitIDValue = Number(currentrentalUnitID);
+        const rentalUnitIDValue = String(currentrentalUnitID);
         if (opts_rentalUnitID.some(opt => opt.value === String(rentalUnitIDValue))) {
           setValue('rentalUnitID', rentalUnitIDValue);
         }
@@ -344,7 +344,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_listingID.length > 0) {
       const currentlistingID = (initialMaintenanceRequest as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }
@@ -357,7 +357,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_leaseID.length > 0) {
       const currentleaseID = (initialMaintenanceRequest as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -370,7 +370,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialMaintenanceRequest as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -383,7 +383,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_submittedByTenantID.length > 0) {
       const currentsubmittedByTenantID = (initialMaintenanceRequest as any)?.submittedByTenantID ;
       if (currentsubmittedByTenantID !== undefined && currentsubmittedByTenantID!== null) {
-        const submittedByTenantIDValue = Number(currentsubmittedByTenantID);
+        const submittedByTenantIDValue = String(currentsubmittedByTenantID);
         if (opts_submittedByTenantID.some(opt => opt.value === String(submittedByTenantIDValue))) {
           setValue('submittedByTenantID', submittedByTenantIDValue);
         }
@@ -396,7 +396,7 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
     if (isEditMode && initialMaintenanceRequest && opts_categoryID.length > 0) {
       const currentcategoryID = (initialMaintenanceRequest as any)?.categoryID ;
       if (currentcategoryID !== undefined && currentcategoryID!== null) {
-        const categoryIDValue = Number(currentcategoryID);
+        const categoryIDValue = String(currentcategoryID);
         if (opts_categoryID.some(opt => opt.value === String(categoryIDValue))) {
           setValue('categoryID', categoryIDValue);
         }
@@ -425,13 +425,14 @@ export default function MaintenanceRequestForm({ onAlert, initialMaintenanceRequ
         submittedAt: data.submittedAt || null,
         acknowledgedAt: data.acknowledgedAt || null,
         scheduledAt: data.scheduledAt || null,
-        completedAt: data.completedAt || null,
         cancelledAt: data.cancelledAt || null,
         capturedDate: data.capturedDate || new Date().toISOString().split('T')[0],
         capturedBy: (data.capturedBy || ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
         updatedDate: data.updatedDate || null,
         updatedBy: (data.updatedBy || ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
-        completedAt: (data.status === 'Completed' ? ((initialMaintenanceRequest as any)?.completedAt || new Date().toISOString().split('T')[0]) : (initialMaintenanceRequest as any)?.completedAt || null),
+        completedAt: data.status === 'Completed'
+          ? ((initialMaintenanceRequest as any)?.completedAt || new Date().toISOString().split('T')[0])
+          : (initialMaintenanceRequest as any)?.completedAt || null,
       };
       let result: any;
       result = isEditMode ? await updateMaintenanceRequest(payload as MaintenanceRequest) : await createMaintenanceRequest(payload as MaintenanceRequest);

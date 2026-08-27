@@ -241,7 +241,7 @@ export default function InvoiceMasterForm({ onAlert, initialInvoiceMaster = null
     if (isEditMode && initialInvoiceMaster && opts_leaseID.length > 0) {
       const currentleaseID = (initialInvoiceMaster as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -254,7 +254,7 @@ export default function InvoiceMasterForm({ onAlert, initialInvoiceMaster = null
     if (isEditMode && initialInvoiceMaster && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialInvoiceMaster as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -267,7 +267,7 @@ export default function InvoiceMasterForm({ onAlert, initialInvoiceMaster = null
     if (isEditMode && initialInvoiceMaster && opts_organizationID.length > 0) {
       const currentorganizationID = (initialInvoiceMaster as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -280,7 +280,7 @@ export default function InvoiceMasterForm({ onAlert, initialInvoiceMaster = null
     if (isEditMode && initialInvoiceMaster && opts_tenantID.length > 0) {
       const currenttenantID = (initialInvoiceMaster as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

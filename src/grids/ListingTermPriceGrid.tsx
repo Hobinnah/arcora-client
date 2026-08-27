@@ -61,7 +61,7 @@ const ListingTermPriceGrid: React.FC<ListingTermPriceGridProps> = ({
   const [visible] = useState<Record<string, boolean>>({});
 
   const [active, set_active] = useState<string>('');
-  const [lease_term_(months), set_lease_term_(months)] = useState<string>('');
+  const [leaseTermMonths, setLeaseTermMonths] = useState<string>('');
 
   const load = useCallback(async () => {
     try {
@@ -72,7 +72,7 @@ const ListingTermPriceGrid: React.FC<ListingTermPriceGridProps> = ({
         sortBy: sort?.key || undefined,
         sortDirection: sort?.dir || undefined,
         isActive: active || undefined,
-        leaseTermMonths: lease_term_(months) || undefined,
+        leaseTermMonths: leaseTermMonths || undefined,
       } : {
         // client-side fetch: still respect the selected pageSize; pagination happens locally
         pageSize: 1000,
@@ -92,7 +92,7 @@ const ListingTermPriceGrid: React.FC<ListingTermPriceGridProps> = ({
       setError(msg); onAlert?.(msg, 'error'); setItems([]); setTotalCount(0);
     } finally { setLoading(false); }
   }, env.SEARCH_STRATEGY === 'server'
-    ? [pageSize, page, query, sort, active, lease_term_(months), onAlert]
+    ? [pageSize, page, query, sort, active, leaseTermMonths, onAlert]
     : [pageSize, onAlert]
   );
 
@@ -100,14 +100,14 @@ const ListingTermPriceGrid: React.FC<ListingTermPriceGridProps> = ({
 
   const filtered = useMemo(() => {
     if (env.SEARCH_STRATEGY === 'server') return items;
-    if ( !query && !sort && active === '' && lease_term_(months) === '') return items;
+    if ( !query && !sort && active === '' && leaseTermMonths === '') return items;
 
     let res = items.filter((r: ListingTermPrice) => {
       const s = (String((r as any)?.leaseTermMonths ?? '') + ' ' + String((r as any)?.monthlyRentAmount ?? '') + ' ' + String((r as any)?.securityDepositAmount ?? '') + ' ' + String((r as any)?.effectiveFrom ?? '') + ' ' + String((r as any)?.effectiveTo ?? '') + ' ' + String((r as any)?.capturedDate ?? '') + ' ' + String((r as any)?.capturedBy ?? '') + ' ' + String((r as any)?.updatedDate ?? '') + ' ' + String((r as any)?.updatedBy ?? '')).toLowerCase();
       const matchesSearch = !query || s.includes(query.toLowerCase());
       const match_active = !active || String((r as any)?.isActive ?? '') === active;
-      const match_lease_term_(months) = !lease_term_(months) || String((r as any)?.leaseTermMonths ?? '') === lease_term_(months);
-      return matchesSearch && match_active && match_lease_term_(months);
+      const matchLeaseTermMonths = !leaseTermMonths || String((r as any)?.leaseTermMonths ?? '') === leaseTermMonths;
+      return matchesSearch && match_active && matchLeaseTermMonths;
     });
     if (sort) {
       const { key, dir } = sort;
@@ -115,14 +115,14 @@ const ListingTermPriceGrid: React.FC<ListingTermPriceGridProps> = ({
       if (dir === 'desc') res.reverse();
     }
     return res;
-  }, [items, query, sort, active, lease_term_(months)]);
+  }, [items, query, sort, active, leaseTermMonths]);
 
   const filteredCount = env.SEARCH_STRATEGY === 'server' ? totalCount : filtered.length;
   const pages = Math.max(1, Math.ceil(filteredCount / pageSize));
   const start = (page - 1) * pageSize;
   const current = env.SEARCH_STRATEGY === 'server' ? filtered : filtered.slice(start, start + pageSize);
 
-  useEffect(() => { if (query || sort || active || lease_term_(months)) setPage(1); }, [query, sort, active, lease_term_(months)]);
+  useEffect(() => { if (query || sort || active || leaseTermMonths) setPage(1); }, [query, sort, active, leaseTermMonths]);
   useEffect(() => { setPage(1); }, [pageSize]);
 
   useEffect(() => {
@@ -207,7 +207,7 @@ const ListingTermPriceGrid: React.FC<ListingTermPriceGridProps> = ({
           </label>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
             <span>Lease Term (Months)</span>
-            <input className="input" placeholder="All" value={ lease_term_(months) } onChange={(e) => set_lease_term_(months)(e.target.value)} />
+            <input className="input" placeholder="All" value={ leaseTermMonths } onChange={(e) => setLeaseTermMonths(e.target.value)} />
           </label>
           <input className="input" placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>

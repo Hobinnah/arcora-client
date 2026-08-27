@@ -161,7 +161,7 @@ export default function PaymentForm({ onAlert, initialPayment = null, isEditMode
     if (isEditMode && initialPayment && opts_paymentIntentID.length > 0) {
       const currentpaymentIntentID = (initialPayment as any)?.paymentIntentID ;
       if (currentpaymentIntentID !== undefined && currentpaymentIntentID!== null) {
-        const paymentIntentIDValue = Number(currentpaymentIntentID);
+        const paymentIntentIDValue = String(currentpaymentIntentID);
         if (opts_paymentIntentID.some(opt => opt.value === String(paymentIntentIDValue))) {
           setValue('paymentIntentID', paymentIntentIDValue);
         }
@@ -174,7 +174,7 @@ export default function PaymentForm({ onAlert, initialPayment = null, isEditMode
     if (isEditMode && initialPayment && opts_tenantID.length > 0) {
       const currenttenantID = (initialPayment as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

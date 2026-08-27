@@ -146,7 +146,7 @@ export default function TenantInvitationForm({ onAlert, initialTenantInvitation 
     if (isEditMode && initialTenantInvitation && opts_leaseID.length > 0) {
       const currentleaseID = (initialTenantInvitation as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -159,7 +159,7 @@ export default function TenantInvitationForm({ onAlert, initialTenantInvitation 
     if (isEditMode && initialTenantInvitation && opts_rentalApplicationID.length > 0) {
       const currentrentalApplicationID = (initialTenantInvitation as any)?.rentalApplicationID ;
       if (currentrentalApplicationID !== undefined && currentrentalApplicationID!== null) {
-        const rentalApplicationIDValue = Number(currentrentalApplicationID);
+        const rentalApplicationIDValue = String(currentrentalApplicationID);
         if (opts_rentalApplicationID.some(opt => opt.value === String(rentalApplicationIDValue))) {
           setValue('rentalApplicationID', rentalApplicationIDValue);
         }

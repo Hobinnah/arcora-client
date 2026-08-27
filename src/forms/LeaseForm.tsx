@@ -305,7 +305,7 @@ export default function LeaseForm({ onAlert, initialLease = null, isEditMode = f
     if (isEditMode && initialLease && opts_organizationID.length > 0) {
       const currentorganizationID = (initialLease as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -318,7 +318,7 @@ export default function LeaseForm({ onAlert, initialLease = null, isEditMode = f
     if (isEditMode && initialLease && opts_listingID.length > 0) {
       const currentlistingID = (initialLease as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }
@@ -331,7 +331,7 @@ export default function LeaseForm({ onAlert, initialLease = null, isEditMode = f
     if (isEditMode && initialLease && opts_rentalUnitID.length > 0) {
       const currentrentalUnitID = (initialLease as any)?.rentalUnitID ;
       if (currentrentalUnitID !== undefined && currentrentalUnitID!== null) {
-        const rentalUnitIDValue = Number(currentrentalUnitID);
+        const rentalUnitIDValue = String(currentrentalUnitID);
         if (opts_rentalUnitID.some(opt => opt.value === String(rentalUnitIDValue))) {
           setValue('rentalUnitID', rentalUnitIDValue);
         }
@@ -344,7 +344,7 @@ export default function LeaseForm({ onAlert, initialLease = null, isEditMode = f
     if (isEditMode && initialLease && opts_tenancyTypeID.length > 0) {
       const currenttenancyTypeID = (initialLease as any)?.tenancyTypeID ;
       if (currenttenancyTypeID !== undefined && currenttenancyTypeID!== null) {
-        const tenancyTypeIDValue = Number(currenttenancyTypeID);
+        const tenancyTypeIDValue = String(currenttenancyTypeID);
         if (opts_tenancyTypeID.some(opt => opt.value === String(tenancyTypeIDValue))) {
           setValue('tenancyTypeID', tenancyTypeIDValue);
         }
@@ -357,7 +357,7 @@ export default function LeaseForm({ onAlert, initialLease = null, isEditMode = f
     if (isEditMode && initialLease && opts_tenantID.length > 0) {
       const currenttenantID = (initialLease as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -370,7 +370,7 @@ export default function LeaseForm({ onAlert, initialLease = null, isEditMode = f
     if (isEditMode && initialLease && opts_rentalApplicationID.length > 0) {
       const currentrentalApplicationID = (initialLease as any)?.rentalApplicationID ;
       if (currentrentalApplicationID !== undefined && currentrentalApplicationID!== null) {
-        const rentalApplicationIDValue = Number(currentrentalApplicationID);
+        const rentalApplicationIDValue = String(currentrentalApplicationID);
         if (opts_rentalApplicationID.some(opt => opt.value === String(rentalApplicationIDValue))) {
           setValue('rentalApplicationID', rentalApplicationIDValue);
         }

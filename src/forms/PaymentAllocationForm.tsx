@@ -168,7 +168,7 @@ export default function PaymentAllocationForm({ onAlert, initialPaymentAllocatio
     if (isEditMode && initialPaymentAllocation && opts_paymentID.length > 0) {
       const currentpaymentID = (initialPaymentAllocation as any)?.paymentID ;
       if (currentpaymentID !== undefined && currentpaymentID!== null) {
-        const paymentIDValue = Number(currentpaymentID);
+        const paymentIDValue = String(currentpaymentID);
         if (opts_paymentID.some(opt => opt.value === String(paymentIDValue))) {
           setValue('paymentID', paymentIDValue);
         }
@@ -181,7 +181,7 @@ export default function PaymentAllocationForm({ onAlert, initialPaymentAllocatio
     if (isEditMode && initialPaymentAllocation && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialPaymentAllocation as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -194,7 +194,7 @@ export default function PaymentAllocationForm({ onAlert, initialPaymentAllocatio
     if (isEditMode && initialPaymentAllocation && opts_invoiceDetailID.length > 0) {
       const currentinvoiceDetailID = (initialPaymentAllocation as any)?.invoiceDetailID ;
       if (currentinvoiceDetailID !== undefined && currentinvoiceDetailID!== null) {
-        const invoiceDetailIDValue = Number(currentinvoiceDetailID);
+        const invoiceDetailIDValue = String(currentinvoiceDetailID);
         if (opts_invoiceDetailID.some(opt => opt.value === String(invoiceDetailIDValue))) {
           setValue('invoiceDetailID', invoiceDetailIDValue);
         }

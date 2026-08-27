@@ -115,7 +115,7 @@ export default function OrganizationStatementForm({ onAlert, initialOrganization
     if (isEditMode && initialOrganizationStatement && opts_organizationID.length > 0) {
       const currentorganizationID = (initialOrganizationStatement as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

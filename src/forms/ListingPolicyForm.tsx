@@ -133,7 +133,7 @@ export default function ListingPolicyForm({ onAlert, initialListingPolicy = null
     if (isEditMode && initialListingPolicy && opts_listingID.length > 0) {
       const currentlistingID = (initialListingPolicy as any)?.listingID ;
       if (currentlistingID !== undefined && currentlistingID!== null) {
-        const listingIDValue = Number(currentlistingID);
+        const listingIDValue = String(currentlistingID);
         if (opts_listingID.some(opt => opt.value === String(listingIDValue))) {
           setValue('listingID', listingIDValue);
         }

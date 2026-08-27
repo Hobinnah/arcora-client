@@ -155,7 +155,7 @@ export default function AutopayConsentAuditForm({ onAlert, initialAutopayConsent
     if (isEditMode && initialAutopayConsentAudit && opts_autopayMandateID.length > 0) {
       const currentautopayMandateID = (initialAutopayConsentAudit as any)?.autopayMandateID ;
       if (currentautopayMandateID !== undefined && currentautopayMandateID!== null) {
-        const autopayMandateIDValue = Number(currentautopayMandateID);
+        const autopayMandateIDValue = String(currentautopayMandateID);
         if (opts_autopayMandateID.some(opt => opt.value === String(autopayMandateIDValue))) {
           setValue('autopayMandateID', autopayMandateIDValue);
         }
@@ -168,7 +168,7 @@ export default function AutopayConsentAuditForm({ onAlert, initialAutopayConsent
     if (isEditMode && initialAutopayConsentAudit && opts_tenantID.length > 0) {
       const currenttenantID = (initialAutopayConsentAudit as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }

@@ -2,6 +2,7 @@
 
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -14,6 +15,13 @@ interface AvatarMenuProps {
 
 const AvatarMenu: React.FC<AvatarMenuProps> = ({ theme, setTheme, density, setDensity }) => {
   const { currentUser } = useAuth();
+  const [languageModalOpen, setLanguageModalOpen] = React.useState(false);
+  const [languageTab, setLanguageTab] = React.useState<'language' | 'currency'>('language');
+  const [translationEnabled, setTranslationEnabled] = React.useState(true);
+  const [selectedLanguage, setSelectedLanguage] = React.useState('English');
+  const [selectedCurrency, setSelectedCurrency] = React.useState('Canadian dollar');
+  const languageOptions = [['English', 'United States'], ['Azərbaycan dili', 'Azərbaycan'], ['Bahasa Indonesia', 'Indonesia'], ['Bosanski', 'Bosna i Hercegovina'], ['Català', 'Espanya'], ['Čeština', 'Česká republika'], ['Dansk', 'Danmark'], ['Deutsch', 'Deutschland'], ['English', 'Australia'], ['English', 'Canada'], ['English', 'Ireland'], ['English', 'New Zealand'], ['Español', 'Argentina'], ['Español', 'Chile'], ['Español', 'España']];
+  const currencyOptions = [['Canadian dollar', 'CAD – $'], ['Australian dollar', 'AUD – $'], ['Brazilian real', 'BRL – R$'], ['Euro', 'EUR – €'], ['Indian rupee', 'INR – ₹'], ['Japanese yen', 'JPY – ¥'], ['New Zealand dollar', 'NZD – $'], ['Pound sterling', 'GBP – £'], ['Singapore dollar', 'SGD – $'], ['United States dollar', 'USD – $']];
 
   return (
   <div className="dropdown avatar-menu" role="menu" style={{width:'280px', minWidth:'240px', padding:'0', maxHeight:'80vh', overflowY:'auto', overflowX:'hidden', boxSizing:'border-box'}}>
@@ -51,6 +59,10 @@ const AvatarMenu: React.FC<AvatarMenuProps> = ({ theme, setTheme, density, setDe
         <span style={{color:'#3b82f6',fontSize:18, paddingRight:6}}><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/></svg></span>
         Settings
       </NavLink>
+      <button type="button" className="avatar-menu-item" onClick={() => setLanguageModalOpen(true)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 18px',background:'none',border:'none',width:'100%',fontSize:'13px',fontWeight:500,cursor:'pointer',textAlign:'left'}}>
+        <span style={{color:'#167c80',fontSize:18, paddingRight:6}}>◎</span>
+        Languages and currency
+      </button>
       <NavLink to="/support" className="avatar-menu-item" style={{display:'flex',alignItems:'center',gap:10,padding:'10px 18px',background:'none',border:'none',width:'100%',fontSize:'13px',fontWeight:500,cursor:'pointer'}}>
         <span style={{color:'#f59e42',fontSize:18, paddingRight:6}}><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/></svg></span>
         Support
@@ -72,6 +84,7 @@ const AvatarMenu: React.FC<AvatarMenuProps> = ({ theme, setTheme, density, setDe
         <button className={`seg-btn ${density==='compact'?'is-active':''}`} style={{fontSize:'12px',padding:'6px 14px',borderRadius:'8px'}} onClick={()=>setDensity('compact')}>Compact</button>
       </div>
     </div>
+    {languageModalOpen && createPortal(<div className="avatar-language-overlay" role="presentation" onClick={() => setLanguageModalOpen(false)}><section className="avatar-language-modal" role="dialog" aria-modal="true" aria-label="Language and region settings" onClick={(event) => event.stopPropagation()}><button type="button" className="avatar-language-close" aria-label="Close" onClick={() => setLanguageModalOpen(false)}>×</button><div className="avatar-language-tabs"><button type="button" className={languageTab === 'language' ? 'is-selected' : ''} onClick={() => setLanguageTab('language')}>Language and region</button><button type="button" className={languageTab === 'currency' ? 'is-selected' : ''} onClick={() => setLanguageTab('currency')}>Currency</button></div>{languageTab === 'language' ? <div className="avatar-language-content"><div className="avatar-translation"><div><strong>Translation</strong><small>Automatically translate descriptions and reviews to English.</small></div><button type="button" role="switch" aria-checked={translationEnabled} className={`account-settings-switch${translationEnabled ? ' is-on' : ''}`} onClick={() => setTranslationEnabled((current) => !current)}><span /></button></div><h2>Suggested language and region</h2><p className="avatar-suggested-language"><strong>English</strong><span>United Kingdom</span></p><h2>Choose a language and region</h2><div className="avatar-option-grid">{languageOptions.map(([language, region]) => <button type="button" className={selectedLanguage === language && region === 'United States' ? 'is-selected' : ''} key={`${language}-${region}`} onClick={() => { setSelectedLanguage(language); setLanguageModalOpen(false); }}>{language}<small>{region}</small></button>)}</div></div> : <div className="avatar-language-content"><h2>Choose a currency</h2><div className="avatar-option-grid">{currencyOptions.map(([currency, symbol]) => <button type="button" className={selectedCurrency === currency ? 'is-selected' : ''} key={currency} onClick={() => { setSelectedCurrency(currency); setLanguageModalOpen(false); }}>{currency}<small>{symbol}</small></button>)}</div></div>}</section></div>, document.body)}
   </div>
   );
 };

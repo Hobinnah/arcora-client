@@ -166,7 +166,7 @@ export default function PayoutForm({ onAlert, initialPayout = null, isEditMode =
     if (isEditMode && initialPayout && opts_organizationID.length > 0) {
       const currentorganizationID = (initialPayout as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -179,7 +179,7 @@ export default function PayoutForm({ onAlert, initialPayout = null, isEditMode =
     if (isEditMode && initialPayout && opts_orgPayoutAccountID.length > 0) {
       const currentorgPayoutAccountID = (initialPayout as any)?.orgPayoutAccountID ;
       if (currentorgPayoutAccountID !== undefined && currentorgPayoutAccountID!== null) {
-        const orgPayoutAccountIDValue = Number(currentorgPayoutAccountID);
+        const orgPayoutAccountIDValue = String(currentorgPayoutAccountID);
         if (opts_orgPayoutAccountID.some(opt => opt.value === String(orgPayoutAccountIDValue))) {
           setValue('orgPayoutAccountID', orgPayoutAccountIDValue);
         }

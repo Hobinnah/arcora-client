@@ -45,6 +45,233 @@ import { DefaultApiPaths } from '../types/Account';
  */
 const BASE_URL = env.API_BASE_URL;
 
+export type RequestLoginCodeResponse = {
+    emailExists: boolean;
+    message: string;
+    verificationToken?: string;
+};
+
+export type VerifyLoginCodeResponse = {
+    finalToken: string;
+    message: string;
+    isLoginSuccessful?: boolean;
+};
+
+const REQUEST_LOGIN_CODE_SENT_REGEX = /verification code has been sent|code has been sent|sent to your email/i;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function pickString(source: Record<string, unknown>, keys: string[]): string | undefined {
+    for (const key of keys) {
+        const value = source[key];
+        if (typeof value === 'string' && value.trim()) {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+function pickBoolean(source: Record<string, unknown>, keys: string[]): boolean | undefined {
+    for (const key of keys) {
+        const value = source[key];
+        if (typeof value === 'boolean') {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+function summarizeUnexpectedResponse(body: unknown): string {
+    if (typeof body === 'string') {
+        return body;
+    }
+    if (body && typeof body === 'object') {
+        const message = pickString(body as Record<string, unknown>, ['message', 'Message', 'detail', 'title']);
+        if (message) {
+            return message;
+        }
+    }
+    return 'Unrecognized response payload.';
+}
+
+function normalizeRequestLoginCodeResponse(body: unknown): RequestLoginCodeResponse | null {
+    if (typeof body === 'string') {
+        const message = body.trim();
+        if (message && REQUEST_LOGIN_CODE_SENT_REGEX.test(message)) {
+            return { emailExists: false, message };
+        }
+        return null;
+    }
+
+    const record = asRecord(body);
+    if (!record) {
+        return null;
+    }
+
+    const candidates = [record, asRecord(record.data), asRecord(record.result), asRecord(record.payload)].filter(Boolean) as Record<string, unknown>[];
+    let emailExists: boolean | undefined;
+    let message: string | undefined;
+    let verificationToken: string | undefined;
+
+    for (const candidate of candidates) {
+        if (emailExists === undefined) {
+            emailExists = pickBoolean(candidate, ['emailExists', 'EmailExists', 'isEmailExists', 'exists']);
+        }
+        if (!message) {
+            message = pickString(candidate, ['message', 'Message', 'detail', 'title']);
+        }
+        if (!verificationToken) {
+            verificationToken = pickString(candidate, ['verificationToken', 'VerificationToken', 'tempToken', 'TempToken', 'token', 'Token']);
+        }
+    }
+
+    if (emailExists === undefined) {
+        if (verificationToken) {
+            emailExists = false;
+        } else if (message && REQUEST_LOGIN_CODE_SENT_REGEX.test(message)) {
+            emailExists = false;
+        }
+    }
+
+    if (emailExists === undefined) {
+        return null;
+    }
+
+    return {
+        emailExists,
+        message: message || '',
+        verificationToken,
+    };
+}
+
+export async function requestLoginCode(email: string): Promise<RequestLoginCodeResponse> {
+    const response = await fetch(`${BASE_URL}api/Account/RequestLoginCode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    const rawBody = await response.text();
+    let body: any = rawBody;
+    try { body = rawBody ? JSON.parse(rawBody) : rawBody; } catch { /* Plain-text endpoint response. */ }
+    if (response.status !== 200) throw new Error(typeof body === 'string' && body ? body : 'Unable to continue with this email.');
+
+    const normalized = normalizeRequestLoginCodeResponse(body);
+    if (!normalized) {
+        throw new Error(`Unexpected RequestLoginCode response: ${summarizeUnexpectedResponse(body)}`);
+    }
+
+    return normalized;
+}
+
+export async function verifyLoginCode(emailAddress: string, token: string, otpCode: string): Promise<VerifyLoginCodeResponse> {
+    const endpoints = [
+        `${BASE_URL}api/Account/VerifyLoginCode`,
+        `${BASE_URL}api/Auth/VerifyLoginCode`,
+    ];
+
+    let lastError: Error | null = null;
+
+    for (const endpoint of endpoints) {
+        try {
+            const requestBody = {
+                emailAddress,
+                email: emailAddress,
+                verificationToken: token,
+                token,
+                code: otpCode,
+                verificationCode: otpCode,
+                otpCode,
+            };
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+            });
+
+            const rawBody = await response.text();
+            let body: unknown = rawBody;
+            try { body = rawBody ? JSON.parse(rawBody) : rawBody; } catch { /* Plain-text endpoint response. */ }
+
+            if (response.status === 405 || response.status === 404) {
+                const getUrl = new URL(endpoint);
+                getUrl.searchParams.set('emailAddress', emailAddress);
+                getUrl.searchParams.set('email', emailAddress);
+                getUrl.searchParams.set('verificationToken', token);
+                getUrl.searchParams.set('token', token);
+                getUrl.searchParams.set('code', otpCode);
+                getUrl.searchParams.set('verificationCode', otpCode);
+                getUrl.searchParams.set('otpCode', otpCode);
+
+                const getResponse = await fetch(getUrl.toString(), { method: 'GET' });
+                const getRawBody = await getResponse.text();
+                let getBody: unknown = getRawBody;
+                try { getBody = getRawBody ? JSON.parse(getRawBody) : getRawBody; } catch { /* Plain-text endpoint response. */ }
+
+                if (!getResponse.ok) {
+                    throw new Error(typeof getBody === 'string' && getBody ? getBody : summarizeUnexpectedResponse(getBody));
+                }
+
+                const getRecord = asRecord(getBody);
+                const getCandidates = [getRecord, asRecord(getRecord?.data), asRecord(getRecord?.result), asRecord(getRecord?.payload)].filter(Boolean) as Record<string, unknown>[];
+                let getFinalToken: string | undefined;
+                let getMessage: string | undefined;
+
+                for (const candidate of getCandidates) {
+                    if (!getFinalToken) {
+                        getFinalToken = pickString(candidate, ['accessToken', 'AccessToken', 'finalToken', 'FinalToken', 'token', 'Token', 'jwt', 'Jwt']);
+                    }
+                    if (!getMessage) {
+                        getMessage = pickString(candidate, ['message', 'Message', 'detail', 'title']);
+                    }
+                }
+
+                if (!getFinalToken) {
+                    throw new Error(getMessage || 'Verification succeeded but no final token was returned.');
+                }
+
+                return { finalToken: getFinalToken, message: getMessage || 'Verification successful.' };
+            }
+
+            if (!response.ok) {
+                throw new Error(typeof body === 'string' && body ? body : summarizeUnexpectedResponse(body));
+            }
+
+            const record = asRecord(body);
+            const candidates = [record, asRecord(record?.data), asRecord(record?.result), asRecord(record?.payload)].filter(Boolean) as Record<string, unknown>[];
+
+            let finalToken: string | undefined;
+            let message: string | undefined;
+            let isLoginSuccessful: boolean | undefined;
+
+            for (const candidate of candidates) {
+                if (!finalToken) {
+                    finalToken = pickString(candidate, ['accessToken', 'AccessToken', 'finalToken', 'FinalToken', 'token', 'Token', 'jwt', 'Jwt']);
+                }
+                if (!message) {
+                    message = pickString(candidate, ['message', 'Message', 'detail', 'title']);
+                }
+                if (isLoginSuccessful === undefined) {
+                    isLoginSuccessful = pickBoolean(candidate, ['isLoginSuccessful', 'IsLoginSuccessful', 'success', 'Success']);
+                }
+            }
+
+            if (!finalToken && !isLoginSuccessful) {
+                throw new Error(message || 'Verification succeeded but no final token was returned.');
+            }
+
+            return { finalToken: finalToken || '', message: message || 'Verification successful.', isLoginSuccessful };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unable to verify code.';
+            lastError = new Error(`VerifyLoginCode failed at ${endpoint}: ${message}`);
+        }
+    }
+
+    throw lastError || new Error('Unable to verify code.');
+}
+
 /**
  * Retrieves the current authenticated user's information from secure cookie storage
  * 

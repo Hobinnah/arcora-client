@@ -1,0 +1,59 @@
+.login-page { font-family: 'DM Sans', sans-serif; }
+.login-nav { align-items: center; background: rgba(255,255,255,.94); display: flex; justify-content: space-between; padding: 14px 32px; position: relative; z-index: 5; }
+.login-brand { align-items: center; color: #172c2b; display: flex; font-size: 22px; font-weight: 700; gap: 4px; letter-spacing: -1px; text-decoration: none; }
+.login-brand-mark { align-items: center; background: #167c80; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; height: 28px; justify-content: center; transform: rotate(-45deg); width: 28px; }
+.login-brand-mark > span { display: inline-block; transform: rotate(45deg) translateY(-1px); }
+.login-nav-right { align-items: center; display: flex; gap: 16px; }
+.login-nav-right > button { background: transparent; border: 0; color: #172c2b; font-size: 13px; font-weight: 600; }
+.login-nav-menu { align-items: center; background: #167c80 !important; border-radius: 50%; color: #fff !important; display: flex; height: 34px; justify-content: center; width: 34px; }
+.login-nav-menu svg { height: 16px; width: 16px; }
+.login-hero { background: #f7f7f7; min-height: calc(100vh - 56px); overflow: hidden; position: relative; }
+.login-page .marketplace-nav { display: none; }
+
+/* City poster background */
+.login-poster-bg { inset: 0; overflow: hidden; position: absolute; z-index: 0; }
+.login-poster-grid { display: grid; gap: 10px; grid-template-columns: repeat(5, 240px); grid-template-rows: repeat(3, 220px); left: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(-12deg) scale(1.35); width: max-content; }
+.login-poster-card { border-radius: 18px; overflow: hidden; position: relative; }
+.login-poster-card img { display: block; height: 100%; object-fit: cover; width: 100%; }
+.login-poster-card span { color: #fff; font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; left: 16px; position: absolute; text-shadow: 0 2px 12px rgba(0,0,0,.5); top: 16px; z-index: 1; }
+.login-poster-card-bottom span { bottom: 16px; left: auto; right: 16px; top: auto; }
+.login-poster-card-bottom::after { background: linear-gradient(transparent 50%, rgba(0,0,0,.4)) !important; }
+.login-poster-card-nolabel span { display: none; }
+.login-poster-card::after { background: linear-gradient(rgba(0,0,0,.35) 0%, transparent 50%); content: ''; inset: 0; position: absolute; }
+.login-poster-card-nolabel::after { display: none; }
+
+/* Modal */
+.login-modal { animation: login-fade-in .35s ease-out; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.2); left: 50%; max-width: 440px; padding: 40px 36px 36px; position: absolute; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 40px); z-index: 4; }
+.login-modal-logo { margin: 0 auto 18px; text-align: center; }
+.login-modal-mark { align-items: center; background: #167c80; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 600; height: 44px; justify-content: center; transform: rotate(-45deg); width: 44px; }
+.login-modal-mark > span { display: inline-block; transform: rotate(45deg) translateY(-1px); }
+.login-modal h1 { color: #172c2b; font-family: 'DM Sans', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 0; margin: 0 0 24px; text-align: center; }
+.login-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 12px; margin-bottom: 14px; padding: 10px 12px; }
+.login-field { margin-bottom: 14px; }
+.login-field input { border: 1px solid #ddd; border-radius: 10px; font-size: 14px; outline: 0; padding: 14px 16px; width: 100%; }
+.login-field input:focus { border-color: #167c80; box-shadow: 0 0 0 3px rgba(22,124,128,.12); }
+.login-field-error { color: #c62828; display: block; font-size: 11px; margin: -8px 0 12px; }
+.login-field-readonly { align-items: center; background: #f9f9f9; border: 1px solid #eee; border-radius: 10px; display: flex; font-size: 13px; justify-content: space-between; padding: 12px 16px; }
+.login-change-email { background: 0; border: 0; color: #167c80; font-size: 12px; font-weight: 700; }
+.login-password-wrap { position: relative; }
+.login-password-wrap input { padding-right: 44px; }
+.login-eye { background: 0; border: 0; font-size: 18px; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); }
+.login-remember { align-items: center; display: flex; font-size: 13px; gap: 8px; margin-bottom: 18px; }
+.login-remember input { accent-color: #167c80; height: 16px; width: 16px; }
+.login-submit { background: linear-gradient(135deg, #167c80, #0e555b); border: 0; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 700; padding: 14px; width: 100%; }
+.login-submit:hover { background: linear-gradient(135deg, #0e555b, #093a3e); }
+.login-submit:disabled { opacity: .6; }
+.login-submit.is-loading { align-items: center; display: inline-flex; gap: 8px; justify-content: center; }
+.login-submit-spinner { animation: login-submit-spin .8s linear infinite; border: 2px solid rgba(255,255,255,.35); border-radius: 50%; border-top-color: #fff; height: 14px; width: 14px; }
+@keyframes login-submit-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.login-forgot { background: 0; border: 0; color: #167c80; display: block; font-size: 12px; font-weight: 600; margin: 12px auto 0; text-decoration: underline; text-underline-offset: 2px; }
+.login-divider { align-items: center; display: flex; gap: 12px; margin: 20px 0; }
+.login-divider::before, .login-divider::after { background: #e5e5e5; content: ''; flex: 1; height: 1px; }
+.login-divider span { color: #888; font-size: 12px; }
+.login-page.marketplace .login-social { align-items: center; background: #fff; border: 1px solid #ddd; border-radius: 10px; display: flex; font-size: 13px; font-weight: 600; gap: 12px; justify-content: center; padding: 12px; width: 100%; }
+.login-social:hover { background: #f9f9f9; }
+.login-page.marketplace .login-register { color: #666; font-size: 13px; margin: 28px 0 0; text-align: center; }
+.login-register button { background: 0; border: 0; color: #167c80; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+@keyframes login-fade-in { from { opacity: 0; transform: translate(-50%, -48%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.login-page .marketplace-footer { margin-top: 80px; padding-left: clamp(20px, 5vw, 60px); padding-right: clamp(20px, 5vw, 60px); position: relative; z-index: 1; }
+@media (max-width: 600px) { .login-modal { padding: 32px 24px 28px; } .login-poster-grid { grid-template-columns: repeat(4, 180px); grid-template-rows: repeat(4, 180px); } .login-nav { padding: 12px 20px; } }

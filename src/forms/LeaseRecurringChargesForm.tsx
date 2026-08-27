@@ -192,7 +192,7 @@ export default function LeaseRecurringChargesForm({ onAlert, initialLeaseRecurri
     if (isEditMode && initialLeaseRecurringCharges && opts_leaseID.length > 0) {
       const currentleaseID = (initialLeaseRecurringCharges as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
@@ -205,7 +205,7 @@ export default function LeaseRecurringChargesForm({ onAlert, initialLeaseRecurri
     if (isEditMode && initialLeaseRecurringCharges && opts_leaseRenewalID.length > 0) {
       const currentleaseRenewalID = (initialLeaseRecurringCharges as any)?.leaseRenewalID ;
       if (currentleaseRenewalID !== undefined && currentleaseRenewalID!== null) {
-        const leaseRenewalIDValue = Number(currentleaseRenewalID);
+        const leaseRenewalIDValue = String(currentleaseRenewalID);
         if (opts_leaseRenewalID.some(opt => opt.value === String(leaseRenewalIDValue))) {
           setValue('leaseRenewalID', leaseRenewalIDValue);
         }
@@ -218,7 +218,7 @@ export default function LeaseRecurringChargesForm({ onAlert, initialLeaseRecurri
     if (isEditMode && initialLeaseRecurringCharges && opts_feeID.length > 0) {
       const currentfeeID = (initialLeaseRecurringCharges as any)?.feeID ;
       if (currentfeeID !== undefined && currentfeeID!== null) {
-        const feeIDValue = Number(currentfeeID);
+        const feeIDValue = String(currentfeeID);
         if (opts_feeID.some(opt => opt.value === String(feeIDValue))) {
           setValue('feeID', feeIDValue);
         }

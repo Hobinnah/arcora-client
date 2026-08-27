@@ -124,7 +124,7 @@ export default function LedgerAccountForm({ onAlert, initialLedgerAccount = null
     if (isEditMode && initialLedgerAccount && opts_organizationID.length > 0) {
       const currentorganizationID = (initialLedgerAccount as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }

@@ -127,7 +127,7 @@ export default function InspectionItemForm({ onAlert, initialInspectionItem = nu
     if (isEditMode && initialInspectionItem && opts_inspectionID.length > 0) {
       const currentinspectionID = (initialInspectionItem as any)?.inspectionID ;
       if (currentinspectionID !== undefined && currentinspectionID!== null) {
-        const inspectionIDValue = Number(currentinspectionID);
+        const inspectionIDValue = String(currentinspectionID);
         if (opts_inspectionID.some(opt => opt.value === String(inspectionIDValue))) {
           setValue('inspectionID', inspectionIDValue);
         }

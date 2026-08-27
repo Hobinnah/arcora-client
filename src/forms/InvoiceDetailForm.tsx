@@ -189,7 +189,7 @@ export default function InvoiceDetailForm({ onAlert, initialInvoiceDetail = null
     if (isEditMode && initialInvoiceDetail && opts_invoiceMasterID.length > 0) {
       const currentinvoiceMasterID = (initialInvoiceDetail as any)?.invoiceMasterID ;
       if (currentinvoiceMasterID !== undefined && currentinvoiceMasterID!== null) {
-        const invoiceMasterIDValue = Number(currentinvoiceMasterID);
+        const invoiceMasterIDValue = String(currentinvoiceMasterID);
         if (opts_invoiceMasterID.some(opt => opt.value === String(invoiceMasterIDValue))) {
           setValue('invoiceMasterID', invoiceMasterIDValue);
         }
@@ -202,7 +202,7 @@ export default function InvoiceDetailForm({ onAlert, initialInvoiceDetail = null
     if (isEditMode && initialInvoiceDetail && opts_leaseRecurringChargeID.length > 0) {
       const currentleaseRecurringChargeID = (initialInvoiceDetail as any)?.leaseRecurringChargeID ;
       if (currentleaseRecurringChargeID !== undefined && currentleaseRecurringChargeID!== null) {
-        const leaseRecurringChargeIDValue = Number(currentleaseRecurringChargeID);
+        const leaseRecurringChargeIDValue = String(currentleaseRecurringChargeID);
         if (opts_leaseRecurringChargeID.some(opt => opt.value === String(leaseRecurringChargeIDValue))) {
           setValue('leaseRecurringChargeID', leaseRecurringChargeIDValue);
         }
@@ -215,7 +215,7 @@ export default function InvoiceDetailForm({ onAlert, initialInvoiceDetail = null
     if (isEditMode && initialInvoiceDetail && opts_feeID.length > 0) {
       const currentfeeID = (initialInvoiceDetail as any)?.feeID ;
       if (currentfeeID !== undefined && currentfeeID!== null) {
-        const feeIDValue = Number(currentfeeID);
+        const feeIDValue = String(currentfeeID);
         if (opts_feeID.some(opt => opt.value === String(feeIDValue))) {
           setValue('feeID', feeIDValue);
         }

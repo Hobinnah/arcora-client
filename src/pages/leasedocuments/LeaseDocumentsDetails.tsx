@@ -16,7 +16,7 @@ import '../../themes/theme.css';
 /* default import for the form component */
 import LeaseDocumentsForm from '../../forms/LeaseDocumentsForm.tsx';
 import type {LeaseDocuments} from '../../types/LeaseDocuments';
-import { getLeaseDocuments } from '../../apis/useLeaseDocuments';
+import { getLeaseDocumentsById } from '../../apis/useLeaseDocuments';
 
 export default function LeaseDocumentsDetails() {
 
@@ -50,7 +50,7 @@ export default function LeaseDocumentsDetails() {
         setLoading(true);
         setIsEditMode(true);
         try {
-          const data = await getLeaseDocuments(idParam!);
+          const data = await getLeaseDocumentsById(idParam!);
           setLeaseDocuments(data);
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to load record';

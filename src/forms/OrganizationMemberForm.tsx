@@ -154,7 +154,7 @@ export default function OrganizationMemberForm({ onAlert, initialOrganizationMem
     if (isEditMode && initialOrganizationMember && opts_organizationID.length > 0) {
       const currentorganizationID = (initialOrganizationMember as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -167,7 +167,7 @@ export default function OrganizationMemberForm({ onAlert, initialOrganizationMem
     if (isEditMode && initialOrganizationMember && opts_userID.length > 0) {
       const currentuserID = (initialOrganizationMember as any)?.userID ;
       if (currentuserID !== undefined && currentuserID!== null) {
-        const userIDValue = Number(currentuserID);
+        const userIDValue = String(currentuserID);
         if (opts_userID.some(opt => opt.value === String(userIDValue))) {
           setValue('userID', userIDValue);
         }

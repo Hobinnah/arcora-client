@@ -126,7 +126,7 @@ export default function IdentityVerificationForm({ onAlert, initialIdentityVerif
     if (isEditMode && initialIdentityVerification && opts_userID.length > 0) {
       const currentuserID = (initialIdentityVerification as any)?.userID ;
       if (currentuserID !== undefined && currentuserID!== null) {
-        const userIDValue = Number(currentuserID);
+        const userIDValue = String(currentuserID);
         if (opts_userID.some(opt => opt.value === String(userIDValue))) {
           setValue('userID', userIDValue);
         }

@@ -234,7 +234,7 @@ export default function NotificationForm({ onAlert, initialNotification = null, 
     if (isEditMode && initialNotification && opts_recipientUserID.length > 0) {
       const currentrecipientUserID = (initialNotification as any)?.recipientUserID ;
       if (currentrecipientUserID !== undefined && currentrecipientUserID!== null) {
-        const recipientUserIDValue = Number(currentrecipientUserID);
+        const recipientUserIDValue = String(currentrecipientUserID);
         if (opts_recipientUserID.some(opt => opt.value === String(recipientUserIDValue))) {
           setValue('recipientUserID', recipientUserIDValue);
         }
@@ -247,7 +247,7 @@ export default function NotificationForm({ onAlert, initialNotification = null, 
     if (isEditMode && initialNotification && opts_tenantID.length > 0) {
       const currenttenantID = (initialNotification as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -260,7 +260,7 @@ export default function NotificationForm({ onAlert, initialNotification = null, 
     if (isEditMode && initialNotification && opts_organizationID.length > 0) {
       const currentorganizationID = (initialNotification as any)?.organizationID ;
       if (currentorganizationID !== undefined && currentorganizationID!== null) {
-        const organizationIDValue = Number(currentorganizationID);
+        const organizationIDValue = String(currentorganizationID);
         if (opts_organizationID.some(opt => opt.value === String(organizationIDValue))) {
           setValue('organizationID', organizationIDValue);
         }
@@ -273,7 +273,7 @@ export default function NotificationForm({ onAlert, initialNotification = null, 
     if (isEditMode && initialNotification && opts_organizationMemberID.length > 0) {
       const currentorganizationMemberID = (initialNotification as any)?.organizationMemberID ;
       if (currentorganizationMemberID !== undefined && currentorganizationMemberID!== null) {
-        const organizationMemberIDValue = Number(currentorganizationMemberID);
+        const organizationMemberIDValue = String(currentorganizationMemberID);
         if (opts_organizationMemberID.some(opt => opt.value === String(organizationMemberIDValue))) {
           setValue('organizationMemberID', organizationMemberIDValue);
         }

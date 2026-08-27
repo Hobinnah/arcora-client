@@ -10,7 +10,6 @@ import type { AlertType } from '../env';
 import type { ConversationParticipant } from '../types/ConversationParticipant';
 import { createConversationParticipant, updateConversationParticipant } from '../apis/useConversationParticipant';
 import { fetchData } from '../apis/useApi';
-import { useAuth } from '../hooks/useAuth';
 
 // Zod validation schema (numeric values preprocessed to numbers to support <select> sources)
 const conversationParticipantSchema = z.object({
@@ -36,7 +35,6 @@ interface ConversationParticipantFormProps {
 
 export default function ConversationParticipantForm({ onAlert, initialConversationParticipant = null, isEditMode = false }: ConversationParticipantFormProps) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const [isMobile, setIsMobile] = React.useState(false);
 
   const [opts_conversationID, setOpts_conversationID] = React.useState<Array<{ label: string; value: string }>>([]);
@@ -210,7 +208,7 @@ export default function ConversationParticipantForm({ onAlert, initialConversati
     if (isEditMode && initialConversationParticipant && opts_conversationID.length > 0) {
       const currentconversationID = (initialConversationParticipant as any)?.conversationID ;
       if (currentconversationID !== undefined && currentconversationID!== null) {
-        const conversationIDValue = Number(currentconversationID);
+        const conversationIDValue = String(currentconversationID);
         if (opts_conversationID.some(opt => opt.value === String(conversationIDValue))) {
           setValue('conversationID', conversationIDValue);
         }
@@ -223,7 +221,7 @@ export default function ConversationParticipantForm({ onAlert, initialConversati
     if (isEditMode && initialConversationParticipant && opts_userID.length > 0) {
       const currentuserID = (initialConversationParticipant as any)?.userID ;
       if (currentuserID !== undefined && currentuserID!== null) {
-        const userIDValue = Number(currentuserID);
+        const userIDValue = String(currentuserID);
         if (opts_userID.some(opt => opt.value === String(userIDValue))) {
           setValue('userID', userIDValue);
         }
@@ -236,7 +234,7 @@ export default function ConversationParticipantForm({ onAlert, initialConversati
     if (isEditMode && initialConversationParticipant && opts_tenantID.length > 0) {
       const currenttenantID = (initialConversationParticipant as any)?.tenantID ;
       if (currenttenantID !== undefined && currenttenantID!== null) {
-        const tenantIDValue = Number(currenttenantID);
+        const tenantIDValue = String(currenttenantID);
         if (opts_tenantID.some(opt => opt.value === String(tenantIDValue))) {
           setValue('tenantID', tenantIDValue);
         }
@@ -249,7 +247,7 @@ export default function ConversationParticipantForm({ onAlert, initialConversati
     if (isEditMode && initialConversationParticipant && opts_organizationMemberID.length > 0) {
       const currentorganizationMemberID = (initialConversationParticipant as any)?.organizationMemberID ;
       if (currentorganizationMemberID !== undefined && currentorganizationMemberID!== null) {
-        const organizationMemberIDValue = Number(currentorganizationMemberID);
+        const organizationMemberIDValue = String(currentorganizationMemberID);
         if (opts_organizationMemberID.some(opt => opt.value === String(organizationMemberIDValue))) {
           setValue('organizationMemberID', organizationMemberIDValue);
         }

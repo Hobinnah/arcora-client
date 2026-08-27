@@ -226,7 +226,7 @@ export default function ConversationMessageForm({ onAlert, initialConversationMe
     if (isEditMode && initialConversationMessage && opts_conversationID.length > 0) {
       const currentconversationID = (initialConversationMessage as any)?.conversationID ;
       if (currentconversationID !== undefined && currentconversationID!== null) {
-        const conversationIDValue = Number(currentconversationID);
+        const conversationIDValue = String(currentconversationID);
         if (opts_conversationID.some(opt => opt.value === String(conversationIDValue))) {
           setValue('conversationID', conversationIDValue);
         }
@@ -239,7 +239,7 @@ export default function ConversationMessageForm({ onAlert, initialConversationMe
     if (isEditMode && initialConversationMessage && opts_senderUserID.length > 0) {
       const currentsenderUserID = (initialConversationMessage as any)?.senderUserID ;
       if (currentsenderUserID !== undefined && currentsenderUserID!== null) {
-        const senderUserIDValue = Number(currentsenderUserID);
+        const senderUserIDValue = String(currentsenderUserID);
         if (opts_senderUserID.some(opt => opt.value === String(senderUserIDValue))) {
           setValue('senderUserID', senderUserIDValue);
         }
@@ -252,7 +252,7 @@ export default function ConversationMessageForm({ onAlert, initialConversationMe
     if (isEditMode && initialConversationMessage && opts_senderTenantID.length > 0) {
       const currentsenderTenantID = (initialConversationMessage as any)?.senderTenantID ;
       if (currentsenderTenantID !== undefined && currentsenderTenantID!== null) {
-        const senderTenantIDValue = Number(currentsenderTenantID);
+        const senderTenantIDValue = String(currentsenderTenantID);
         if (opts_senderTenantID.some(opt => opt.value === String(senderTenantIDValue))) {
           setValue('senderTenantID', senderTenantIDValue);
         }
@@ -265,7 +265,7 @@ export default function ConversationMessageForm({ onAlert, initialConversationMe
     if (isEditMode && initialConversationMessage && opts_senderOrganizationMemberID.length > 0) {
       const currentsenderOrganizationMemberID = (initialConversationMessage as any)?.senderOrganizationMemberID ;
       if (currentsenderOrganizationMemberID !== undefined && currentsenderOrganizationMemberID!== null) {
-        const senderOrganizationMemberIDValue = Number(currentsenderOrganizationMemberID);
+        const senderOrganizationMemberIDValue = String(currentsenderOrganizationMemberID);
         if (opts_senderOrganizationMemberID.some(opt => opt.value === String(senderOrganizationMemberIDValue))) {
           setValue('senderOrganizationMemberID', senderOrganizationMemberIDValue);
         }
@@ -278,7 +278,7 @@ export default function ConversationMessageForm({ onAlert, initialConversationMe
     if (isEditMode && initialConversationMessage && opts_replyToMessageID.length > 0) {
       const currentreplyToMessageID = (initialConversationMessage as any)?.replyToMessageID ;
       if (currentreplyToMessageID !== undefined && currentreplyToMessageID!== null) {
-        const replyToMessageIDValue = Number(currentreplyToMessageID);
+        const replyToMessageIDValue = String(currentreplyToMessageID);
         if (opts_replyToMessageID.some(opt => opt.value === String(replyToMessageIDValue))) {
           setValue('replyToMessageID', replyToMessageIDValue);
         }

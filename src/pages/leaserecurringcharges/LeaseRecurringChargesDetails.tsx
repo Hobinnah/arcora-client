@@ -16,7 +16,7 @@ import '../../themes/theme.css';
 /* default import for the form component */
 import LeaseRecurringChargesForm from '../../forms/LeaseRecurringChargesForm.tsx';
 import type {LeaseRecurringCharges} from '../../types/LeaseRecurringCharges';
-import { getLeaseRecurringCharges } from '../../apis/useLeaseRecurringCharges';
+import { getLeaseRecurringChargesById } from '../../apis/useLeaseRecurringCharges';
 
 export default function LeaseRecurringChargesDetails() {
 
@@ -50,7 +50,7 @@ export default function LeaseRecurringChargesDetails() {
         setLoading(true);
         setIsEditMode(true);
         try {
-          const data = await getLeaseRecurringCharges(idParam!);
+          const data = await getLeaseRecurringChargesById(idParam!);
           setLeaseRecurringCharges(data);
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Failed to load record';

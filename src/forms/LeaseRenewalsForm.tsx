@@ -136,7 +136,7 @@ export default function LeaseRenewalsForm({ onAlert, initialLeaseRenewals = null
     if (isEditMode && initialLeaseRenewals && opts_leaseID.length > 0) {
       const currentleaseID = (initialLeaseRenewals as any)?.leaseID ;
       if (currentleaseID !== undefined && currentleaseID!== null) {
-        const leaseIDValue = Number(currentleaseID);
+        const leaseIDValue = String(currentleaseID);
         if (opts_leaseID.some(opt => opt.value === String(leaseIDValue))) {
           setValue('leaseID', leaseIDValue);
         }
