@@ -15,7 +15,7 @@ export default function HostingHeader() {
   const menuRef = useRef<HTMLDivElement>(null);
   const profile = auth?.currentUser?.user;
   const profileName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || auth?.currentUser?.name || 'User';
-  const profileInitials = profileName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+  const profileImage = profile?.imageUrl || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=85';
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -51,17 +51,18 @@ export default function HostingHeader() {
         <button className={location.pathname === '/hosting' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting')}>Today</button>
         <button className={location.pathname === '/hosting/calendar' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/calendar')}><CalendarIcon /> Calendar</button>
         <button className={location.pathname.startsWith('/hosting/listings') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/listings')}><FileIcon /> Listings</button>
+        <button className={location.pathname.startsWith('/hosting/applications') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/applications')}><UsersIcon /> Applications</button>
         <button className={location.pathname === '/hosting/messages' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/messages')}><InfoIcon /> Messages</button>
       </nav>
       <div className="hosting-header-actions">
         <button className="hosting-switch" type="button" onClick={() => navigate('/')}>Switch to renting</button>
         <div className="hosting-profile-menu" ref={menuRef}>
           <button className="hosting-profile-trigger" type="button" aria-label="Open profile menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
-            {profile?.imageUrl ? <img src={profile.imageUrl} alt={`${profileName} profile`} /> : profileInitials}
+            <img src={profileImage} alt={`${profileName} profile`} />
           </button>
           <button className={`hosting-menu-trigger ${menuOpen ? 'is-open' : ''}`} type="button" aria-label="Open menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}><MenuIcon /></button>
           {menuOpen && <div className="hosting-menu-popover" role="menu">
-            <div className="hosting-menu-profile"><span className="hosting-menu-profile-image">{profile?.imageUrl ? <img src={profile.imageUrl} alt="" /> : profileInitials}</span><span><strong>{profileName}</strong><small>Host account</small></span></div>
+            <div className="hosting-menu-profile"><span className="hosting-menu-profile-image"><img src={profileImage} alt="" /></span><span><strong>{profileName}</strong><small>Host account</small></span></div>
             <button type="button" role="menuitem"><BarChartIcon /> <span>Earnings and insights</span></button>
             <button type="button" role="menuitem" onClick={() => navigate('/hosting/listings/new')}><PlusIcon /> <span>Create a new listing</span></button>
             <button type="button" role="menuitem" onClick={() => navigate('/account-settings')}><UserIcon /> <span>Account settings</span></button>

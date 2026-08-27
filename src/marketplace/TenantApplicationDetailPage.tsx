@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CheckIcon, FileIcon, ShieldIcon } from "../components/Icons";
 import { fallbackListings } from "./marketplaceData";
@@ -6,6 +6,7 @@ import TenantHeader from "./TenantHeader";
 import MarketplaceFooter from "./MarketplaceFooter";
 import TenantDatePicker from "./TenantDatePicker";
 import CustomSelect from "../components/CustomSelect";
+import { publishHostApplicationNotification } from "../hosting/hostApplicationNotifications";
 import "./TenantApplicationDetailPage.css";
 
 type SectionKey =
@@ -19,6 +20,7 @@ type SectionKey =
   | "payment"
   | "review";
 type Section = { key: SectionKey; label: string; detail: string };
+type DocumentKey = "identity" | "income" | "rental" | "supporting";
 const sections: Section[] = [
   { key: "readiness", label: "Readiness check", detail: "Start here" },
   { key: "profile", label: "Your profile", detail: "Complete" },
@@ -43,10 +45,15 @@ export default function TenantApplicationDetailPage() {
   const [rulesAcknowledged, setRulesAcknowledged] = useState(false);
   const [paymentAuthorized, setPaymentAuthorized] = useState(false);
   const [verificationAuthorized, setVerificationAuthorized] = useState(false);
+  const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
+  const [uploadedDocuments, setUploadedDocuments] = useState<Partial<Record<Exclude<DocumentKey, "supporting">, string>>>({});
+  const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [guarantors, setGuarantors] = useState<Array<{ firstName: string; lastName: string; email: string; phoneNumber: string; relationship: string; annualIncome: string; status: string }>>([]);
   const [guarantorForm, setGuarantorForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", relationship: "Parent", annualIncome: "" });
   const [occupants, setOccupants] = useState<Array<{ firstName: string; lastName: string; dateOfBirth: string; email: string; phoneNumber: string; occupantType: string; isPrimaryTenant: boolean; isFinanciallyResponsible: boolean }>>([]);
-  const [occupantForm, setOccupantForm] = useState({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneNumber: "", occupantType: "ADULT", isPrimaryTenant: false, isFinanciallyResponsible: false });
+  const [occupantForm, setOccupantForm] = useState({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneCountryCode: "+1", phoneNumber: "", occupantType: "ADULT", isPrimaryTenant: false, isFinanciallyResponsible: false });
   const [employment, setEmployment] = useState({ employmentType: "Employed", employerName: "", jobTitle: "", employerEmail: "", employerPhoneNumber: "", annualIncome: "", currency: "CAD", startedAt: "", endedAt: "", isCurrent: true });
   const currentIndex = sections.findIndex(
     (section) => section.key === activeSection,
@@ -74,7 +81,13 @@ export default function TenantApplicationDetailPage() {
   const updateGuarantor = (field: keyof typeof guarantorForm, value: string) => setGuarantorForm((current) => ({ ...current, [field]: value }));
   const addGuarantor = () => { if (guarantors.length >= 2 || !guarantorForm.firstName || !guarantorForm.lastName || !guarantorForm.email || !guarantorForm.phoneNumber || !guarantorForm.annualIncome) return; setGuarantors((current) => [...current, { ...guarantorForm, status: "PENDING" }]); setGuarantorForm({ firstName: "", lastName: "", email: "", phoneNumber: "", relationship: "Parent", annualIncome: "" }); };
   const updateOccupant = (field: keyof typeof occupantForm, value: string | boolean) => setOccupantForm((current) => ({ ...current, [field]: value }));
-  const addOccupant = () => { if (!occupantForm.firstName || !occupantForm.lastName) return; setOccupants((current) => [...current, { ...occupantForm }]); setOccupantForm({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneNumber: "", occupantType: "ADULT", isPrimaryTenant: false, isFinanciallyResponsible: false }); };
+  const addOccupant = () => { if (!occupantForm.firstName || !occupantForm.lastName) return; setOccupants((current) => [...current, { ...occupantForm, phoneNumber: occupantForm.phoneNumber ? `${occupantForm.phoneCountryCode} ${occupantForm.phoneNumber}` : "" }]); setOccupantForm({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneCountryCode: "+1", phoneNumber: "", occupantType: "ADULT", isPrimaryTenant: false, isFinanciallyResponsible: false }); };
+  const uploadDocument = (documentKey: DocumentKey, event: ChangeEvent<HTMLInputElement>) => { const files = Array.from(event.target.files || []); if (documentKey === "supporting") setSupportingDocuments((current) => [...current, ...files.map((file) => file.name)].slice(0, 5)); else if (files[0]) setUploadedDocuments((current) => ({ ...current, [documentKey]: files[0].name })); event.target.value = ""; };
+  const documentFiles = (documentKey: DocumentKey) => documentKey === "supporting" ? supportingDocuments : uploadedDocuments[documentKey] ? [uploadedDocuments[documentKey]] : [];
+  const removeDocument = (documentKey: DocumentKey, fileName?: string) => { if (documentKey === "supporting" && fileName) setSupportingDocuments((current) => current.filter((file) => file !== fileName)); else if (documentKey !== "supporting") setUploadedDocuments((current) => { const next = { ...current }; delete next[documentKey]; return next; }); };
+  const requiredSections: SectionKey[] = ["profile", "employment", "household", "documents", "rules", "payment"];
+  const missingSections = requiredSections.filter((section) => !isComplete(section));
+  const submitApplication = () => { if (missingSections.length === 0 && reviewConfirmed) { publishHostApplicationNotification({ applicationId: id || "app-1024", applicationCode: id || "ARC-1024", applicantName: "Obinna Eze", listingName: listing.title, createdAt: new Date().toISOString() }); setApplicationSubmitted(true); } };
 
   return (
     <main className="marketplace tenant-application-detail-page">
@@ -231,7 +244,7 @@ export default function TenantApplicationDetailPage() {
               <p className="tenant-application-panel-lead">Add the adults who will live with you. Your authenticated profile is already included as the primary tenant.</p>
               <article className="tenant-application-occupant-card tenant-application-primary-occupant"><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">O</span><div><strong>Obinna Eze</strong><small>Primary tenant</small></div><span className="tenant-application-occupant-status">Financially responsible</span></div><div className="tenant-application-occupant-meta"><span>hobinnah@yahoo.com</span><span>+1 ***-***-0753</span></div></article>
               {occupants.length > 0 && <div className="tenant-application-occupant-grid">{occupants.map((occupant) => <article className="tenant-application-occupant-card" key={`${occupant.email}-${occupant.firstName}`}><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">{occupant.firstName[0]}</span><div><strong>{occupant.firstName} {occupant.lastName}</strong><small>{occupant.occupantType} adult</small></div><span className="tenant-application-occupant-status">{occupant.isFinanciallyResponsible ? "Financially responsible" : "Not financially responsible"}</span></div><div className="tenant-application-occupant-meta"><span>{occupant.email || "No email provided"}</span><span>{occupant.phoneNumber || "No phone provided"}</span></div></article>)}</div>}
-              <div className="tenant-application-occupant-form"><div className="tenant-application-form-grid"><label>First name<input value={occupantForm.firstName} onChange={(event) => updateOccupant("firstName", event.target.value)} /></label><label>Last name<input value={occupantForm.lastName} onChange={(event) => updateOccupant("lastName", event.target.value)} /></label><label>Date of birth<TenantDatePicker value={occupantForm.dateOfBirth} onChange={(value) => updateOccupant("dateOfBirth", value)} ariaLabel="Occupant date of birth" /></label><label>Email<input type="email" value={occupantForm.email} onChange={(event) => updateOccupant("email", event.target.value)} /></label><label>Phone number<input type="tel" value={occupantForm.phoneNumber} onChange={(event) => updateOccupant("phoneNumber", event.target.value)} /></label></div><label className="tenant-application-current-toggle"><input type="checkbox" checked={occupantForm.isFinanciallyResponsible} onChange={(event) => updateOccupant("isFinanciallyResponsible", event.target.checked)} /><span><strong>Financially responsible</strong><small>This adult will be responsible for rent or other lease obligations.</small></span></label><button type="button" className="tenant-application-complete-button" disabled={!occupantForm.firstName || !occupantForm.lastName} onClick={addOccupant}>Add adult occupant</button><small className="tenant-application-guarantor-count">{occupants.length} additional adult{occupants.length === 1 ? "" : "s"} added</small></div>
+              <div className="tenant-application-occupant-form"><div className="tenant-application-form-grid"><label>First name<input value={occupantForm.firstName} onChange={(event) => updateOccupant("firstName", event.target.value)} /></label><label>Last name<input value={occupantForm.lastName} onChange={(event) => updateOccupant("lastName", event.target.value)} /></label><label>Date of birth<TenantDatePicker value={occupantForm.dateOfBirth} onChange={(value) => updateOccupant("dateOfBirth", value)} ariaLabel="Occupant date of birth" /></label><label>Email<input type="email" value={occupantForm.email} onChange={(event) => updateOccupant("email", event.target.value)} /></label><label className="tenant-application-phone-field">Phone number<div className="tenant-application-phone-input"><CustomSelect value={occupantForm.phoneCountryCode} options={["+1", "+44", "+234", "+33", "+49", "+61"]} onChange={(value) => updateOccupant("phoneCountryCode", value)} ariaLabel="Country calling code" /><input type="tel" inputMode="tel" value={occupantForm.phoneNumber} onChange={(event) => updateOccupant("phoneNumber", event.target.value)} placeholder="Phone number" /></div></label></div><label className="tenant-application-current-toggle"><input type="checkbox" checked={occupantForm.isFinanciallyResponsible} onChange={(event) => updateOccupant("isFinanciallyResponsible", event.target.checked)} /><span><strong>Financially responsible</strong><small>This adult will be responsible for rent or other lease obligations.</small></span></label><button type="button" className="tenant-application-complete-button" disabled={!occupantForm.firstName || !occupantForm.lastName} onClick={addOccupant}>Add adult occupant</button><small className="tenant-application-guarantor-count">{occupants.length} additional adult{occupants.length === 1 ? "" : "s"} added</small></div>
               <div className="tenant-application-household-note"><ShieldIcon /><span>Only adults can be added here. The primary tenant remains the authenticated applicant.</span></div><button type="button" className="tenant-application-complete-button" onClick={() => toggleComplete("household")}>{isComplete("household") ? "Marked complete" : "Save household"}</button>
             </section>
           )}
@@ -249,37 +262,11 @@ export default function TenantApplicationDetailPage() {
             <section className="tenant-application-panel tenant-application-documents-panel">
               <p className="marketplace-eyebrow">Secure review</p>
               <h3>Documents &amp; screening</h3>
-              <p className="tenant-application-panel-lead">
-                Authorize Arcora and the landlord to verify the information and
-                documents needed to review your application.
-              </p>
-              <div className="tenant-application-readiness-list">
-                <div className="tenant-application-readiness-row">
-                  <span className="tenant-application-check">!</span>
-                  <span>
-                    <strong>Employment &amp; income</strong>
-                    <small>
-                      Confirm your current employment and income details.
-                    </small>
-                  </span>
-                </div>
-                <div className="tenant-application-readiness-row">
-                  <span className="tenant-application-check">!</span>
-                  <span>
-                    <strong>Credit &amp; background</strong>
-                    <small>Run the checks required for this application.</small>
-                  </span>
-                </div>
-                <div className="tenant-application-readiness-row">
-                  <span className="tenant-application-check">!</span>
-                  <span>
-                    <strong>Supplied application information</strong>
-                    <small>
-                      Review the information you provided for accuracy.
-                    </small>
-                  </span>
-                </div>
+              <p className="tenant-application-panel-lead">We only request what helps the landlord make a fair, informed decision. You will see the reason for each request before sharing anything.</p>
+              <div className="tenant-application-document-list">
+                {([['identity', 'Identity verification', 'Required', 'Confirm that the applicant and submitted information belong to the same person.', 'Government-issued photo ID may be requested.'], ['income', 'Proof of income', 'Required', 'Help the landlord understand whether the monthly rent fits your income.', 'Pay stubs, an employment letter, or tax documents may be accepted.'], ['rental', 'Rental reference', 'If requested', 'Confirm your previous rental history when the landlord needs more context.', 'A reference contact or tenancy record may be requested later.'], ['supporting', 'Supporting documents', 'Optional', 'Add context that may help explain your application, such as an offer letter.', 'Only share documents relevant to this home.']] as const).map(([documentKey, title, status, reason, example]) => { const files = documentFiles(documentKey); const hasFiles = files.length > 0; return <article className="tenant-application-document-row" key={documentKey}><span className="tenant-application-document-icon"><FileIcon /></span><div><div className="tenant-application-document-heading"><strong>{title}</strong><span className={`tenant-application-document-status ${status === 'Required' ? 'is-required' : status === 'Optional' ? 'is-optional' : 'is-conditional'}`}>{status}</span></div><p>{reason}</p>{hasFiles ? <div className="tenant-application-document-file-list">{files.map((file) => <div key={file}><span>{file}</span>{documentKey === 'supporting' && <button type="button" onClick={() => removeDocument(documentKey, file)}>Remove</button>}</div>)}</div> : <small>{example}</small>}<div className="tenant-application-document-actions">{hasFiles && <span className="tenant-application-document-uploaded">{documentKey === 'supporting' ? `${files.length} file${files.length === 1 ? '' : 's'} uploaded` : 'Uploaded'}</span>}<label className="tenant-application-document-upload-button">{hasFiles && documentKey !== 'supporting' ? 'Replace file' : hasFiles ? 'Add another' : 'Add document'}<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx" multiple={documentKey === 'supporting'} onChange={(event) => uploadDocument(documentKey, event)} /></label>{hasFiles && documentKey !== 'supporting' && <button type="button" onClick={() => removeDocument(documentKey)}>Remove</button>}</div></div></article>; })}
               </div>
+              <div className="tenant-application-document-callout"><ShieldIcon /><div><strong>Private by design</strong><p>Documents are shared only for this application, accessed by authorized reviewers, and handled according to applicable privacy law.</p></div></div>
               <label className="tenant-application-consent-row">
                 <input
                   type="checkbox"
@@ -288,12 +275,7 @@ export default function TenantApplicationDetailPage() {
                     setVerificationAuthorized(event.target.checked)
                   }
                 />
-                <span>
-                  I authorize Arcora and the landlord to verify the information
-                  I provide, including employment records, income, credit
-                  history, background screening, and supporting documents, in
-                  accordance with applicable law.
-                </span>
+                <span>I authorize Arcora and the landlord to verify the information I provide, including employment, income, credit history, background screening, and supporting documents, in accordance with applicable law.</span>
               </label>
               <button
                 type="button"
@@ -339,7 +321,7 @@ export default function TenantApplicationDetailPage() {
                   Quiet hours are 10:00 PM to 8:00 AM. No smoking or parties are
                   permitted.
                 </p>
-                <button type="button">Open full preview &gt;</button>
+                <button type="button" onClick={() => setContractPreviewOpen(true)}>Open full preview &gt;</button>
               </div>
               <label className="tenant-application-consent-row">
                 <input
@@ -361,6 +343,12 @@ export default function TenantApplicationDetailPage() {
                   ? "Marked complete"
                   : "Mark rules reviewed"}
               </button>
+            </section>
+          )}
+          {contractPreviewOpen && <div className="tenant-application-preview-overlay" onClick={() => setContractPreviewOpen(false)}><section className="tenant-application-preview-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-application-preview-title" onClick={(event) => event.stopPropagation()}><button type="button" className="tenant-application-preview-close" aria-label="Close contract preview" onClick={() => setContractPreviewOpen(false)}>×</button><p className="marketplace-eyebrow">Application preview</p><h3 id="tenant-application-preview-title">Rental contract &amp; house rules</h3><p className="tenant-application-panel-lead">Review the key terms before you authorize payment. This preview is informational and is not a signature step.</p><div className="tenant-application-preview-summary"><div><span>Lease term</span><strong>6 months</strong></div><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div></div><div className="tenant-application-preview-section"><h4>House rules</h4><ul><li>Quiet hours are 10:00 PM to 8:00 AM.</li><li>No smoking or parties are permitted.</li><li>All occupants must be listed on the application.</li><li>Keep shared areas clean and respect neighbours.</li></ul></div><div className="tenant-application-preview-section"><h4>Rental contract</h4><p>The final residential lease will confirm the parties, rent, deposit, term, maintenance responsibilities, and applicable local requirements. It will be available for signature after the application is approved.</p></div><button type="button" className="tenant-application-complete-button" onClick={() => setContractPreviewOpen(false)}>Close preview</button></section></div>}
+          {activeSection === "review" && (
+            <section className="tenant-application-panel tenant-application-review-panel">
+              {!applicationSubmitted ? <><p className="marketplace-eyebrow">Final check</p><h3>Review your application</h3><p className="tenant-application-panel-lead">Everything looks right? Review the details below, then submit your application to the landlord.</p><div className={`tenant-application-review-status ${missingSections.length === 0 ? "is-ready" : "is-incomplete"}`}><span>{missingSections.length === 0 ? "✓" : "!"}</span><div><strong>{missingSections.length === 0 ? "Ready to submit" : `${missingSections.length} required section${missingSections.length === 1 ? "" : "s"} remaining`}</strong><small>{missingSections.length === 0 ? "Your required information and authorizations are complete." : "Complete the remaining sections before submitting."}</small></div></div><div className="tenant-application-review-list">{requiredSections.map((sectionKey) => { const section = sections.find((item) => item.key === sectionKey); return <button type="button" className="tenant-application-review-row" key={sectionKey} onClick={() => setActiveSection(sectionKey)}><span className={isComplete(sectionKey) ? "is-complete" : ""}>{isComplete(sectionKey) ? "✓" : "!"}</span><div><strong>{section?.label}</strong><small>{isComplete(sectionKey) ? "Complete and ready" : "Needs your attention"}</small></div><b>Review</b></button>; })}<button type="button" className="tenant-application-review-row" onClick={() => setActiveSection("guarantor")}><span className="is-optional">i</span><div><strong>Guarantors</strong><small>{guarantors.length ? `${guarantors.length} invitation${guarantors.length === 1 ? "" : "s"} pending` : "None added"}</small></div><b>Review</b></button></div><div className="tenant-application-review-summary"><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div><div><span>Payment</span><strong>No charge today</strong></div></div><label className="tenant-application-consent-row"><input type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} /><span>I confirm that my application information is accurate and I understand that submitting is not signing the lease or charging my payment method.</span></label><button type="button" className="tenant-application-complete-button tenant-application-submit-button" disabled={missingSections.length > 0 || !reviewConfirmed} onClick={submitApplication}>Submit application</button></> : <div className="tenant-application-submitted"><span className="tenant-application-submitted-icon">✓</span><p className="marketplace-eyebrow">Application submitted</p><h3>You&apos;re all set.</h3><p className="tenant-application-panel-lead">Your application has been sent to the landlord for review. We&apos;ll let you know when there&apos;s an update.</p><div className="tenant-application-submitted-details"><span>Application ID</span><strong>{id || "app-1024"}</strong><span>Status</span><strong>Under review</strong><span>Submitted</span><strong>Just now</strong></div><button type="button" className="tenant-application-complete-button" onClick={() => navigate("/applications")}>View my applications</button></div>}
             </section>
           )}
           {activeSection === "payment" && (
@@ -446,14 +434,7 @@ export default function TenantApplicationDetailPage() {
             <div className="tenant-application-form-grid">
               <label>
                 Employment status
-                <select value={employment.employmentType} onChange={(event) => updateEmployment("employmentType", event.target.value)}>
-                  <option>Employed</option>
-                  <option>Self-employed</option>
-                  <option>Student</option>
-                  <option>Retired</option>
-                  <option>Unemployed</option>
-                  <option>Other</option>
-                </select>
+                <CustomSelect value={employment.employmentType} options={["Employed", "Self-employed", "Student", "Retired", "Unemployed", "Other"]} onChange={(value) => updateEmployment("employmentType", value)} ariaLabel="Employment status" />
               </label>
               <label>
                 Employer or business name
@@ -477,12 +458,7 @@ export default function TenantApplicationDetailPage() {
               </label>
               <label>
                 Income currency
-                <select value={employment.currency} onChange={(event) => updateEmployment("currency", event.target.value)}>
-                  <option>CAD</option>
-                  <option>USD</option>
-                  <option>GBP</option>
-                  <option>EUR</option>
-                </select>
+                <CustomSelect value={employment.currency} options={["CAD", "USD", "GBP", "EUR"]} onChange={(value) => updateEmployment("currency", value)} ariaLabel="Income currency" />
               </label>
               <label>
                 Employment start date
@@ -522,7 +498,7 @@ export default function TenantApplicationDetailPage() {
             </button>
           </section>
           )}
-          {!['readiness', 'profile', 'rules', 'payment', 'employment', 'household', 'guarantor', 'documents'].includes(activeSection) && (
+          {!['readiness', 'profile', 'rules', 'payment', 'employment', 'household', 'guarantor', 'documents', 'review'].includes(activeSection) && (
             <section className="tenant-application-panel">
               <p className="marketplace-eyebrow">Next section</p>
               <h3>{detailPlaceholder?.label}</h3>

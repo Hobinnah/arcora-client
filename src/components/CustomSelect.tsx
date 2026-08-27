@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckIcon } from "./Icons";
 
 interface CustomSelectProps {
@@ -10,8 +10,17 @@ interface CustomSelectProps {
 
 export default function CustomSelect({ value, options, onChange, ariaLabel }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
+  const selectRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideMouse = (event: MouseEvent) => {
+      if (!selectRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideMouse);
+    return () => document.removeEventListener("mousedown", closeOnOutsideMouse);
+  }, [open]);
   return (
-    <div className="hosting-select">
+    <div className="hosting-select" ref={selectRef}>
       <button
         type="button"
         className="hosting-select-trigger"
@@ -25,7 +34,7 @@ export default function CustomSelect({ value, options, onChange, ariaLabel }: Cu
       </button>
       {open && (
         <>
-          <div className="hosting-select-backdrop" onClick={() => setOpen(false)} />
+          <div className="hosting-select-backdrop" onMouseDown={() => setOpen(false)} />
           <ul className="hosting-select-menu" role="listbox" aria-label={ariaLabel}>
             {options.map((option) => (
               <li key={option}>
