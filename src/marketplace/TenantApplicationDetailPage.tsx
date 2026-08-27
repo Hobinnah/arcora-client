@@ -4,6 +4,8 @@ import { CheckIcon, FileIcon, ShieldIcon } from "../components/Icons";
 import { fallbackListings } from "./marketplaceData";
 import TenantHeader from "./TenantHeader";
 import MarketplaceFooter from "./MarketplaceFooter";
+import TenantDatePicker from "./TenantDatePicker";
+import CustomSelect from "../components/CustomSelect";
 import "./TenantApplicationDetailPage.css";
 
 type SectionKey =
@@ -22,7 +24,7 @@ const sections: Section[] = [
   { key: "profile", label: "Your profile", detail: "Complete" },
   { key: "employment", label: "Employment & income", detail: "Required" },
   { key: "household", label: "Household", detail: "Required" },
-  { key: "guarantor", label: "Guarantor", detail: "Optional" },
+  { key: "guarantor", label: "Guarantors", detail: "Optional" },
   { key: "documents", label: "Documents & screening", detail: "Required" },
   { key: "rules", label: "Rules & contract", detail: "Required" },
   { key: "payment", label: "Payment method", detail: "Required" },
@@ -40,8 +42,12 @@ export default function TenantApplicationDetailPage() {
   const [completed, setCompleted] = useState<SectionKey[]>(["profile"]);
   const [rulesAcknowledged, setRulesAcknowledged] = useState(false);
   const [paymentAuthorized, setPaymentAuthorized] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "pad">("pad");
   const [verificationAuthorized, setVerificationAuthorized] = useState(false);
+  const [guarantors, setGuarantors] = useState<Array<{ firstName: string; lastName: string; email: string; phoneNumber: string; relationship: string; annualIncome: string; status: string }>>([]);
+  const [guarantorForm, setGuarantorForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", relationship: "Parent", annualIncome: "" });
+  const [occupants, setOccupants] = useState<Array<{ firstName: string; lastName: string; dateOfBirth: string; email: string; phoneNumber: string; occupantType: string; isPrimaryTenant: boolean; isFinanciallyResponsible: boolean }>>([]);
+  const [occupantForm, setOccupantForm] = useState({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneNumber: "", occupantType: "ADULT", isPrimaryTenant: false, isFinanciallyResponsible: false });
+  const [employment, setEmployment] = useState({ employmentType: "Employed", employerName: "", jobTitle: "", employerEmail: "", employerPhoneNumber: "", annualIncome: "", currency: "CAD", startedAt: "", endedAt: "", isCurrent: true });
   const currentIndex = sections.findIndex(
     (section) => section.key === activeSection,
   );
@@ -64,6 +70,11 @@ export default function TenantApplicationDetailPage() {
   const detailPlaceholder = sections.find(
     (section) => section.key === activeSection,
   );
+  const updateEmployment = (field: keyof typeof employment, value: string | boolean) => setEmployment((current) => ({ ...current, [field]: value }));
+  const updateGuarantor = (field: keyof typeof guarantorForm, value: string) => setGuarantorForm((current) => ({ ...current, [field]: value }));
+  const addGuarantor = () => { if (guarantors.length >= 2 || !guarantorForm.firstName || !guarantorForm.lastName || !guarantorForm.email || !guarantorForm.phoneNumber || !guarantorForm.annualIncome) return; setGuarantors((current) => [...current, { ...guarantorForm, status: "PENDING" }]); setGuarantorForm({ firstName: "", lastName: "", email: "", phoneNumber: "", relationship: "Parent", annualIncome: "" }); };
+  const updateOccupant = (field: keyof typeof occupantForm, value: string | boolean) => setOccupantForm((current) => ({ ...current, [field]: value }));
+  const addOccupant = () => { if (!occupantForm.firstName || !occupantForm.lastName) return; setOccupants((current) => [...current, { ...occupantForm }]); setOccupantForm({ firstName: "", lastName: "", dateOfBirth: "", email: "", phoneNumber: "", occupantType: "ADULT", isPrimaryTenant: false, isFinanciallyResponsible: false }); };
 
   return (
     <main className="marketplace tenant-application-detail-page">
@@ -213,6 +224,27 @@ export default function TenantApplicationDetailPage() {
               </button>
             </section>
           )}
+          {activeSection === "household" && (
+            <section className="tenant-application-panel tenant-application-household-panel">
+              <p className="marketplace-eyebrow">Household details</p>
+              <h3>Who will live in this home?</h3>
+              <p className="tenant-application-panel-lead">Add the adults who will live with you. Your authenticated profile is already included as the primary tenant.</p>
+              <article className="tenant-application-occupant-card tenant-application-primary-occupant"><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">O</span><div><strong>Obinna Eze</strong><small>Primary tenant</small></div><span className="tenant-application-occupant-status">Financially responsible</span></div><div className="tenant-application-occupant-meta"><span>hobinnah@yahoo.com</span><span>+1 ***-***-0753</span></div></article>
+              {occupants.length > 0 && <div className="tenant-application-occupant-grid">{occupants.map((occupant) => <article className="tenant-application-occupant-card" key={`${occupant.email}-${occupant.firstName}`}><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">{occupant.firstName[0]}</span><div><strong>{occupant.firstName} {occupant.lastName}</strong><small>{occupant.occupantType} adult</small></div><span className="tenant-application-occupant-status">{occupant.isFinanciallyResponsible ? "Financially responsible" : "Not financially responsible"}</span></div><div className="tenant-application-occupant-meta"><span>{occupant.email || "No email provided"}</span><span>{occupant.phoneNumber || "No phone provided"}</span></div></article>)}</div>}
+              <div className="tenant-application-occupant-form"><div className="tenant-application-form-grid"><label>First name<input value={occupantForm.firstName} onChange={(event) => updateOccupant("firstName", event.target.value)} /></label><label>Last name<input value={occupantForm.lastName} onChange={(event) => updateOccupant("lastName", event.target.value)} /></label><label>Date of birth<TenantDatePicker value={occupantForm.dateOfBirth} onChange={(value) => updateOccupant("dateOfBirth", value)} ariaLabel="Occupant date of birth" /></label><label>Email<input type="email" value={occupantForm.email} onChange={(event) => updateOccupant("email", event.target.value)} /></label><label>Phone number<input type="tel" value={occupantForm.phoneNumber} onChange={(event) => updateOccupant("phoneNumber", event.target.value)} /></label></div><label className="tenant-application-current-toggle"><input type="checkbox" checked={occupantForm.isFinanciallyResponsible} onChange={(event) => updateOccupant("isFinanciallyResponsible", event.target.checked)} /><span><strong>Financially responsible</strong><small>This adult will be responsible for rent or other lease obligations.</small></span></label><button type="button" className="tenant-application-complete-button" disabled={!occupantForm.firstName || !occupantForm.lastName} onClick={addOccupant}>Add adult occupant</button><small className="tenant-application-guarantor-count">{occupants.length} additional adult{occupants.length === 1 ? "" : "s"} added</small></div>
+              <div className="tenant-application-household-note"><ShieldIcon /><span>Only adults can be added here. The primary tenant remains the authenticated applicant.</span></div><button type="button" className="tenant-application-complete-button" onClick={() => toggleComplete("household")}>{isComplete("household") ? "Marked complete" : "Save household"}</button>
+            </section>
+          )}
+          {activeSection === "guarantor" && (
+            <section className="tenant-application-panel tenant-application-guarantor-panel">
+              <p className="marketplace-eyebrow">Optional support</p>
+              <h3>Add a guarantor</h3>
+              <p className="tenant-application-panel-lead">You can add up to two guarantors. We&apos;ll email each person a secure link to accept or decline their invitation.</p>
+              {guarantors.length > 0 && <div className="tenant-application-guarantor-grid">{guarantors.map((guarantor) => <article className="tenant-application-guarantor-card" key={guarantor.email}><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">{guarantor.firstName[0]}</span><div><strong>{guarantor.firstName} {guarantor.lastName}</strong><small>{guarantor.relationship}</small></div><span className={`tenant-application-guarantor-status is-${guarantor.status.toLowerCase()}`}>{guarantor.status === "PENDING" ? "Invitation pending" : guarantor.status}</span></div><dl><div><dt>Email</dt><dd>{guarantor.email}</dd></div><div><dt>Annual income</dt><dd>${Number(guarantor.annualIncome).toLocaleString()} CAD</dd></div></dl></article>)}</div>}
+              {guarantors.length < 2 && <div className="tenant-application-guarantor-form"><div className="tenant-application-form-grid"><label>First name<input value={guarantorForm.firstName} onChange={(event) => updateGuarantor("firstName", event.target.value)} /></label><label>Last name<input value={guarantorForm.lastName} onChange={(event) => updateGuarantor("lastName", event.target.value)} /></label><label>Email<input type="email" value={guarantorForm.email} onChange={(event) => updateGuarantor("email", event.target.value)} /></label><label>Phone number<input type="tel" value={guarantorForm.phoneNumber} onChange={(event) => updateGuarantor("phoneNumber", event.target.value)} /></label><label>Relationship<CustomSelect value={guarantorForm.relationship} options={["Parent", "Partner", "Family member", "Friend", "Other"]} onChange={(value) => updateGuarantor("relationship", value)} ariaLabel="Guarantor relationship" /></label><label>Annual income<input inputMode="numeric" value={guarantorForm.annualIncome} onChange={(event) => updateGuarantor("annualIncome", event.target.value.replace(/[^0-9]/g, ""))} onBlur={() => updateGuarantor("annualIncome", guarantorForm.annualIncome ? Number(guarantorForm.annualIncome.replace(/,/g, "")).toLocaleString("en-US") : "")} placeholder="0" /></label></div><button type="button" className="tenant-application-complete-button" disabled={!guarantorForm.firstName || !guarantorForm.lastName || !guarantorForm.email || !guarantorForm.phoneNumber || !guarantorForm.annualIncome} onClick={addGuarantor}>Send guarantor invitation</button><small className="tenant-application-guarantor-count">{guarantors.length} of 2 guarantors added</small></div>}
+              {guarantors.length === 2 && <div className="tenant-application-callout"><ShieldIcon /><div><strong>Two guarantors added</strong><p>Both invitations are pending. You&apos;ll see their response here.</p></div></div>}
+            </section>
+          )}
           {activeSection === "documents" && (
             <section className="tenant-application-panel tenant-application-documents-panel">
               <p className="marketplace-eyebrow">Secure review</p>
@@ -346,19 +378,20 @@ export default function TenantApplicationDetailPage() {
                   First month&apos;s rent, charged only after landlord approval.
                 </small>
               </div>
-              <div className="tenant-application-payment-methods" role="radiogroup" aria-label="Choose payment method">
-                <button type="button" role="radio" aria-checked={paymentMethod === "pad"} className={paymentMethod === "pad" ? "is-selected" : ""} onClick={() => { setPaymentMethod("pad"); setPaymentAuthorized(false); }}><span className="tenant-application-payment-method-icon">PAD</span><span><strong>Stripe PAD / ACSS debit</strong><small>Connect a Canadian bank account securely through Stripe</small></span><span className="tenant-application-payment-radio" /></button>
-                <button type="button" role="radio" aria-checked={paymentMethod === "card"} className={paymentMethod === "card" ? "is-selected" : ""} onClick={() => { setPaymentMethod("card"); setPaymentAuthorized(false); }}><span className="tenant-application-payment-method-icon">VISA</span><span><strong>Card</strong><small>Visa, Mastercard, American Express</small></span><span className="tenant-application-payment-radio" /></button>
+              <div className="tenant-application-payment-methods tenant-application-required-methods">
+                <div className="tenant-application-required-method is-selected"><span className="tenant-application-payment-method-icon">PAD</span><span><strong>Stripe PAD / ACSS debit <small>Primary payment method</small></strong><small>Canadian bank account for the approval charge</small></span><span className="tenant-application-method-check">✓</span></div>
+                <div className="tenant-application-required-method"><span className="tenant-application-payment-method-icon">VISA</span><span><strong>Card <small>Fallback payment method</small></strong><small>Used only if the PAD payment cannot be completed</small></span><span className="tenant-application-method-check">✓</span></div>
               </div>
-              {paymentMethod === "card" && <div className="tenant-application-saved-card">
+              <div className="tenant-application-pad-form"><h4>Connect your primary bank account</h4><p>Stripe will securely verify your Canadian bank account. Arcora will never see or store your banking credentials.</p><label>Account holder name<input placeholder="Obinna Eze" /></label><label>Institution number<input placeholder="000" /></label><label>Transit number<input placeholder="00000" /></label><label>Account number<input placeholder="Account number" /></label></div>
+              <div className="tenant-application-saved-card">
                 <span className="tenant-application-card-brand">VISA</span>
                 <div>
                   <strong>Visa ending in 4242</strong>
                   <small>Expires 08/28</small>
                 </div>
                 <span className="tenant-application-card-default">Default</span>
-              </div>}
-              {paymentMethod === "card" && <div className="tenant-application-card-form">
+              </div>
+              <div className="tenant-application-card-form">
                 <h4>Use a different card</h4>
                 <label>
                   Card number
@@ -378,8 +411,7 @@ export default function TenantApplicationDetailPage() {
                   Name on card
                   <input placeholder="Obinna Eze" />
                 </label>
-              </div>}
-              {paymentMethod === "pad" && <div className="tenant-application-pad-form"><h4>Connect your bank account</h4><p>Stripe will securely verify your Canadian bank account. Arcora will never see or store your banking credentials.</p><label>Account holder name<input placeholder="Obinna Eze" /></label><label>Institution number<input placeholder="000" /></label><label>Transit number<input placeholder="00000" /></label><label>Account number<input placeholder="Account number" /></label></div>}
+              </div>
               <label className="tenant-application-consent-row">
                 <input
                   type="checkbox"
@@ -389,7 +421,7 @@ export default function TenantApplicationDetailPage() {
                   }
                 />
                 <span>
-                  I authorize Arcora to charge this {paymentMethod === "card" ? "card" : "bank account"} only if my application is approved.
+                  I authorize Arcora to charge my PAD / ACSS bank account first, and use my card as a fallback, only if my application is approved.
                 </span>
               </label>
               <button
@@ -404,9 +436,93 @@ export default function TenantApplicationDetailPage() {
               </button>
             </section>
           )}
-          {!["readiness", "profile", "rules", "payment"].includes(
-            activeSection,
-          ) && activeSection !== "documents" && (
+          {activeSection === "employment" && (
+            <section className="tenant-application-panel tenant-application-employment-panel">
+            <p className="marketplace-eyebrow">Income verification</p>
+            <h3>Employment &amp; income</h3>
+            <p className="tenant-application-panel-lead">
+              Tell us about your current source of income. You can save this section and return to it later.
+            </p>
+            <div className="tenant-application-form-grid">
+              <label>
+                Employment status
+                <select value={employment.employmentType} onChange={(event) => updateEmployment("employmentType", event.target.value)}>
+                  <option>Employed</option>
+                  <option>Self-employed</option>
+                  <option>Student</option>
+                  <option>Retired</option>
+                  <option>Unemployed</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>
+                Employer or business name
+                <input value={employment.employerName} onChange={(event) => updateEmployment("employerName", event.target.value)} placeholder="Company or business name" />
+              </label>
+              <label>
+                Employer email <span>(optional)</span>
+                <input type="email" value={employment.employerEmail} onChange={(event) => updateEmployment("employerEmail", event.target.value)} placeholder="employer@example.com" />
+              </label>
+              <label>
+                Employer phone number <span>(optional)</span>
+                <input type="tel" value={employment.employerPhoneNumber} onChange={(event) => updateEmployment("employerPhoneNumber", event.target.value)} placeholder="Employer phone number" />
+              </label>
+              <label>
+                Job title or role
+                <input value={employment.jobTitle} onChange={(event) => updateEmployment("jobTitle", event.target.value)} placeholder="Your role" />
+              </label>
+              <label>
+                Annual income
+                <input type="number" min="0" value={employment.annualIncome} onChange={(event) => updateEmployment("annualIncome", event.target.value)} placeholder="0" />
+              </label>
+              <label>
+                Income currency
+                <select value={employment.currency} onChange={(event) => updateEmployment("currency", event.target.value)}>
+                  <option>CAD</option>
+                  <option>USD</option>
+                  <option>GBP</option>
+                  <option>EUR</option>
+                </select>
+              </label>
+              <label>
+                Employment start date
+                <TenantDatePicker value={employment.startedAt} onChange={(value) => updateEmployment("startedAt", value)} ariaLabel="Employment start date" />
+              </label>
+              {!employment.isCurrent && (
+                <label>
+                  Employment end date
+                  <TenantDatePicker value={employment.endedAt} onChange={(value) => updateEmployment("endedAt", value)} ariaLabel="Employment end date" />
+                </label>
+              )}
+            </div>
+            <label className="tenant-application-current-toggle">
+              <input type="checkbox" checked={employment.isCurrent} onChange={(event) => updateEmployment("isCurrent", event.target.checked)} />
+              <span>
+                <strong>This is my current employment</strong>
+                <small>Keep this selected if you currently work here.</small>
+              </span>
+            </label>
+            <div className="tenant-application-upload-placeholder">
+              <FileIcon />
+              <div>
+                <strong>Add proof of income</strong>
+                <small>Optional for now. You can upload a pay stub, employment letter, or tax document.</small>
+              </div>
+              <button type="button">Add document</button>
+            </div>
+            <div className="tenant-application-callout">
+              <ShieldIcon />
+              <div>
+                <strong>Verification happens with your permission</strong>
+                <p>Your landlord can verify these details only after you authorize screening.</p>
+              </div>
+            </div>
+            <button type="button" className="tenant-application-complete-button" disabled={!employment.employerName || !employment.jobTitle || !employment.annualIncome || !employment.startedAt} onClick={() => toggleComplete("employment")}>
+              {isComplete("employment") ? "Marked complete" : "Save employment details"}
+            </button>
+          </section>
+          )}
+          {!['readiness', 'profile', 'rules', 'payment', 'employment', 'household', 'guarantor', 'documents'].includes(activeSection) && (
             <section className="tenant-application-panel">
               <p className="marketplace-eyebrow">Next section</p>
               <h3>{detailPlaceholder?.label}</h3>

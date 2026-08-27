@@ -1,0 +1,15 @@
+import { useEffect, useRef, useState } from 'react';
+import { CalendarIcon } from '../components/Icons';
+
+type TenantDatePickerProps = { value: string; onChange: (value: string) => void; ariaLabel: string; placeholder?: string };
+
+export default function TenantDatePicker({ value, onChange, ariaLabel, placeholder = 'Select a date' }: TenantDatePickerProps) {
+  const [open, setOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [month, setMonth] = useState(() => { const date = value ? new Date(`${value}T00:00:00`) : new Date(); return new Date(date.getFullYear(), date.getMonth(), 1); });
+  const days = Array.from({ length: 42 }, (_, index) => { const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay(); return new Date(month.getFullYear(), month.getMonth(), index - firstDay + 1); });
+  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const selectDate = (date: Date) => { onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`); setOpen(false); };
+  useEffect(() => { if (!open) return; const close = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) setOpen(false); }; const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); }; document.addEventListener('mousedown', close); document.addEventListener('keydown', escape); return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); }; }, [open]);
+  return <div className="tenant-date-picker" ref={pickerRef}><button type="button" className="tenant-date-trigger" aria-label={ariaLabel} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((current) => !current)}><span>{value || placeholder}</span><CalendarIcon /></button>{open && <div className="tenant-date-popover" role="dialog" aria-label={ariaLabel}><div className="tenant-date-header"><button type="button" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button><strong>{monthLabel}</strong><button type="button" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button></div><div className="tenant-date-weekdays">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}</div><div className="tenant-date-grid">{days.map((date, index) => { const currentMonth = date.getMonth() === month.getMonth(); const dateValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; return <button type="button" key={`${dateValue}-${index}`} className={`${currentMonth ? '' : 'is-muted'} ${dateValue === value ? 'is-selected' : ''}`} onClick={() => selectDate(date)}>{date.getDate()}</button>; })}</div><div className="tenant-date-actions"><button type="button" onClick={() => { onChange(''); setOpen(false); }}>Clear</button><button type="button" onClick={() => selectDate(new Date())}>Today</button></div></div>}</div>;
+}
