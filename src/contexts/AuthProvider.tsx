@@ -21,7 +21,7 @@
  */
 
 import { createContext, type PropsWithChildren, useEffect, useLayoutEffect, useState } from "react";
-import { getUser, login, logout } from "../apis/auth";
+import { clearPersistedAuthSession, getUser, login, logout, persistAuthSession } from "../apis/auth";
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { AuthResponse } from "../types/AuthResponse";
 import Cookies from 'js-cookie';
@@ -153,9 +153,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
      * Attempts to restore user session from stored tokens
      */
     useEffect(() => {
-        // Clean up any old cookies from previous versions
-        // console.log('AuthProvider: Cleaning up legacy cookies'); // SECURITY: Auth flow logging
-        Cookies.remove(env.AUTH_COOKIE_NAME);
         fetchUser();
 
 
@@ -269,21 +266,32 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     async function fetchUser() {
         try {
             const response = await getUser();
+            const hasActiveSession = Boolean(response.accessToken && response.isLoginSuccessful);
+
+            if (!hasActiveSession) {
+                setAuthToken(null);
+                setCurrentUser(null);
+                setIsAuthenticated(false);
+                return;
+            }
+
+            const decodedToken = decodeJWTToken(response.accessToken).token;
             
             // Check if token is expired before setting authentication state
-            if (response.accessToken && isTokenExpired(response.accessToken)) {
+            if (decodedToken.includes('.') && isTokenExpired(decodedToken)) {
                 // console.log('Token expired during fetchUser, clearing auth state'); // SECURITY: Auth flow logging
                 setAuthToken(null);
                 setCurrentUser(null);
                 setIsAuthenticated(false);
                 // Clear stored session data (current and legacy cookie names)
-                Cookies.remove(env.AUTH_COOKIE_NAME);
+                Cookies.remove(env.AUTH_COOKIE_NAME, { path: '/' });
+                clearPersistedAuthSession();
                 return;
             }
             
-            setAuthToken(response.accessToken);
-            setCurrentUser(response);
-            setIsAuthenticated(response.isLoginSuccessful);
+            setAuthToken(decodedToken);
+            setCurrentUser({ ...response, accessToken: decodedToken });
+            setIsAuthenticated(true);
         } catch {
             setAuthToken(null);
             setCurrentUser(null);
@@ -379,7 +387,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         setIsAuthenticated(false);
         
         // Remove stored session data (current and legacy cookie names)
-        Cookies.remove(env.AUTH_COOKIE_NAME);
+        Cookies.remove(env.AUTH_COOKIE_NAME, { path: '/' });
+        clearPersistedAuthSession();
         
         // Call logout API to invalidate server-side session
         try {
@@ -427,7 +436,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
             
             const updatedUser = {
                 ...currentUser,
-                token: finalToken,
+                accessToken: tokenData.token,
                 isLoginSuccessful: true,
                 requiresTwoFactor: false
             };
@@ -442,7 +451,9 @@ export default function AuthProvider({ children }: AuthProviderProps) {
                 secure: env.COOKIE_SECURE,
                 sameSite: 'Strict',
                 expires: 0.5,
+                path: '/',
             });
+            persistAuthSession(updatedUser);
         } else {
             console.warn('No currentUser found during 2FA completion');
         }

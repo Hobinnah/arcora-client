@@ -1,6 +1,14 @@
-import type { RentalUnit } from "./RentalUnit";
+﻿import type { CalendarEvent } from "./CalendarEvent";
+import type { ListingAccessInstruction } from "./ListingAccessInstruction";
+import type { ListingAmenity } from "./ListingAmenity";
+import type { ListingPhoto } from "./ListingPhoto";
+import type { ListingPolicy } from "./ListingPolicy";
+import type { ListingRule } from "./ListingRule";
+import type { ListingTermPrice } from "./ListingTermPrice";
 import type { ListingType } from "./ListingType";
 import type { Organization } from "./Organization";
+import type { Rating } from "./Rating";
+import type { RentalUnit } from "./RentalUnit";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -12,6 +20,10 @@ export type Listing = {
     title: string;
     description: string;
     checkInDoorCode: string;
+    rating: number;
+    reviews: number;
+    tag: string;
+    isFurnished: boolean;
     bedrooms: number;
     bathrooms: number;
     squareFeet: number;
@@ -38,4 +50,12 @@ export type Listing = {
     rentalUnit: RentalUnit;
     listingType: ListingType;
     organization: Organization;
+    reviewList: Rating[];
+    listingTermPrices: ListingTermPrice[];
+    listingAccessInstructions: ListingAccessInstruction[];
+    listingPhotos: ListingPhoto[];
+    listingAmenities: ListingAmenity[];
+    listingRules: ListingRule[];
+    listingPolicies: ListingPolicy[];
+    calendarEvents: CalendarEvent[];
 };

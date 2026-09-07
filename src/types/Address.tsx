@@ -5,6 +5,8 @@ import type { Organization } from "./Organization";
 export type Address = {
     addressID: string;
     organizationID: string;
+    tenantID?: string;
+    userID?: number;
     addressType: string;
     line1: string;
     line2: string;

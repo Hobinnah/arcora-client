@@ -20,6 +20,9 @@ export type LeasesListParams = {
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
   currency?: string;
+  tenantID?: string;
+  organizationID?: string;
+  listingID?: string;
 };
 
 export const getLeases = ({
@@ -28,6 +31,9 @@ export const getLeases = ({
   searchQuery,
   statusFilter,
   currency,
+  tenantID,
+  organizationID,
+  listingID,
   sortBy,
   sortDirection
 }: LeasesListParams = {}) => {
@@ -38,11 +44,17 @@ export const getLeases = ({
       { pageSize, pageNumber, searchQuery,
         statusFilter,
         currency,
+        tenantID,
+        organizationID,
+        listingID,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchLeases({ pageSize, pageNumber, searchQuery,
       statusFilter,
       currency,
+      tenantID,
+      organizationID,
+      listingID,
       sortBy, sortDirection }),
   });
 
@@ -55,6 +67,9 @@ export const fetchLeases = async ({
   searchQuery,
   statusFilter,
   currency,
+  tenantID,
+  organizationID,
+  listingID,
   sortBy,
   sortDirection
 }: Required<Pick<LeasesListParams, 'pageSize' | 'pageNumber'>> & Omit<LeasesListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<Lease>; totalCount: number }> => {
@@ -65,6 +80,9 @@ export const fetchLeases = async ({
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
     if (currency) { url += `&currency=${encodeURIComponent(currency)}`; }
+    if (tenantID) { url += `&tenantID=${encodeURIComponent(tenantID)}`; }
+    if (organizationID) { url += `&organizationID=${encodeURIComponent(organizationID)}`; }
+    if (listingID) { url += `&listingID=${encodeURIComponent(listingID)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 

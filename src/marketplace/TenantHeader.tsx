@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FileIcon, GlobeIcon, InfoIcon, MenuIcon, UserIcon } from '../components/Icons';
+import { FileIcon, GlobeIcon, InfoIcon, MenuIcon, ShieldIcon, StarIcon, UserIcon } from '../components/Icons';
 import faceImg from '../assets/face.jpg';
+import VerificationProfileSummary from '../components/VerificationProfileSummary';
 import './TenantHeader.css';
 
 export default function TenantHeader() {
@@ -30,6 +31,8 @@ export default function TenantHeader() {
     { label: 'My applications', icon: <FileIcon />, onClick: () => navigate('/applications') },
     { label: 'Language & currency', icon: <GlobeIcon /> },
     { label: 'Help centre', icon: <InfoIcon /> },
+    { label: 'Trust & verification', icon: <ShieldIcon />, onClick: () => navigate('/tenant/verification') },
+    { label: 'Reviews & ratings', icon: <StarIcon />, onClick: () => navigate('/reviews') },
     { label: 'Account settings', icon: <UserIcon />, onClick: () => navigate('/account-settings') },
   ];
 
@@ -49,6 +52,7 @@ export default function TenantHeader() {
         <button type="button" className="tenant-header-menu" aria-label="Open tenant menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}><MenuIcon /></button>
         {menuOpen && <div className="tenant-header-popover">
           <div className="tenant-header-profile"><span className="tenant-header-avatar"><img src={faceImg} alt="" /></span><span><strong>Obinna Eze</strong><small>Tenant account</small></span></div>
+          <VerificationProfileSummary />
           {menuItems.map((item) => <button type="button" key={item.label} onClick={item.onClick}><span>{item.icon}</span>{item.label}</button>)}
         </div>}
       </div>

@@ -9,6 +9,7 @@ export type IdentityVerification = {
     providerName: string;
     providerReferenceID: string;
     status: string;
+    confidenceScore?: number;
     requestedAt: string;
     verifiedAt: string;
     expiresAt: string;

@@ -1,10 +1,11 @@
-import type { Lease } from "./Lease";
+﻿import type { Lease } from "./Lease";
 import type { RentalApplication } from "./RentalApplication";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
 export type TenantInvitation = {
     tenantInvitationID: string;
+    listingID: string;
     leaseID: string;
     rentalApplicationID: string;
     invitationPurpose: string;

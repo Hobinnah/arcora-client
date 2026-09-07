@@ -21,6 +21,56 @@ export type ListingsListParams = {
   statusFilter?: string; // mapped to &status=
   availableFrom?: string;
   availableTo?: string;
+  organizationID?: string;
+};
+
+export type ListingSearchParams = {
+  where?: string;
+  stayLengthMonths?: number;
+  moveInDate?: string;
+  renters?: number;
+  minRent?: number;
+  maxRent?: number;
+  minBedrooms?: number;
+  isFurnished?: boolean;
+  isPetFriendly?: boolean;
+  pageNumber?: number;
+  pageSize?: number;
+  sortBy?: string;
+};
+
+export const searchListings = async ({
+  where,
+  stayLengthMonths,
+  moveInDate,
+  renters,
+  minRent,
+  maxRent,
+  minBedrooms,
+  isFurnished,
+  isPetFriendly,
+  pageNumber = 1,
+  pageSize = 10,
+  sortBy,
+}: ListingSearchParams = {}): Promise<{ data: Array<Listing>; totalCount: number }> => {
+  try {
+    const params = new URLSearchParams({ pageNumber: String(pageNumber), pageSize: String(pageSize) });
+    const values: Record<string, string | number | boolean | undefined> = {
+      where, stayLengthMonths, moveInDate, renters, minRent, maxRent,
+      minBedrooms, isFurnished, isPetFriendly, sortBy,
+    };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    });
+    const url = `${BASE_URL}api/listing/search?${params.toString()}`;
+    if (import.meta.env.DEV) console.info('[Arcora] Searching listings', { url });
+    const response = await axios.get(url);
+    const data = response.data;
+    return { data: data.data ?? data.records ?? [], totalCount: data.totalCount ?? data.total ?? 0 };
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('[Arcora] Listing search failed', error);
+    return handleApiError(error, 'search listings');
+  }
 };
 
 export const getListings = ({
@@ -30,6 +80,7 @@ export const getListings = ({
   statusFilter,
   availableFrom,
   availableTo,
+  organizationID,
   sortBy,
   sortDirection
 }: ListingsListParams = {}) => {
@@ -41,12 +92,14 @@ export const getListings = ({
         statusFilter,
         availableFrom,
         availableTo,
+        organizationID,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchListings({ pageSize, pageNumber, searchQuery,
       statusFilter,
       availableFrom,
       availableTo,
+      organizationID,
       sortBy, sortDirection }),
   });
 
@@ -60,6 +113,7 @@ export const fetchListings = async ({
   statusFilter,
   availableFrom,
   availableTo,
+  organizationID,
   sortBy,
   sortDirection
 }: Required<Pick<ListingsListParams, 'pageSize' | 'pageNumber'>> & Omit<ListingsListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<Listing>; totalCount: number }> => {
@@ -71,13 +125,17 @@ export const fetchListings = async ({
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
     if (availableFrom) { url += `&availableFrom=${encodeURIComponent(availableFrom)}`; }
     if (availableTo) { url += `&availableTo=${encodeURIComponent(availableTo)}`; }
+    if (organizationID) { url += `&organizationID=${encodeURIComponent(organizationID)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 
+    if (import.meta.env.DEV) console.info("[Arcora] Fetching listings", { url, params: { pageSize, pageNumber, searchQuery, statusFilter, availableFrom, availableTo, organizationID, sortBy, sortDirection } });
     const response = await axios.get(url);
     const data = response.data;
+    if (import.meta.env.DEV) console.info("[Arcora] Listings response", { totalCount: data.totalCount ?? 0, records: data.data ?? [], raw: data });
     return { data: data.data ?? [], totalCount: data.totalCount ?? 0 };
   } catch (error) {
+    if (import.meta.env.DEV) console.error("[Arcora] Listings request failed", error);
     return handleApiError(error, 'fetch listings');
   }
 };

@@ -1,0 +1,238 @@
+ARCORA CLIENT - PAGES AND LOCAL LINKS
+Base URL: http://localhost:5173
+
+Dynamic route placeholders:
+  :id       Replace with the relevant record ID.
+  :leaseId  Replace with the relevant lease ID.
+  :token    Replace with the invitation token.
+  :mode     Replace with a lifecycle mode, for example move-in or move-out.
+
+MARKETPLACE / TENANT
+Home: http://localhost:5173/
+Search: http://localhost:5173/search
+Home detail: http://localhost:5173/homes/:id
+Home photos: http://localhost:5173/homes/:id/photos
+My applications: http://localhost:5173/applications
+Tenant application detail: http://localhost:5173/applications/:id
+Accept invitation: http://localhost:5173/accept-invite/:token
+Lease review: http://localhost:5173/tenant/leases/:leaseId/review
+Lease payment: http://localhost:5173/tenant/leases/:leaseId/payment
+Lease lifecycle: http://localhost:5173/tenant/leases/:leaseId/:mode
+Tenant verification and consent: http://localhost:5173/tenant/verification
+Mutual reviews and ratings: http://localhost:5173/reviews
+
+HOSTING / LANDLORD
+Hosting dashboard: http://localhost:5173/hosting
+Organization setup: http://localhost:5173/hosting/setup-business
+Hosting calendar: http://localhost:5173/hosting/calendar
+Hosting listings: http://localhost:5173/hosting/listings
+Create listing: http://localhost:5173/hosting/listings/new
+Edit listing: http://localhost:5173/hosting/listings/:id/edit
+Hosting messages: http://localhost:5173/hosting/messages
+Hosting review: http://localhost:5173/hosting/review
+Hosting applications: http://localhost:5173/hosting/applications
+Hosting application review: http://localhost:5173/hosting/applications/:id
+Invite tenant: http://localhost:5173/hosting/invitations/new
+Host earnings and payouts: http://localhost:5173/hosting/earnings
+Host co-hosts and access: http://localhost:5173/hosting/cohosts
+Host verification: http://localhost:5173/hosting/verification
+Host security deposits: http://localhost:5173/hosting/deposits
+
+ACCOUNT / AUTHENTICATION
+Account settings: http://localhost:5173/account-settings
+Account settings - identity section: http://localhost:5173/account-settings?verify=identity
+Identity verification wizard: http://localhost:5173/verify-identity
+Overview: http://localhost:5173/overview
+Login: http://localhost:5173/login
+Logout: http://localhost:5173/logout
+Register: http://localhost:5173/register
+Forgot password: http://localhost:5173/forgot-password
+Reset password: http://localhost:5173/reset-password
+Confirm email: http://localhost:5173/confirm-email
+Verify email: http://localhost:5173/verify-email
+Access denied: http://localhost:5173/access-denied
+Change password: http://localhost:5173/change-password
+
+TASKS
+Task list: http://localhost:5173/tasks
+Task detail: http://localhost:5173/tasks/:id
+
+CORE ADMIN / OPERATIONS
+Tenants: http://localhost:5173/tenants
+Tenant detail: http://localhost:5173/tenants/:id
+Properties: http://localhost:5173/properties
+Property detail: http://localhost:5173/properties/:id
+Leases: http://localhost:5173/leases
+Lease detail: http://localhost:5173/leases/:id
+Payment methods: http://localhost:5173/paymentmethods
+Payment method detail: http://localhost:5173/paymentmethods/:id
+Addresses: http://localhost:5173/addresses
+Address detail: http://localhost:5173/addresses/:id
+Rental units: http://localhost:5173/rentalunits
+Rental unit detail: http://localhost:5173/rentalunits/:id
+Organizations: http://localhost:5173/organizations
+Organization detail: http://localhost:5173/organizations/:id
+Organization members: http://localhost:5173/organizationmembers
+Organization member detail: http://localhost:5173/organizationmembers/:id
+Listings: http://localhost:5173/listings
+Listing detail: http://localhost:5173/listings/:id
+Listing term prices: http://localhost:5173/listingtermprices
+Listing term price detail: http://localhost:5173/listingtermprices/:id
+Listing access instructions: http://localhost:5173/listingaccessinstructions
+Listing access instruction detail: http://localhost:5173/listingaccessinstructions/:id
+Listing photos: http://localhost:5173/listingphotos
+Listing photo detail: http://localhost:5173/listingphotos/:id
+
+TENANT OPERATIONS
+Tenant invitations: http://localhost:5173/tenantinvitations
+Tenant invitation detail: http://localhost:5173/tenantinvitations/:id
+Tenant employments: http://localhost:5173/tenantemployments
+Tenant employment detail: http://localhost:5173/tenantemployments/:id
+Tenant guarantors: http://localhost:5173/tenantguarantors
+Tenant guarantor detail: http://localhost:5173/tenantguarantors/:id
+Tenant emergency contacts: http://localhost:5173/tenantemergencycontacts
+Tenant emergency contact detail: http://localhost:5173/tenantemergencycontacts/:id
+Tenant screening checks: http://localhost:5173/tenantscreeningchecks
+Tenant screening check detail: http://localhost:5173/tenantscreeningchecks/:id
+Application occupants: http://localhost:5173/applicationoccupants
+Application occupant detail: http://localhost:5173/applicationoccupants/:id
+Tenancy types: http://localhost:5173/tenancytypes
+Tenancy type detail: http://localhost:5173/tenancytypes/:id
+Rental applications: http://localhost:5173/rentalapplications
+Rental application detail: http://localhost:5173/rentalapplications/:id
+Reservation holds: http://localhost:5173/reservationholds
+Reservation hold detail: http://localhost:5173/reservationholds/:id
+
+LEASE / DEPOSIT OPERATIONS
+Security deposits: http://localhost:5173/securitydeposits
+Security deposit detail: http://localhost:5173/securitydeposits/:id
+Security deposit transactions: http://localhost:5173/securitydeposittransactions
+Security deposit transaction detail: http://localhost:5173/securitydeposittransactions/:id
+Lease occupants: http://localhost:5173/leaseoccupants
+Lease occupant detail: http://localhost:5173/leaseoccupants/:id
+Lease renewals: http://localhost:5173/leaserenewals
+Lease renewal detail: http://localhost:5173/leaserenewals/:id
+Lease documents: http://localhost:5173/leasedocuments
+Lease document detail: http://localhost:5173/leasedocuments/:id
+Lease signatories: http://localhost:5173/leasesignatories
+Lease signatory detail: http://localhost:5173/leasesignatories/:id
+Lease recurring charges: http://localhost:5173/leaserecurringcharges
+Lease recurring charge detail: http://localhost:5173/leaserecurringcharges/:id
+Viewing appointments: http://localhost:5173/viewingappointments
+Viewing appointment detail: http://localhost:5173/viewingappointments/:id
+
+BILLING / PAYMENTS
+Fees: http://localhost:5173/fees
+Fee detail: http://localhost:5173/fees/:id
+Fee types: http://localhost:5173/feetypes
+Fee type detail: http://localhost:5173/feetypes/:id
+Invoice masters: http://localhost:5173/invoicemasters
+Invoice master detail: http://localhost:5173/invoicemasters/:id
+Tax rates: http://localhost:5173/taxrates
+Tax rate detail: http://localhost:5173/taxrates/:id
+Invoice details: http://localhost:5173/invoicedetails
+Invoice detail: http://localhost:5173/invoicedetails/:id
+Autopay mandates: http://localhost:5173/autopaymandates
+Autopay mandate detail: http://localhost:5173/autopaymandates/:id
+Autopay consent audits: http://localhost:5173/autopayconsentaudits
+Autopay consent audit detail: http://localhost:5173/autopayconsentaudits/:id
+Organization statements: http://localhost:5173/organizationstatements
+Organization statement detail: http://localhost:5173/organizationstatements/:id
+Payment intents: http://localhost:5173/paymentintents
+Payment intent detail: http://localhost:5173/paymentintents/:id
+Payment attempts: http://localhost:5173/paymentattempts
+Payment attempt detail: http://localhost:5173/paymentattempts/:id
+Payments: http://localhost:5173/payments
+Payment detail: http://localhost:5173/payments/:id
+Chargebacks: http://localhost:5173/chargebacks
+Chargeback detail: http://localhost:5173/chargebacks/:id
+Payment provider events: http://localhost:5173/paymentproviderevents
+Payment provider event detail: http://localhost:5173/paymentproviderevents/:id
+Refunds: http://localhost:5173/refunds
+Refund detail: http://localhost:5173/refunds/:id
+Organization payout accounts: http://localhost:5173/orgpayoutaccounts
+Organization payout account detail: http://localhost:5173/orgpayoutaccounts/:id
+Receipt masters: http://localhost:5173/receiptmasters
+Receipt master detail: http://localhost:5173/receiptmasters/:id
+Ledger transactions: http://localhost:5173/ledgertransactions
+Ledger transaction detail: http://localhost:5173/ledgertransactions/:id
+Ledger entries: http://localhost:5173/ledgerentries
+Ledger entry detail: http://localhost:5173/ledgerentries/:id
+Payment allocations: http://localhost:5173/paymentallocations
+Payment allocation detail: http://localhost:5173/paymentallocations/:id
+Payouts: http://localhost:5173/payouts
+Payout detail: http://localhost:5173/payouts/:id
+Ledger accounts: http://localhost:5173/ledgeraccounts
+Ledger account detail: http://localhost:5173/ledgeraccounts/:id
+Payout items: http://localhost:5173/payoutitems
+Payout item detail: http://localhost:5173/payoutitems/:id
+Payment reminders: http://localhost:5173/paymentreminders
+Payment reminder detail: http://localhost:5173/paymentreminders/:id
+
+PROPERTY / MAINTENANCE
+Contractors: http://localhost:5173/contractors
+Contractor detail: http://localhost:5173/contractors/:id
+Maintenance requests: http://localhost:5173/maintenancerequests
+Maintenance request detail: http://localhost:5173/maintenancerequests/:id
+Categories: http://localhost:5173/categories
+Category detail: http://localhost:5173/categories/:id
+Work orders: http://localhost:5173/workorders
+Work order detail: http://localhost:5173/workorders/:id
+Inspections: http://localhost:5173/inspections
+Inspection detail: http://localhost:5173/inspections/:id
+Inspection items: http://localhost:5173/inspectionitems
+Inspection item detail: http://localhost:5173/inspectionitems/:id
+Attachments: http://localhost:5173/attachments
+Attachment detail: http://localhost:5173/attachments/:id
+
+COMMUNICATION / TRUST / COMPLIANCE
+Conversations: http://localhost:5173/conversations
+Conversation detail: http://localhost:5173/conversations/:id
+Conversation participants: http://localhost:5173/conversationparticipants
+Conversation participant detail: http://localhost:5173/conversationparticipants/:id
+Conversation messages: http://localhost:5173/conversationmessages
+Conversation message detail: http://localhost:5173/conversationmessages/:id
+Ratings: http://localhost:5173/ratings
+Rating detail: http://localhost:5173/ratings/:id
+Fraud cases: http://localhost:5173/fraudcases
+Fraud case detail: http://localhost:5173/fraudcases/:id
+Identity verifications: http://localhost:5173/identityverifications
+Identity verification detail: http://localhost:5173/identityverifications/:id
+Disputes: http://localhost:5173/disputes
+Dispute detail: http://localhost:5173/disputes/:id
+Credit reporting enrollments: http://localhost:5173/creditreportingenrollments
+Credit reporting enrollment detail: http://localhost:5173/creditreportingenrollments/:id
+Credit reporting consent audits: http://localhost:5173/creditreportingconsentaudits
+Credit reporting consent audit detail: http://localhost:5173/creditreportingconsentaudits/:id
+Credit reporting: http://localhost:5173/creditreportings
+Credit reporting detail: http://localhost:5173/creditreportings/:id
+Notifications: http://localhost:5173/notifications
+Notification detail: http://localhost:5173/notifications/:id
+
+SUBSCRIPTIONS / AUDIT / CATALOGS
+Subscription plans: http://localhost:5173/subscriptionplans
+Subscription plan detail: http://localhost:5173/subscriptionplans/:id
+Organization subscriptions: http://localhost:5173/orgsubscriptions
+Organization subscription detail: http://localhost:5173/orgsubscriptions/:id
+Audit logs: http://localhost:5173/auditlogs
+Lease document extracted terms: http://localhost:5173/leasedocextractedterms
+Lease document extracted term detail: http://localhost:5173/leasedocextractedterms/:id
+Amenity catalogs: http://localhost:5173/amenitycatalogs
+Amenity catalog detail: http://localhost:5173/amenitycatalogs/:id
+Listing amenities: http://localhost:5173/listingamenities
+Listing amenity detail: http://localhost:5173/listingamenities/:id
+Listing rules: http://localhost:5173/listingrules
+Listing rule detail: http://localhost:5173/listingrules/:id
+Listing policies: http://localhost:5173/listingpolicies
+Listing policy detail: http://localhost:5173/listingpolicies/:id
+Calendar events: http://localhost:5173/calendarevents
+Calendar event detail: http://localhost:5173/calendarevents/:id
+Listing types: http://localhost:5173/listingtypes
+Listing type detail: http://localhost:5173/listingtypes/:id
+Unit types: http://localhost:5173/unittypes
+Unit type detail: http://localhost:5173/unittypes/:id
+
+NOT FOUND
+Any unmatched URL: http://localhost:5173/anything-not-defined
+
+Note: Many operational list/detail routes are protected. They require an authenticated account with one of the roles configured in main.tsx. Dynamic links require a real ID, token, lease ID, or mode to render the intended record.

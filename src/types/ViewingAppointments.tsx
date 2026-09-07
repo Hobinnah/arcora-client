@@ -1,7 +1,7 @@
-import type { Listing } from "./Listing";
-import type { User } from "./User";
-import type { Tenant } from "./Tenant";
+﻿import type { Listing } from "./Listing";
 import type { OrganizationMember } from "./OrganizationMember";
+import type { Tenant } from "./Tenant";
+import type { User } from "./User";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -10,6 +10,7 @@ export type ViewingAppointments = {
     listingID: string;
     requestedByUserID: number;
     tenantID: string;
+    rentalApplicationID: string;
     assignedOrganizationMemberID: string;
     scheduledFor: string;
     durationMinutes: number;
@@ -25,7 +26,7 @@ export type ViewingAppointments = {
     updatedDate: string;
     updatedBy: string;
     listing: Listing;
-    user: User;
+    requestedByUser: User;
     tenant: Tenant;
-    organizationMember: OrganizationMember;
+    assignedOrganizationMember: OrganizationMember;
 };

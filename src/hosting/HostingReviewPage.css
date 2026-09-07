@@ -94,7 +94,7 @@
 }
 .hosting-review-category-column { display: flex; flex-direction: column; gap: 8px; }
 .hosting-review-check-item { align-items: center; color: var(--ink); display: flex; font-size: 15px; gap: 10px; }
-.hosting-review-check-item::before { content: '✓'; font-weight: 700; }
+.hosting-review-check-item::before { content: 'âœ“'; font-weight: 700; }
 
 @media (max-width: 780px) {
   .hosting-review-card { flex-direction: column; align-items: flex-start; }

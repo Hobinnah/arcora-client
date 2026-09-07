@@ -19,6 +19,9 @@ export type PaymentIntentsListParams = {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
+  tenantID?: string;
+  invoiceMasterID?: string;
+  leaseID?: string;
 };
 
 export const getPaymentIntents = ({
@@ -26,6 +29,9 @@ export const getPaymentIntents = ({
   pageNumber = 0,
   searchQuery,
   statusFilter,
+  tenantID,
+  invoiceMasterID,
+  leaseID,
   sortBy,
   sortDirection
 }: PaymentIntentsListParams = {}) => {
@@ -35,10 +41,16 @@ export const getPaymentIntents = ({
       'fetchPaymentIntents',
       { pageSize, pageNumber, searchQuery,
         statusFilter,
+        tenantID,
+        invoiceMasterID,
+        leaseID,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchPaymentIntents({ pageSize, pageNumber, searchQuery,
       statusFilter,
+      tenantID,
+      invoiceMasterID,
+      leaseID,
       sortBy, sortDirection }),
   });
 
@@ -50,6 +62,9 @@ export const fetchPaymentIntents = async ({
   pageNumber,
   searchQuery,
   statusFilter,
+  tenantID,
+  invoiceMasterID,
+  leaseID,
   sortBy,
   sortDirection
 }: Required<Pick<PaymentIntentsListParams, 'pageSize' | 'pageNumber'>> & Omit<PaymentIntentsListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<PaymentIntent>; totalCount: number }> => {
@@ -59,6 +74,9 @@ export const fetchPaymentIntents = async ({
     // Optional server-side filtering & sorting
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
+    if (tenantID) { url += `&tenantID=${encodeURIComponent(tenantID)}`; }
+    if (invoiceMasterID) { url += `&invoiceMasterID=${encodeURIComponent(invoiceMasterID)}`; }
+    if (leaseID) { url += `&leaseID=${encodeURIComponent(leaseID)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 

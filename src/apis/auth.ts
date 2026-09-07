@@ -44,6 +44,15 @@ import { DefaultApiPaths } from '../types/Account';
  * Configured from environment variables for different deployment environments
  */
 const BASE_URL = env.API_BASE_URL;
+export const AUTH_SESSION_STORAGE_KEY = 'arcora:auth-session';
+
+export function persistAuthSession(session: AuthResponse): void {
+    localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+export function clearPersistedAuthSession(): void {
+    localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+}
 
 export type RequestLoginCodeResponse = {
     emailExists: boolean;
@@ -88,9 +97,17 @@ function summarizeUnexpectedResponse(body: unknown): string {
         return body;
     }
     if (body && typeof body === 'object') {
-        const message = pickString(body as Record<string, unknown>, ['message', 'Message', 'detail', 'title']);
+        const record = body as Record<string, unknown>;
+        const message = pickString(record, ['message', 'Message', 'detail', 'title']);
         if (message) {
             return message;
+        }
+        const errors = record['errors'] ?? record['Errors'];
+        if (errors && typeof errors === 'object') {
+            const flattened = Object.values(errors as Record<string, unknown>).flat();
+            if (flattened.length) {
+                return flattened.join(' ');
+            }
         }
     }
     return 'Unrecognized response payload.';
@@ -155,7 +172,11 @@ export async function requestLoginCode(email: string): Promise<RequestLoginCodeR
     const rawBody = await response.text();
     let body: any = rawBody;
     try { body = rawBody ? JSON.parse(rawBody) : rawBody; } catch { /* Plain-text endpoint response. */ }
-    if (response.status !== 200) throw new Error(typeof body === 'string' && body ? body : 'Unable to continue with this email.');
+    if (response.status !== 200) {
+        const detail = summarizeUnexpectedResponse(body).trim();
+        console.error('RequestLoginCode failed:', response.status, body);
+        throw new Error(detail && detail !== 'Unrecognized response payload.' ? detail : `Unable to continue with this email. (Server responded with status ${response.status}.)`);
+    }
 
     const normalized = normalizeRequestLoginCodeResponse(body);
     if (!normalized) {
@@ -307,7 +328,7 @@ export async function verifyLoginCode(emailAddress: string, token: string, otpCo
  * ```
  */
 export async function getUser(): Promise<AuthResponse> {
-    const jsonData = Cookies.get(env.AUTH_COOKIE_NAME);
+    const jsonData = Cookies.get(env.AUTH_COOKIE_NAME) || localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
     if (jsonData) {
         return JSON.parse(jsonData) as AuthResponse;
     }
@@ -389,7 +410,9 @@ export async function login(username: string, password: string): Promise<AuthRes
                 secure: env.COOKIE_SECURE,
                 sameSite: 'Strict',
                 expires: 0.5,
+                path: '/',
             });
+            persistAuthSession(data as AuthResponse);
             return data as AuthResponse;
         } else {
             const errorText = await response.text();

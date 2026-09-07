@@ -1,4 +1,4 @@
-import type { User } from "./User";
+﻿import type { User } from "./User";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -12,6 +12,10 @@ export type Tenant = {
     dateOfBirth: string;
     profileStatus: string;
     isActive: boolean;
+    isPADRegistered: boolean;
+    isCardRegistered: boolean;
+    leaseContractReviewed?: boolean;
+    verificationAuthorization?: boolean;
     capturedBy: string;
     capturedDate: string;
     updatedBy: string;

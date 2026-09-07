@@ -5,7 +5,7 @@ import type { User } from "./User";
 
 export type ApplicationOccupant = {
     applicationOccupantID: string;
-    rentalApplicationID: string;
+    rentalApplicationID?: string;
     tenantID: string;
     userID: number;
     firstName: string;

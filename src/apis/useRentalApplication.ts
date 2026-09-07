@@ -20,6 +20,9 @@ export type RentalApplicationsListParams = {
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
   screeningStatus?: string;
+  tenantID?: string;
+  listingID?: string;
+  organizationID?: string;
 };
 
 export const getRentalApplications = ({
@@ -28,6 +31,9 @@ export const getRentalApplications = ({
   searchQuery,
   statusFilter,
   screeningStatus,
+  tenantID,
+  listingID,
+  organizationID,
   sortBy,
   sortDirection
 }: RentalApplicationsListParams = {}) => {
@@ -38,11 +44,17 @@ export const getRentalApplications = ({
       { pageSize, pageNumber, searchQuery,
         statusFilter,
         screeningStatus,
+        tenantID,
+        listingID,
+        organizationID,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchRentalApplications({ pageSize, pageNumber, searchQuery,
       statusFilter,
       screeningStatus,
+      tenantID,
+      listingID,
+      organizationID,
       sortBy, sortDirection }),
   });
 
@@ -55,6 +67,9 @@ export const fetchRentalApplications = async ({
   searchQuery,
   statusFilter,
   screeningStatus,
+  tenantID,
+  listingID,
+  organizationID,
   sortBy,
   sortDirection
 }: Required<Pick<RentalApplicationsListParams, 'pageSize' | 'pageNumber'>> & Omit<RentalApplicationsListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<RentalApplication>; totalCount: number }> => {
@@ -65,6 +80,9 @@ export const fetchRentalApplications = async ({
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
     if (screeningStatus) { url += `&screeningStatus=${encodeURIComponent(screeningStatus)}`; }
+    if (tenantID) { url += `&tenantID=${encodeURIComponent(tenantID)}`; }
+    if (listingID) { url += `&listingID=${encodeURIComponent(listingID)}`; }
+    if (organizationID) { url += `&organizationID=${encodeURIComponent(organizationID)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 

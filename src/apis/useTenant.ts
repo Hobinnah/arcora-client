@@ -87,6 +87,19 @@ export const getTenant = async (id?: string): Promise<Tenant> => {
   }
 };
 
+export const getTenantByUserID = async (userID: number): Promise<Tenant | null> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/tenant/GetTenantByUserID/${userID}`);
+    return response.data as Tenant;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+    handleApiError(error, 'get tenant by user ID');
+    throw error;
+  }
+};
+
 export const createTenant = async (Tenant?: Tenant): Promise<Tenant> => {
   try {
     const url = `${BASE_URL}api/tenant/createTenant`;
@@ -105,6 +118,14 @@ export const updateTenant = async (tenant?: Tenant): Promise<Tenant> => {
     const response = await axios.put(url, tenant);
     return response.data as Tenant;
   } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('Tenant update request failed:', {
+        payload: tenant,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
+    }
     handleApiError(error, 'update tenant');
     throw error;
   }

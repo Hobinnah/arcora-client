@@ -58,7 +58,7 @@ export const fetchRatings = async ({
 
     const response = await axios.get(url);
     const data = response.data;
-    return { data: data.data ?? [], totalCount: data.totalCount ?? 0 };
+    return { data: data.data ?? data.records ?? [], totalCount: data.totalCount ?? data.total ?? 0 };
   } catch (error) {
     return handleApiError(error, 'fetch ratings');
   }

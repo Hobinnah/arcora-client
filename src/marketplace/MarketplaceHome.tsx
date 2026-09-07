@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarIcon, UsersIcon } from '../components/Icons';
 import { fetchListings } from '../apis/useListing';
+import { fetchUnitTypes } from '../apis/useUnitType';
 import { fallbackListings, normalizeListing, type MarketplaceListing } from './marketplaceData';
+import type { UnitType } from '../types/UnitType';
+import CustomSelect from '../components/CustomSelect';
+import { useAuth } from '../hooks/useAuth';
+import { useVerificationCenter } from '../apis/useVerificationCenter';
 import MarketplaceHeader from './MarketplaceHeader';
 import MarketplaceFooter from './MarketplaceFooter';
 import './MarketplaceHome.css';
@@ -11,19 +16,33 @@ const formatPrice = (price: number) => new Intl.NumberFormat('en-US').format(pri
 
 export default function MarketplaceHome() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
+  const hasSubmittedVerification = localStorage.getItem(`arcora:verification-submitted:${userID || "session"}`) === "true";
+  const verification = useVerificationCenter(userID);
+  useEffect(() => {
+    if (!userID || verification.loading || verification.identityVerified || hasSubmittedVerification) return;
+    navigate('/verify-identity', { replace: true });
+  }, [userID, verification.loading, verification.identityVerified, hasSubmittedVerification, navigate]);
   const [listings, setListings] = useState<MarketplaceListing[]>(fallbackListings);
   const [query, setQuery] = useState('');
-  const [term, setTerm] = useState('1 month');
-  const [termOpen, setTermOpen] = useState(false);
   const [occupantsOpen, setOccupantsOpen] = useState(false);
   const [occupants, setOccupants] = useState({ adults: 1, children: 0, infants: 0, pets: 0 });
   const [moveInDate, setMoveInDate] = useState('');
+  const [monthCount, setMonthCount] = useState('1 month');
   const [dateOpen, setDateOpen] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(new Date(2026, 7, 1));
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [favorites, setFavorites] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState('All homes');
+  const [unitTypes, setUnitTypes] = useState<UnitType[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
   const occupantsRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
 
@@ -31,20 +50,37 @@ export default function MarketplaceHome() {
     let cancelled = false;
     const loadListings = async () => {
       try {
-        const response = await fetchListings({ pageSize: 1000, pageNumber: 0, statusFilter: 'PUBLISHED' });
+        const response = await fetchListings({ pageSize, pageNumber: currentPage - 1, statusFilter: 'PUBLISHED' });
         const liveListings = Array.isArray(response?.data)
-          ? response.data.map((listing, index) => normalizeListing(listing as unknown as Record<string, any>, index)).filter((listing): listing is MarketplaceListing => listing !== null)
+          ? response.data
+            .filter((listing) => listing.status === 'PUBLISHED')
+            .map((listing, index) => normalizeListing(listing as unknown as Record<string, any>, index))
+            .filter((listing): listing is MarketplaceListing => listing !== null)
           : [];
         if (!cancelled && liveListings.length > 0) {
           setListings(liveListings);
+          setTotalCount(response.totalCount ?? 0);
         }
       } catch (error) {
         console.warn('Marketplace listings unavailable; using static fallback data.', error);
       }
     };
+    const loadUnitTypes = async () => {
+      try {
+        const response = await fetchUnitTypes({ pageSize: 1000, pageNumber: 0 });
+        if (!cancelled && Array.isArray(response?.data)) setUnitTypes(response.data);
+      } catch (error) {
+        console.warn('Marketplace unit types unavailable.', error);
+      }
+    };
     loadListings();
+    loadUnitTypes();
     return () => { cancelled = true; };
-  }, []);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (currentPage !== 1) setCurrentPage(1);
+  }, [activeCategory, moveInDate, query, selectedFilters, occupants.pets]);
 
   useEffect(() => {
     const closeMenu = (event: MouseEvent) => {
@@ -66,10 +102,15 @@ export default function MarketplaceHome() {
   const visibleListings = listings.filter((listing) => {
     const searchText = `${listing.title} ${listing.location} ${listing.type}`.toLowerCase();
     const matchesSearch = searchText.includes(query.toLowerCase());
-    const matchesCategory = activeCategory === 'All homes' || listing.type === activeCategory;
-    const matchesFilters = !selectedFilters.includes('Under $2,000') || listing.price < 2000;
+    const selectedUnitType = unitTypes.find((unitType) => unitType.name === activeCategory);
+    const matchesCategory = activeCategory === 'All homes' || listing.unitTypeID === selectedUnitType?.unitTypeID;
+    const matchesFilters =
+      (!selectedFilters.includes('Under $2,000') || listing.price < 2000) &&
+      (!selectedFilters.includes('Pet friendly') || listing.isPetFriendly) &&
+      (!selectedFilters.includes('Furnished') || listing.isFurnished);
     const matchesDate = !moveInDate || listing.availableFrom <= moveInDate;
-    return matchesSearch && matchesCategory && matchesFilters && matchesDate;
+    const matchesPets = occupants.pets === 0 || listing.isPetFriendly;
+    return matchesSearch && matchesCategory && matchesFilters && matchesDate && matchesPets;
   });
 
   const toggleFilter = (filter: string) => {
@@ -84,6 +125,12 @@ export default function MarketplaceHome() {
       : [...current, id]);
   };
 
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  const visiblePages = Array.from({ length: pageCount }, (_, index) => index + 1).slice(0, 5);
+  const goToPage = (page: number) => setCurrentPage(Math.min(pageCount, Math.max(1, page)));
+
+  const openListing = (listingID: string) => navigate(`/homes/${listingID}`);
+
   const updateOccupants = (type: keyof typeof occupants, delta: number) => {
     setOccupants((current) => ({ ...current, [type]: Math.max(type === 'adults' ? 1 : 0, current[type] + delta) }));
   };
@@ -94,21 +141,20 @@ export default function MarketplaceHome() {
     const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
     return new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), dayIndex - firstDay + 1);
   });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isCurrentMonth = calendarMonth.getFullYear() === today.getFullYear() && calendarMonth.getMonth() === today.getMonth();
   const selectedDate = moveInDate ? new Date(`${moveInDate}T00:00:00`) : null;
   const calendarMonthLabel = calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const selectDate = (date: Date) => {
+    if (date < today) return;
     const dateValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     setMoveInDate(dateValue);
     setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     setDateOpen(false);
   };
 
-  const stayOptions = [
-    { label: '1 month', detail: 'Flexible month-to-month living' },
-    { label: '3 months', detail: 'A little more time to settle in' },
-    { label: '6 months', detail: 'Make a place yours for a season' },
-    { label: '12 months', detail: 'Your long-term home base' },
-  ];
+  const monthOptions = Array.from({ length: 12 }, (_, index) => `${index + 1} month${index === 0 ? '' : 's'}`);
 
   return (
     <main className="marketplace">
@@ -131,24 +177,19 @@ export default function MarketplaceHome() {
             <span>Where</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="City, neighborhood, or address" />
           </label>
-          <div className={`marketplace-search-field marketplace-term-field ${termOpen ? 'is-open' : ''}`}>
-            <span>Stay length</span>
-            <button className="marketplace-term-trigger" type="button" aria-haspopup="listbox" aria-expanded={termOpen} onClick={() => setTermOpen((open) => !open)}>
-              <span>{term}</span>
-            </button>
-            {termOpen && <div className="marketplace-term-popover" role="listbox" aria-label="Choose stay length">
-              {stayOptions.map((option) => <button className={term === option.label ? 'is-selected' : ''} type="button" role="option" aria-selected={term === option.label} key={option.label} onClick={() => { setTerm(option.label); setTermOpen(false); }}><span className="marketplace-term-radio" aria-hidden="true" /><span><strong>{option.label}</strong><small>{option.detail}</small></span>{term === option.label && <span className="marketplace-term-check" aria-hidden="true">✓</span>}</button>)}
-            </div>}
-          </div>
           <div className={`marketplace-search-field marketplace-date-field ${dateOpen ? 'is-open' : ''}`} ref={datePickerRef}>
             <span>Move-in date</span>
             <button className="marketplace-date-trigger" type="button" aria-haspopup="dialog" aria-expanded={dateOpen} onClick={() => setDateOpen((open) => !open)}><span>{moveInDate || 'yyyy-mm-dd'}</span><CalendarIcon /></button>
             {dateOpen && <div className="marketplace-calendar-popover" role="dialog" aria-label="Choose move-in date">
-              <div className="marketplace-calendar-header"><button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹</button><strong>{calendarMonthLabel}</strong><button type="button" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>›</button></div>
+              <div className="marketplace-calendar-header"><button type="button" aria-label="Previous month" disabled={isCurrentMonth} onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹</button><strong>{calendarMonthLabel}</strong><button type="button" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>›</button></div>
               <div className="marketplace-calendar-weekdays">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}</div>
-              <div className="marketplace-calendar-grid">{calendarDays.map((date) => { const isCurrentMonth = date.getMonth() === calendarMonth.getMonth(); const dateValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; const isSelected = selectedDate?.toDateString() === date.toDateString(); const isPast = dateValue < '2026-08-21'; return <button className={`${isCurrentMonth ? '' : 'is-muted'} ${isSelected ? 'is-selected' : ''}`} disabled={isPast} type="button" key={dateValue} onClick={() => selectDate(date)}>{date.getDate()}</button>; })}</div>
+              <div className="marketplace-calendar-grid">{calendarDays.map((date) => { const isDateInCurrentMonth = date.getMonth() === calendarMonth.getMonth(); const dateValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; const isSelected = selectedDate?.toDateString() === date.toDateString(); const isPast = date < today; return <button className={`${isDateInCurrentMonth ? '' : 'is-muted'} ${isSelected ? 'is-selected' : ''}`} disabled={isPast} type="button" key={dateValue} onClick={() => selectDate(date)}>{date.getDate()}</button>; })}</div>
               <div className="marketplace-calendar-actions"><button type="button" onClick={() => { setMoveInDate(''); setDateOpen(false); }}>Clear</button><button type="button" onClick={() => selectDate(new Date())}>Today</button></div>
             </div>}
+          </div>
+          <div className="marketplace-search-field marketplace-month-count-field">
+            <span>Stay length</span>
+            <CustomSelect value={monthCount} options={monthOptions} onChange={setMonthCount} ariaLabel="Choose stay length" />
           </div>
           <div className={`marketplace-search-field marketplace-occupants-field ${occupantsOpen ? 'is-open' : ''}`} ref={occupantsRef}>
             <span>Who's moving in?</span>
@@ -164,7 +205,7 @@ export default function MarketplaceHome() {
               <p className="marketplace-occupants-note">Occupancy limits may vary by home and lease.</p>
             </div>}
           </div>
-          <button className="marketplace-search-button" type="button" onClick={() => { const search = new URLSearchParams({ where: query, term, moveIn: moveInDate }); navigate(`/search?${search.toString()}`); }}>Search homes</button>
+          <button className="marketplace-search-button" type="button" onClick={() => { const search = new URLSearchParams({ where: query, moveIn: moveInDate, stayLengthMonths: monthCount.replace(/\D/g, ''), renters: String(occupants.adults + occupants.children + occupants.infants), ...(selectedFilters.includes('Pet friendly') ? { isPetFriendly: 'true' } : {}), ...(selectedFilters.includes('Furnished') ? { isFurnished: 'true' } : {}) }); navigate(`/search?${search.toString()}`); }}>Search homes</button>
         </div>
       </section>
 
@@ -179,7 +220,7 @@ export default function MarketplaceHome() {
           </button>
         </div>
         <div className="marketplace-categories" role="tablist" aria-label="Home categories">
-          {['All homes', 'Apartment', 'House', 'Loft', 'Studio'].map((category) => (
+          {['All homes', ...unitTypes.map((unitType) => unitType.name)].map((category) => (
             <button className={activeCategory === category ? 'is-active' : ''} key={category} type="button" role="tab" aria-selected={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>
           ))}
         </div>
@@ -191,11 +232,11 @@ export default function MarketplaceHome() {
         )}
         <div className="marketplace-grid">
           {visibleListings.map((listing, index) => (
-            <article className="marketplace-listing" style={{ '--card-index': index } as React.CSSProperties} key={listing.id}>
+            <article className="marketplace-listing" style={{ '--card-index': index } as React.CSSProperties} key={listing.id} role="link" tabIndex={0} onClick={() => openListing(listing.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openListing(listing.id); } }}>
               <div className="marketplace-image-wrap">
                 <img src={listing.image} alt={listing.title} />
                 {listing.tag && <span className="marketplace-tag">{listing.tag}</span>}
-                <button className={`marketplace-favorite ${favorites.includes(listing.id) ? 'is-favorite' : ''}`} type="button" onClick={() => toggleFavorite(listing.id)} aria-label={favorites.includes(listing.id) ? `Remove ${listing.title} from favorites` : `Save ${listing.title}`}>
+                <button className={`marketplace-favorite ${favorites.includes(listing.id) ? 'is-favorite' : ''}`} type="button" onClick={(event) => { event.stopPropagation(); toggleFavorite(listing.id); }} aria-label={favorites.includes(listing.id) ? `Remove ${listing.title} from favorites` : `Save ${listing.title}`}>
                   {favorites.includes(listing.id) ? '♥' : '♡'}
                 </button>
               </div>
@@ -203,12 +244,17 @@ export default function MarketplaceHome() {
                 <div className="marketplace-listing-topline"><h3>{listing.title}</h3><span>{listing.type}</span></div>
                 <p>{listing.location}</p>
                 <p className="marketplace-listing-details">{listing.details}</p>
-                <div className="marketplace-listing-price"><strong>${formatPrice(listing.price)}</strong><span>/ month</span><span className="marketplace-rating">★ {listing.rating} <small>({listing.reviews})</small></span><button type="button">View home <span aria-hidden="true">-&gt;</span></button></div>
+                <div className="marketplace-listing-price"><strong>${formatPrice(listing.price)}</strong><span>/ month</span><span className="marketplace-rating">★ {listing.rating} <small>({listing.reviews})</small></span><button type="button" onClick={(event) => { event.stopPropagation(); openListing(listing.id); }}>View home <span aria-hidden="true">-&gt;</span></button></div>
               </div>
             </article>
           ))}
         </div>
         {visibleListings.length === 0 && <div className="marketplace-empty">No homes match that search yet. Try a nearby city or neighborhood.</div>}
+        <nav className="marketplace-pagination" aria-label="Marketplace home pages">
+          <button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)}>‹</button>
+          {visiblePages.map((page) => <button className={page === currentPage ? 'is-current' : ''} type="button" key={page} aria-current={page === currentPage ? 'page' : undefined} onClick={() => goToPage(page)}>{page}</button>)}
+          <button type="button" aria-label="Next page" disabled={currentPage === pageCount} onClick={() => goToPage(currentPage + 1)}>›</button>
+        </nav>
       </section>
 
       <MarketplaceFooter />

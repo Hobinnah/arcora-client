@@ -117,6 +117,8 @@ export interface RegisterUserRequest {
   lastName: string;
   /** Optional phone number */
   phoneNumber?: string;
+  /** Optional date of birth (yyyy-mm-dd) */
+  dateOfBirth?: string;
   /** Account status (e.g., 'active', 'inactive') */
   status?: string;
   /** Optional roles for the new user (e.g., ['User', 'Admin']) */

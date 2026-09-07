@@ -1,4 +1,4 @@
-import type { Lease } from "./Lease";
+﻿import type { Lease } from "./Lease";
 import type { Organization } from "./Organization";
 import type { Tenant } from "./Tenant";
 
@@ -33,6 +33,7 @@ export type InvoiceMaster = {
     updatedDate: string;
     updatedBy: string;
     lease: Lease;
+    leaseRenewalLease: Lease;
     organization: Organization;
     tenant: Tenant;
 };

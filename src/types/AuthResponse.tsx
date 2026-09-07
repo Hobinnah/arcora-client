@@ -12,6 +12,8 @@
  * @since 2024
  */
 
+import type { OrganizationMember } from "./OrganizationMember";
+import type { Tenant } from "./Tenant";
 import type { User } from "./User";
 
 /**
@@ -43,6 +45,14 @@ import type { User } from "./User";
  * @property {User} user - Complete user object with detailed user information
  *                        Contains user profile data, preferences, and metadata
  *                        See User type for detailed structure
+ *
+ * @property {Tenant} [tenant] - Optional tenant profile associated with the user
+ *                               Includes tenant-specific status, payment registration,
+ *                               and profile information for tenant workflows
+ *
+ * @property {OrganizationMember[]} [memberOrganizations] - Optional organization memberships
+ *                                                          Associated roles and organization access
+ *                                                          for landlord and co-host workflows
  * 
  * @example
  * ```typescript
@@ -96,6 +106,8 @@ export type AuthResponse = {
     roles: Array<string>;
     isLoginSuccessful: boolean;
     user: User;
+    tenant?: Tenant;
+    memberOrganizations?: OrganizationMember[];
     requiresTwoFactor?: boolean;
     tempToken?: string;
     twoFactorMessage?: string;

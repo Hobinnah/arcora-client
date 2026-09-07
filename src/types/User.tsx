@@ -7,6 +7,7 @@ export type User = {
     lastName: string;
     userName: string;
     phoneNumber: string;
+    dateOfBirth: string;
     email: string;
     status: string;
     student: boolean;

@@ -269,7 +269,7 @@ class TokenMonitorService {
         this.stop();
 
         // Clear all authentication data
-        Cookies.remove(env.AUTH_COOKIE_NAME);
+        Cookies.remove(env.AUTH_COOKIE_NAME, { path: '/' });
         
         // Clear any localStorage items that might contain auth data
         try {

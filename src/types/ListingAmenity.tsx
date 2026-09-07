@@ -1,5 +1,5 @@
+﻿import type { AmenityCatalog } from "./AmenityCatalog";
 import type { Listing } from "./Listing";
-import type { AmenityCatalog } from "./AmenityCatalog";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -11,5 +11,5 @@ export type ListingAmenity = {
     capturedDate: string;
     capturedBy: string;
     listing: Listing;
-    amenityCatalog: AmenityCatalog;
+    amenityAmenityCatalog: AmenityCatalog;
 };

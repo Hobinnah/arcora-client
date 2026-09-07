@@ -1,7 +1,7 @@
-import type { Conversation } from "./Conversation";
-import type { User } from "./User";
-import type { Tenant } from "./Tenant";
+﻿import type { Conversation } from "./Conversation";
 import type { OrganizationMember } from "./OrganizationMember";
+import type { Tenant } from "./Tenant";
+import type { User } from "./User";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -19,9 +19,9 @@ export type ConversationMessage = {
     deletedAt: string;
     capturedDate: string;
     capturedBy: string;
-    conversation?: Conversation;
-    senderUser?: User;
-    senderTenant?: Tenant;
-    senderOrganizationMember?: OrganizationMember;
-    replyToMessageConversationMessage?: ConversationMessage;
+    conversation: Conversation;
+    senderUser: User;
+    senderTenant: Tenant;
+    senderOrganizationMember: OrganizationMember;
+    replyToMessageConversationMessage: ConversationMessage;
 };

@@ -1,7 +1,7 @@
-import type { User } from "./User";
-import type { Tenant } from "./Tenant";
-import type { Organization } from "./Organization";
+﻿import type { Organization } from "./Organization";
 import type { OrganizationMember } from "./OrganizationMember";
+import type { Tenant } from "./Tenant";
+import type { User } from "./User";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -27,7 +27,7 @@ export type Notification = {
     metadata: string;
     capturedDate: string;
     capturedBy: string;
-    user: User;
+    recipientUser: User;
     tenant: Tenant;
     organization: Organization;
     organizationMember: OrganizationMember;

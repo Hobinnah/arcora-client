@@ -1,5 +1,5 @@
-.login-page { font-family: 'DM Sans', sans-serif; }
-.login-nav { align-items: center; background: rgba(255,255,255,.94); display: flex; justify-content: space-between; padding: 14px 32px; position: relative; z-index: 5; }
+.login-page { background: var(--paper, #fbfaf6); font-family: 'DM Sans', sans-serif; }
+.login-nav { align-items: center; background: var(--paper, #fbfaf6); display: flex; justify-content: space-between; padding: 14px 32px; position: relative; z-index: 5; }
 .login-brand { align-items: center; color: #172c2b; display: flex; font-size: 22px; font-weight: 700; gap: 4px; letter-spacing: -1px; text-decoration: none; }
 .login-brand-mark { align-items: center; background: #167c80; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; height: 28px; justify-content: center; transform: rotate(-45deg); width: 28px; }
 .login-brand-mark > span { display: inline-block; transform: rotate(45deg) translateY(-1px); }
@@ -7,7 +7,7 @@
 .login-nav-right > button { background: transparent; border: 0; color: #172c2b; font-size: 13px; font-weight: 600; }
 .login-nav-menu { align-items: center; background: #167c80 !important; border-radius: 50%; color: #fff !important; display: flex; height: 34px; justify-content: center; width: 34px; }
 .login-nav-menu svg { height: 16px; width: 16px; }
-.login-hero { background: #f7f7f7; min-height: calc(100vh - 56px); overflow: hidden; position: relative; }
+.login-hero { background: var(--paper, #fbfaf6); min-height: calc(100vh - 56px); overflow: hidden; position: relative; }
 .login-page .marketplace-nav { display: none; }
 
 /* City poster background */

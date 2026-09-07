@@ -1,9 +1,9 @@
+﻿import type { Category } from "./Category";
+import type { Lease } from "./Lease";
+import type { Listing } from "./Listing";
 import type { Property } from "./Property";
 import type { RentalUnit } from "./RentalUnit";
-import type { Listing } from "./Listing";
-import type { Lease } from "./Lease";
 import type { Tenant } from "./Tenant";
-import type { Category } from "./Category";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -34,6 +34,6 @@ export type MaintenanceRequest = {
     rentalUnit: RentalUnit;
     listing: Listing;
     lease: Lease;
-    tenant: Tenant;
+    submittedByTenant: Tenant;
     category: Category;
 };

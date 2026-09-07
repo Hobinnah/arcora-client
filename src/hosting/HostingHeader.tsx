@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthProvider';
-import { BarChartIcon, CalendarIcon, FileIcon, GlobeIcon, InfoIcon, LogOutIcon, MenuIcon, PlusIcon, UserIcon, UsersIcon } from '../components/Icons';
+import { BarChartIcon, CalendarIcon, CreditCardIcon, FileIcon, GlobeIcon, InfoIcon, LogOutIcon, MenuIcon, PlusIcon, ShieldIcon, UserIcon, UsersIcon } from '../components/Icons';
+import VerificationProfileSummary from '../components/VerificationProfileSummary';
 import './HostingPage.css';
 
 export default function HostingHeader() {
@@ -63,13 +64,16 @@ export default function HostingHeader() {
           <button className={`hosting-menu-trigger ${menuOpen ? 'is-open' : ''}`} type="button" aria-label="Open menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}><MenuIcon /></button>
           {menuOpen && <div className="hosting-menu-popover" role="menu">
             <div className="hosting-menu-profile"><span className="hosting-menu-profile-image"><img src={profileImage} alt="" /></span><span><strong>{profileName}</strong><small>Host account</small></span></div>
-            <button type="button" role="menuitem"><BarChartIcon /> <span>Earnings and insights</span></button>
+            <VerificationProfileSummary />
+            <button type="button" role="menuitem" onClick={() => navigate('/hosting/earnings')}><BarChartIcon /> <span>Earnings and payouts</span></button>
             <button type="button" role="menuitem" onClick={() => navigate('/hosting/listings/new')}><PlusIcon /> <span>Create a new listing</span></button>
             <button type="button" role="menuitem" onClick={() => navigate('/account-settings')}><UserIcon /> <span>Account settings</span></button>
             <button type="button" role="menuitem" onClick={() => { setLanguageModalOpen(true); setMenuOpen(false); }}><GlobeIcon /> <span>Languages and currency</span></button>
             <button type="button" role="menuitem"><FileIcon /> <span>Hosting resources</span></button>
             <button type="button" role="menuitem"><InfoIcon /> <span>Get help</span></button>
-            <button type="button" role="menuitem"><UsersIcon /> <span>Find a co-host</span></button>
+            <button type="button" role="menuitem" onClick={() => navigate('/hosting/cohosts')}><UsersIcon /> <span>Co-hosts and access</span></button>
+            <button type="button" role="menuitem" onClick={() => navigate('/hosting/verification')}><ShieldIcon /> <span>Host verification</span></button>
+            <button type="button" role="menuitem" onClick={() => navigate('/hosting/deposits')}><CreditCardIcon /> <span>Security deposits</span></button>
             <button className="hosting-menu-divider" type="button" role="menuitem" onClick={() => auth?.handleLogout().then(() => navigate('/login'))}><LogOutIcon /> <span>Log out</span></button>
           </div>}
         </div>

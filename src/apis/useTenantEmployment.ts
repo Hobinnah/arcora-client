@@ -99,6 +99,14 @@ export const createTenantEmployment = async (TenantEmployment?: TenantEmployment
     const response = await axios.post(url, TenantEmployment);
     return response.data as TenantEmployment;
   } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('Tenant employment create request failed:', {
+        payload: TenantEmployment,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
+    }
     handleApiError(error, 'create tenantEmployment');
     throw error;
   }

@@ -27,7 +27,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAccount } from '../../apis/useAccount';
 import '../../themes/theme.css';
 
@@ -81,6 +81,8 @@ type RegistrationFormData = z.infer<typeof registrationSchema>;
  */
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectUrl = new URLSearchParams(location.search).get('redirect_url') || '';
   const { registerUser, validatePasswordStrength, isLoading, error } = useAccount();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
@@ -130,7 +132,7 @@ const RegistrationPage: React.FC = () => {
 
       // Auto redirect to login after success message is shown
       setTimeout(() => {
-        navigate('/login');
+        navigate(redirectUrl ? `/login?redirect_url=${encodeURIComponent(redirectUrl)}` : '/login');
       }, 5000);
     } catch (error) {
       console.error('Registration error:', error);

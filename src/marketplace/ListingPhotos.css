@@ -5,6 +5,7 @@
 .photos-header-actions button { background: 0; border: 0; font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .photos-header-actions .is-saved { color: #c62828; }
 .photos-grid { display: grid; gap: 6px; grid-template-columns: 1.4fr 1fr; margin: 0 auto; max-width: 920px; padding: 0 20px; }
+.photos-empty { color: #657572; margin: 120px auto; padding: 0 20px; text-align: center; }
 .photos-item { cursor: pointer; overflow: hidden; }
 .photos-item img { display: block; height: 100%; object-fit: cover; transition: transform .4s; width: 100%; }
 .photos-item:hover img { transform: scale(1.03); }

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MarketplaceFooter from '../marketplace/MarketplaceFooter';
 import HostingHeader from './HostingHeader';
+import { useAuth } from '../hooks/useAuth';
+import { hasLandlordOrganization } from '../apis/useLandlordOrganization';
 import '../marketplace/MarketplaceHome.css';
 import './HostingPage.css';
 
@@ -14,6 +16,17 @@ const followUps = [
 export default function HostingPage() {
   const [view, setView] = useState<'today' | 'upcoming'>('today');
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  useEffect(() => {
+    const userID = currentUser?.user?.id;
+    const roles = (currentUser?.user?.roles || []).map((role) => role.toLowerCase());
+    if (!userID || !roles.includes('landlord')) return;
+    let cancelled = false;
+    hasLandlordOrganization(userID).then((hasOrganization) => {
+      if (!cancelled && !hasOrganization) navigate('/hosting/setup-business', { replace: true });
+    });
+    return () => { cancelled = true; };
+  }, [currentUser, navigate]);
 
   return (
     <main className="marketplace hosting-page">

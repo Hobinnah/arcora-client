@@ -19,6 +19,10 @@ export type LeaseSignatoriesListParams = {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
+  tenantID?: string;
+  userID?: number;
+  leaseDocumentID?: string;
+  organizationID?: string;
 };
 
 export const getLeaseSignatories = ({
@@ -26,6 +30,10 @@ export const getLeaseSignatories = ({
   pageNumber = 0,
   searchQuery,
   statusFilter,
+  tenantID,
+  userID,
+  leaseDocumentID,
+  organizationID,
   sortBy,
   sortDirection
 }: LeaseSignatoriesListParams = {}) => {
@@ -35,10 +43,18 @@ export const getLeaseSignatories = ({
       'fetchLeaseSignatories',
       { pageSize, pageNumber, searchQuery,
         statusFilter,
+        tenantID,
+        userID,
+        leaseDocumentID,
+        organizationID,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchLeaseSignatories({ pageSize, pageNumber, searchQuery,
       statusFilter,
+      tenantID,
+      userID,
+      leaseDocumentID,
+      organizationID,
       sortBy, sortDirection }),
   });
 
@@ -50,6 +66,10 @@ export const fetchLeaseSignatories = async ({
   pageNumber,
   searchQuery,
   statusFilter,
+  tenantID,
+  userID,
+  leaseDocumentID,
+  organizationID,
   sortBy,
   sortDirection
 }: Required<Pick<LeaseSignatoriesListParams, 'pageSize' | 'pageNumber'>> & Omit<LeaseSignatoriesListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<LeaseSignatories>; totalCount: number }> => {
@@ -59,6 +79,10 @@ export const fetchLeaseSignatories = async ({
     // Optional server-side filtering & sorting
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
+    if (tenantID) { url += `&tenantID=${encodeURIComponent(tenantID)}`; }
+    if (userID !== undefined) { url += `&userID=${userID}`; }
+    if (leaseDocumentID) { url += `&leaseDocumentID=${encodeURIComponent(leaseDocumentID)}`; }
+    if (organizationID) { url += `&organizationID=${encodeURIComponent(organizationID)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 

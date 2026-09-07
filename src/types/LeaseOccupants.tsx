@@ -1,4 +1,4 @@
-import type { Lease } from "./Lease";
+﻿import type { Lease } from "./Lease";
 import type { LeaseRenewals } from "./LeaseRenewals";
 import type { Tenant } from "./Tenant";
 import type { User } from "./User";
@@ -27,7 +27,7 @@ export type LeaseOccupants = {
     updatedDate: string;
     updatedBy: string;
     lease: Lease;
-    leaseRenewals: LeaseRenewals;
+    leaseRenewalLeaseRenewals: LeaseRenewals;
     tenant: Tenant;
     user: User;
 };

@@ -1,4 +1,4 @@
-import type { Lease } from "./Lease";
+﻿import type { Lease } from "./Lease";
 import type { User } from "./User";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
@@ -22,6 +22,9 @@ export type Rating = {
     capturedDate: string;
     capturedBy: string;
     updatedDate: string;
+    reviewerFirstName?: string;
+    reviewerLocation?: string;
+    reviewerPhotoUrl?: string;
     lease: Lease;
-    user: User;
+    reviewerUser: User;
 };

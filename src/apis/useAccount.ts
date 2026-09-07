@@ -610,6 +610,7 @@ export const useAccount = () => {
         firstName: request.firstName.trim(),
         lastName: request.lastName.trim(),
         phoneNumber: request.phoneNumber?.trim() || undefined,
+        dateOfBirth: request.dateOfBirth?.trim() || undefined,
         status: request.status || 'Active',
         roles: request.roles || ['User'] // Default role is 'User'
       };

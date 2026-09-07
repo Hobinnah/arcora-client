@@ -56,10 +56,13 @@ export const fetchUnitTypes = async ({
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 
+    if (import.meta.env.DEV) console.info("[Arcora] Fetching unit types", { url, params: { pageSize, pageNumber, searchQuery, sortBy, sortDirection } });
     const response = await axios.get(url);
     const data = response.data;
+    if (import.meta.env.DEV) console.info("[Arcora] Unit types response", { totalCount: data.totalCount ?? 0, data: data.data ?? [], records: data.records ?? data.data ?? [], raw: data });
     return { data: data.data ?? [], totalCount: data.totalCount ?? 0 };
   } catch (error) {
+    if (import.meta.env.DEV) console.error("[Arcora] Unit types request failed", error);
     return handleApiError(error, 'fetch unitTypes');
   }
 };

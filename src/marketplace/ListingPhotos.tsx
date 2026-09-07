@@ -1,27 +1,56 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { fallbackListings } from './marketplaceData';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { getListing } from '../apis/useListing';
 import './ListingPhotos.css';
 
-const fallbackPhotos = [
-  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=85',
-];
+type ListingPhotoResponse = {
+  data?: {
+    title?: string;
+    listingPhotos?: Array<{ displayOrder?: number; url?: string; imageUrl?: string; image?: string }>;
+  };
+  title?: string;
+  listingPhotos?: Array<{ displayOrder?: number; url?: string; imageUrl?: string; image?: string }>;
+};
+
+type ListingPhotosRouteState = {
+  title?: string;
+  photos?: string[];
+};
 
 export default function ListingPhotos() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
-  const listing = fallbackListings.find((l) => l.id === id) ?? fallbackListings[0];
-  const photos = [listing.image, ...fallbackPhotos.filter((p) => p !== listing.image)];
+  const routeState = location.state as ListingPhotosRouteState | null;
+  const [listingTitle, setListingTitle] = useState(routeState?.title || 'Listing photos');
+  const [photos, setPhotos] = useState<string[]>(routeState?.photos || []);
+  const [loading, setLoading] = useState(routeState?.photos?.length === 0);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    if (photos.length > 0) {
+      return () => { cancelled = true; };
+    }
+    getListing(id).then((response) => {
+      const responseData = response as unknown as ListingPhotoResponse;
+      const detail = responseData.data ?? responseData;
+      const apiPhotos = Array.isArray(detail.listingPhotos) ? [...detail.listingPhotos]
+        .sort((first, second) => Number(first.displayOrder ?? 0) - Number(second.displayOrder ?? 0))
+        .map((photo) => photo.url ?? photo.imageUrl ?? photo.image)
+        .filter((url): url is string => Boolean(url)) : [];
+      if (!cancelled) {
+        setListingTitle(detail.title || 'Listing photos');
+        setPhotos(apiPhotos);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [id, photos.length]);
 
   const prev = () => setLightbox((i) => (i !== null ? (i - 1 + photos.length) % photos.length : 0));
   const next = () => setLightbox((i) => (i !== null ? (i + 1) % photos.length : 0));
@@ -42,13 +71,15 @@ export default function ListingPhotos() {
             <button type="button" className={saved ? 'is-saved' : ''} onClick={() => setSaved(!saved)}>{saved ? '♥' : '♡'} Save</button>
           </div>
         </header>
-        <div className="photos-grid">
+        {loading && <p className="photos-empty">Loading photos...</p>}
+        {!loading && photos.length === 0 && <p className="photos-empty">No photos are available for this listing.</p>}
+        {!loading && photos.length > 0 && <div className="photos-grid">
           {photos.map((src, i) => (
             <div className={`photos-item ${i === 0 ? 'photos-item-hero' : ''}`} key={i} onClick={() => setLightbox(i)}>
-              <img src={src} alt={`${listing.title} photo ${i + 1}`} />
+              <img src={src} alt={`${listingTitle} photo ${i + 1}`} />
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {lightbox !== null && (
@@ -63,7 +94,7 @@ export default function ListingPhotos() {
           </header>
           <div className="lightbox-body">
             <button className="lightbox-prev" type="button" onClick={prev} aria-label="Previous photo">‹</button>
-            <img className="lightbox-image" src={photos[lightbox]} alt={`${listing.title} photo ${lightbox + 1}`} />
+            <img className="lightbox-image" src={photos[lightbox]} alt={`${listingTitle} photo ${lightbox + 1}`} />
             <button className="lightbox-next" type="button" onClick={next} aria-label="Next photo">›</button>
           </div>
         </div>

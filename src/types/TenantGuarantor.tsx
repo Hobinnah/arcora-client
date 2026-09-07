@@ -1,4 +1,4 @@
-import type { Tenant } from "./Tenant";
+﻿import type { Tenant } from "./Tenant";
 import type { User } from "./User";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
@@ -6,6 +6,7 @@ import type { User } from "./User";
 export type TenantGuarantor = {
     tenantGuarantorID: string;
     tenantID: string;
+    rentalApplicationID: string;
     userID: number;
     firstName: string;
     lastName: string;

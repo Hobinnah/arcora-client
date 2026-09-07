@@ -1,6 +1,6 @@
-import type { Listing } from "./Listing";
-import type { Tenant } from "./Tenant";
+﻿import type { Listing } from "./Listing";
 import type { OrganizationMember } from "./OrganizationMember";
+import type { Tenant } from "./Tenant";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -19,6 +19,8 @@ export type RentalApplication = {
     currency: string;
     status: string;
     screeningStatus: string;
+    leaseContractReviewed?: boolean;
+    verificationAuthorization?: boolean;
     notes: string;
     submittedAt: string;
     reviewedAt: string;
@@ -33,5 +35,5 @@ export type RentalApplication = {
     updatedBy: string;
     listing: Listing;
     tenant: Tenant;
-    organizationMember: OrganizationMember;
+    reviewedByOrganizationMember: OrganizationMember;
 };

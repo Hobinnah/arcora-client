@@ -20,6 +20,9 @@ export type PayoutsListParams = {
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
   requestedAt?: string;
+  organizationID?: string;
+  from?: string;
+  to?: string;
 };
 
 export const getPayouts = ({
@@ -28,6 +31,9 @@ export const getPayouts = ({
   searchQuery,
   statusFilter,
   requestedAt,
+  organizationID,
+  from,
+  to,
   sortBy,
   sortDirection
 }: PayoutsListParams = {}) => {
@@ -38,11 +44,17 @@ export const getPayouts = ({
       { pageSize, pageNumber, searchQuery,
         statusFilter,
         requestedAt,
+        organizationID,
+        from,
+        to,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchPayouts({ pageSize, pageNumber, searchQuery,
       statusFilter,
       requestedAt,
+      organizationID,
+      from,
+      to,
       sortBy, sortDirection }),
   });
 
@@ -55,6 +67,9 @@ export const fetchPayouts = async ({
   searchQuery,
   statusFilter,
   requestedAt,
+  organizationID,
+  from,
+  to,
   sortBy,
   sortDirection
 }: Required<Pick<PayoutsListParams, 'pageSize' | 'pageNumber'>> & Omit<PayoutsListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<Payout>; totalCount: number }> => {
@@ -65,6 +80,9 @@ export const fetchPayouts = async ({
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
     if (requestedAt) { url += `&requestedAt=${encodeURIComponent(requestedAt)}`; }
+    if (organizationID) { url += `&organizationID=${encodeURIComponent(organizationID)}`; }
+    if (from) { url += `&from=${encodeURIComponent(from)}`; }
+    if (to) { url += `&to=${encodeURIComponent(to)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 

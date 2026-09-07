@@ -1,10 +1,11 @@
-import type { Tenant } from "./Tenant";
+﻿import type { Tenant } from "./Tenant";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
 export type TenantEmergencyContact = {
     tenantEmergencyContactID: string;
     tenantID: string;
+    rentalApplicationID: string;
     name: string;
     relationship: string;
     phoneNumber: string;

@@ -12,6 +12,46 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type LeaseDocumentUploadInput = {
+  file: File;
+  listingID?: string;
+  tenantID?: string;
+  rentalApplicationID?: string;
+  capturedBy: string;
+  documentType: string;
+  documentStatus: string;
+  isPrimary: boolean;
+};
+
+export const uploadLeaseDocument = async ({
+  file,
+  listingID,
+  tenantID,
+  rentalApplicationID,
+  capturedBy,
+  documentType,
+  documentStatus,
+  isPrimary,
+}: LeaseDocumentUploadInput): Promise<LeaseDocuments> => {
+  try {
+    const formData = new FormData();
+    formData.append('File', file);
+    if (listingID) formData.append('ListingID', listingID);
+    if (tenantID) formData.append('TenantID', tenantID);
+    if (rentalApplicationID) formData.append('RentalApplicationID', rentalApplicationID);
+    formData.append('CapturedBy', capturedBy);
+    formData.append('DocumentType', documentType);
+    formData.append('DocumentStatus', documentStatus);
+    formData.append('IsPrimary', String(isPrimary));
+    const response = await axios.post(`${BASE_URL}api/leasedocuments/Upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data as LeaseDocuments;
+  } catch (error) {
+    return handleApiError(error, 'upload lease document');
+  }
+};
+
 export type LeaseDocumentsListParams = {
   pageSize?: number;
   pageNumber?: number;

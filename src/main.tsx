@@ -9,7 +9,11 @@ import ListingPhotos from './marketplace/ListingPhotos.tsx';
 import TenantApplicationsPage from './marketplace/TenantApplicationsPage.tsx';
 import TenantApplicationDetailPage from './marketplace/TenantApplicationDetailPage.tsx';
 import AcceptInvitationPage from './marketplace/AcceptInvitationPage.tsx';
+import TenantLeaseReviewPage from './marketplace/TenantLeaseReviewPage.tsx';
+import TenantLeaseLifecyclePage from './marketplace/TenantLeaseLifecyclePage.tsx';
+import TenantLeasePaymentPage from './marketplace/TenantLeasePaymentPage.tsx';
 import HostingPage from './hosting/HostingPage.tsx';
+import HostingOrganizationSetupPage from './hosting/HostingOrganizationSetupPage.tsx';
 import HostingCalendarPage from './hosting/HostingCalendarPage.tsx';
 import HostingListingsPage from './hosting/HostingListingsPage.tsx';
 import HostingListingEditorPage from './hosting/HostingListingEditorPage.tsx';
@@ -19,7 +23,14 @@ import HostingReviewPage from './hosting/HostingReviewPage.tsx';
 import HostingApplicationsPage from './hosting/HostingApplicationsPage.tsx';
 import HostingApplicationReviewPage from './hosting/HostingApplicationReviewPage.tsx';
 import HostingInviteTenantPage from './hosting/HostingInviteTenantPage.tsx';
+import HostEarningsPage from './hosting/HostEarningsPage.tsx';
+import HostCohostsPage from './hosting/HostCohostsPage.tsx';
+import HostVerificationPage from './hosting/HostVerificationPage.tsx';
+import HostDepositsPage from './hosting/HostDepositsPage.tsx';
 import AccountSettingsPage from './pages/account/AccountSettingsPage.tsx';
+import IdentityVerificationPage from './pages/general/IdentityVerificationPage.tsx';
+import RatingsReviewsPage from './marketplace/RatingsReviewsPage.tsx';
+import TenantTrustPage from './marketplace/TenantTrustPage.tsx';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AuthProvider from './contexts/AuthProvider.tsx';
@@ -206,10 +217,14 @@ const router = createBrowserRouter([
   { path: "/search", element: <MarketplaceResults />, errorElement: <NotFoundPage /> },
   { path: "/homes/:id", element: <ListingDetail />, errorElement: <NotFoundPage /> },
   { path: "/homes/:id/photos", element: <ListingPhotos />, errorElement: <NotFoundPage /> },
-  { path: "/applications", element: <TenantApplicationsPage />, errorElement: <NotFoundPage /> },
-  { path: "/applications/:id", element: <TenantApplicationDetailPage />, errorElement: <NotFoundPage /> },
+  { path: "/applications", element: <ProtectedRoute allowedRoles={['viewer', 'user', 'admin']}><TenantApplicationsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/applications/:id", element: <ProtectedRoute allowedRoles={['viewer', 'user', 'admin']}><TenantApplicationDetailPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/accept-invite/:token", element: <AcceptInvitationPage />, errorElement: <NotFoundPage /> },
+  { path: "/tenant/leases/:leaseId/review", element: <TenantLeaseReviewPage />, errorElement: <NotFoundPage /> },
+  { path: "/tenant/leases/:leaseId/payment", element: <TenantLeasePaymentPage />, errorElement: <NotFoundPage /> },
+  { path: "/tenant/leases/:leaseId/:mode", element: <TenantLeaseLifecyclePage />, errorElement: <NotFoundPage /> },
   { path: "/hosting", element: <HostingPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting/setup-business", element: <HostingOrganizationSetupPage />, errorElement: <NotFoundPage /> },
   { path: "/hosting/calendar", element: <HostingCalendarPage />, errorElement: <NotFoundPage /> },
   { path: "/hosting/listings", element: <HostingListingsPage />, errorElement: <NotFoundPage /> },
   { path: "/hosting/listings/new", element: <HostingCreateListingPage />, errorElement: <NotFoundPage /> },
@@ -219,7 +234,14 @@ const router = createBrowserRouter([
   { path: "/hosting/applications", element: <HostingApplicationsPage />, errorElement: <NotFoundPage /> },
   { path: "/hosting/applications/:id", element: <HostingApplicationReviewPage />, errorElement: <NotFoundPage /> },
   { path: "/hosting/invitations/new", element: <HostingInviteTenantPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting/earnings", element: <HostEarningsPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting/cohosts", element: <HostCohostsPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting/verification", element: <HostVerificationPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting/deposits", element: <HostDepositsPage />, errorElement: <NotFoundPage /> },
   { path: "/account-settings", element: <AccountSettingsPage />, errorElement: <NotFoundPage /> },
+  { path: "/verify-identity", element: <IdentityVerificationPage />, errorElement: <NotFoundPage /> },
+  { path: "/reviews", element: <RatingsReviewsPage />, errorElement: <NotFoundPage /> },
+  { path: "/tenant/verification", element: <TenantTrustPage />, errorElement: <NotFoundPage /> },
   { path: "*", element: <NotFoundPage /> },
   { path: "/overview", element: ( <ProtectedRoute allowedRoles={['viewer', 'user', 'admin', 'landlord']}> <App />  </ProtectedRoute> ) },
   { path: "/login", element: <LoginPage />  },

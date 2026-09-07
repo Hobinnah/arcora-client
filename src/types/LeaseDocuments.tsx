@@ -1,12 +1,16 @@
-import type { Lease } from "./Lease";
+﻿import type { Lease } from "./Lease";
 import type { LeaseRenewals } from "./LeaseRenewals";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
 export type LeaseDocuments = {
     leaseDocumentID: string;
-    leaseID: string;
+    leaseID?: string;
     leaseRenewalID: string;
+    listingID?: string;
+    tenantID?: string;
+    rentalApplicationID?: string;
+    url?: string;
     documentType: string;
     documentStatus: string;
     originalFilename: string;
@@ -23,5 +27,5 @@ export type LeaseDocuments = {
     updatedDate: string;
     updatedBy: string;
     lease: Lease;
-    leaseRenewals: LeaseRenewals;
+    leaseRenewalLeaseRenewals: LeaseRenewals;
 };

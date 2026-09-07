@@ -28,12 +28,10 @@
  */
 
 import { type PropsWithChildren, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import type { User } from "../types/User";
 import { isTokenExpired } from "../apis/helpers";
-import Cookies from 'js-cookie';
-import { env } from "../env";
 
 /**
  * Props interface for the ProtectedRoute component
@@ -147,8 +145,9 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
     
     const { currentUser, isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    // Check for auth cookie immediately - if no cookie exists, redirect to login without waiting
-    const hasAuthCookie = Cookies.get(env.AUTH_COOKIE_NAME);
+    const location = useLocation();
+    const requestedPath = `${location.pathname}${location.search}${location.hash}`;
+    const loginPath = `/login?redirect_url=${encodeURIComponent(requestedPath)}`;
     
     // Debug logging for development and troubleshooting
     // console.log('ProtectedRoute - Auth State:', { // SECURITY: Contains sensitive auth state data
@@ -163,13 +162,6 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
     // Move all navigation logic to useEffect to prevent render-time navigation calls
     useEffect(() => {
 
-        // If no auth cookie exists at all, redirect immediately without waiting for context
-        if (!hasAuthCookie) {
-            // console.log('No auth cookie found, redirecting to login immediately'); // SECURITY: Auth flow logging
-            navigate('/login', { replace: true });
-            return;
-        }
-
         // Wait for auth context to fully initialize before making security decisions
         if (currentUser === undefined || isAuthenticated === undefined) {
             // console.log('Auth context still loading...'); // SECURITY: Auth flow logging
@@ -179,7 +171,7 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
         // Primary authentication check - verify user has valid session
         if (!isAuthenticated || !currentUser || !currentUser.accessToken) {
             // console.log('User not authenticated, redirecting to login'); // SECURITY: Auth flow logging
-            navigate('/login', { replace: true });
+            navigate(loginPath, { replace: true });
             return;
         }
         
@@ -190,7 +182,7 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
                 // Standard JWT token - validate expiration
                 if (isTokenExpired(currentUser.accessToken)) {
                     // console.log('JWT Token expired, redirecting to login'); // SECURITY: Auth flow logging
-                    navigate('/login', { replace: true });
+                    navigate(loginPath, { replace: true });
                     return;
                 }
             } else {
@@ -216,28 +208,14 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
                 return;
             }
         }
-    }, [navigate, allowedRoles, currentUser, isAuthenticated, hasAuthCookie]);
+    }, [navigate, allowedRoles, currentUser, isAuthenticated, loginPath]);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     // Show loading while auth context initializes
     if (currentUser === undefined || isAuthenticated === undefined) {
-
-        // If no auth cookie exists, show redirecting message
-        if (!hasAuthCookie) {
-            return (
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    height: '100vh',
-                    fontSize: '16px',
-                    color: 'var(--muted)'
-                }}>
-                    Redirecting to login...
-                </div>
-            );
-        }
-
-        // Otherwise show loading while context initializes
         return (
             <div style={{ 
                 display: 'flex', 
@@ -307,14 +285,6 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
             );
         }
     }
-
-    /**
-     * Scroll to top effect for route navigation
-     * Ensures consistent user experience when navigating between protected routes
-     */
-    useEffect(() => {
-        window.scrollTo(0, 0);
-    }, []);
 
     // Render protected content - only reached if all security checks pass
     return <>{children}</>;

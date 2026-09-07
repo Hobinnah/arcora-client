@@ -1,7 +1,7 @@
-import type { MaintenanceRequest } from "./MaintenanceRequest";
-import type { Contractor } from "./Contractor";
-import type { OrganizationMember } from "./OrganizationMember";
+﻿import type { Contractor } from "./Contractor";
 import type { Lease } from "./Lease";
+import type { MaintenanceRequest } from "./MaintenanceRequest";
+import type { OrganizationMember } from "./OrganizationMember";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -28,6 +28,6 @@ export type WorkOrder = {
     updatedBy: string;
     maintenanceRequest: MaintenanceRequest;
     contractor: Contractor;
-    organizationMember: OrganizationMember;
+    assignedOrganizationMember: OrganizationMember;
     lease: Lease;
 };
