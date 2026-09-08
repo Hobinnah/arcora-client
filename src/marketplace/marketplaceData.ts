@@ -1,5 +1,6 @@
 export type MarketplaceListing = {
   id: string;
+  organizationID?: string;
   title: string;
   location: string;
   price: number;
@@ -31,7 +32,7 @@ export const normalizeListing = (listing: Record<string, any>, index: number): M
   const location = typeof listingLocation === 'string' && listingLocation.trim() ? listingLocation.trim() : [structuredListingLocation.city, structuredListingLocation.province ?? structuredListingLocation.state].filter(Boolean).join(', ') || [address.city, address.state ?? address.province ?? address.provinceCode].filter(Boolean).join(', ') || String(property.city ?? listing.city ?? 'Available location');
   const isFurnished = listing.isFurnished === true || listing.IsFurnished === true;
   const details = [listing.bedrooms ? `${listing.bedrooms} bed${listing.bedrooms === 1 ? '' : 's'}` : '', listing.bathrooms ? `${listing.bathrooms} bath${listing.bathrooms === 1 ? '' : 's'}` : '', isFurnished ? 'Furnished' : 'Monthly lease'].filter(Boolean).join(' · ');
-  return { id: String(listing.listingID ?? listing.id ?? `live-${index}`), title, location, price, type: String(listing.listingType?.name ?? listing.listingType?.title ?? listing.type ?? 'Home'), unitTypeID: unitTypeID || undefined, isPetFriendly: listing.isPetFriendly === true, isFurnished, image: coverPhoto ?? listing.imageUrl ?? listing.coverImageUrl ?? listing.listingPhoto?.url ?? listing.listingPhoto?.imageUrl ?? fallbackListings[index % fallbackListings.length].image, details: details || 'Monthly lease', rating: Number(listing.rating ?? 0), reviews: Number(listing.reviews ?? 0), availableFrom: String(listing.availableFrom ?? new Date().toISOString().slice(0, 10)), availableTo: listing.availableTo ? String(listing.availableTo) : undefined, tag: typeof listing.displayTag === 'string' && listing.displayTag.trim() ? listing.displayTag.trim() : undefined };
+  return { id: String(listing.listingID ?? listing.id ?? `live-${index}`), organizationID: listing.organizationID ? String(listing.organizationID) : undefined, title, location, price, type: String(listing.listingType?.name ?? listing.listingType?.title ?? listing.type ?? 'Home'), unitTypeID: unitTypeID || undefined, isPetFriendly: listing.isPetFriendly === true, isFurnished, image: coverPhoto ?? listing.imageUrl ?? listing.coverImageUrl ?? listing.listingPhoto?.url ?? listing.listingPhoto?.imageUrl ?? fallbackListings[index % fallbackListings.length].image, details: details || 'Monthly lease', rating: Number(listing.rating ?? 0), reviews: Number(listing.reviews ?? 0), availableFrom: String(listing.availableFrom ?? new Date().toISOString().slice(0, 10)), availableTo: listing.availableTo ? String(listing.availableTo) : undefined, tag: typeof listing.displayTag === 'string' && listing.displayTag.trim() ? listing.displayTag.trim() : undefined };
 };
 
 export const fallbackListings: MarketplaceListing[] = [

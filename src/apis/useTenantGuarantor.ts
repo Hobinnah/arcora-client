@@ -12,6 +12,34 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type PublicGuarantorInvitation = {
+  guarantorName: string;
+  tenantName: string;
+  tenantPhone: string;
+  listingTitle: string;
+  monthlyRent: string;
+  securityDeposit: string;
+  listingImageUrl?: string;
+  leaseTerm?: string;
+  status: string;
+};
+
+export const getPublicGuarantorInvitation = async (token: string): Promise<PublicGuarantorInvitation> => {
+  const response = await axios.get(`${BASE_URL}api/TenantGuarantor/InviteDetails`, {
+    params: { token },
+  });
+  return response.data as PublicGuarantorInvitation;
+};
+
+export const respondToPublicGuarantorInvitation = async (
+  token: string,
+  decision: "ACCEPT" | "DECLINE",
+): Promise<void> => {
+  await axios.post(`${BASE_URL}api/TenantGuarantor/Respond`, null, {
+    params: { response: decision, token },
+  });
+};
+
 export type TenantGuarantorsListParams = {
   pageSize?: number;
   pageNumber?: number;

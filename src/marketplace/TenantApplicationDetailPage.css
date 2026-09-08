@@ -5,12 +5,13 @@
 .tenant-application-readiness-row:last-child { grid-column: 1 / -1; }
 @media (max-width: 600px) { .tenant-application-readiness-list { grid-template-columns: 1fr; } }
 .tenant-application-detail-page .tenant-application-detail-layout { min-height: 570px !important; }
-.tenant-application-detail-page[data-active-section="readiness"] .tenant-application-detail-actions { margin-top: -90px !important; }
-.tenant-application-detail-page[data-active-section="employment"] .tenant-application-detail-actions { margin-top: -90px !important; }
-.tenant-application-detail-page[data-active-section="household"] .tenant-application-detail-actions { margin-top: -90px !important; }
-.tenant-application-detail-page[data-active-section="guarantor"] .tenant-application-detail-actions { margin-top: -90px !important; }
-.tenant-application-detail-page[data-active-section="documents"] .tenant-application-detail-actions { margin-top: -90px !important; }
-.tenant-application-detail-page[data-active-section="rules"] .tenant-application-detail-actions { margin-top: -90px !important; }
+.tenant-application-detail-page[data-active-section="readiness"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-detail-page[data-active-section="employment"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-detail-page[data-active-section="household"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-detail-page[data-active-section="guarantor"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-detail-page[data-active-section="documents"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-detail-page[data-active-section="rules"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-detail-page[data-active-section="payment"] .tenant-application-detail-actions { margin-top: -30px !important; }
 .tenant-application-detail-actions { flex-wrap: wrap; }
 .tenant-application-upload-progress { color: var(--teal-dark); flex-basis: 100%; font-size: 12px; font-weight: 700; margin: 0; order: -1; }
 .tenant-application-next-error { color: #a13a1b; flex-basis: 100%; font-size: 12px; margin: 0; order: -1; }
@@ -121,15 +122,33 @@
 .tenant-application-card-brand { color: #1c4f8c; font-size: 13px; font-style: italic; font-weight: 800; }
 .tenant-application-card-form { border-top: 1px solid var(--sand); margin-top: 22px; padding-top: 20px; }
 .tenant-application-card-form h4 { font-size: 13px; margin: 0 0 14px; }
-.tenant-application-card-form > label, .tenant-application-card-form > div label { color: var(--ink); display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
-.tenant-application-card-form > label + div { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin: 12px 0; }
+.tenant-application-card-form > label, .tenant-application-stripe-fields label { color: var(--ink); display: grid; font-size: 11px; font-weight: 700; gap: 6px; }
+.tenant-application-stripe-fields { display: grid; gap: 12px; margin-bottom: 12px; }
+.tenant-application-stripe-fields > label > div, .tenant-application-stripe-expiry-row label > div { background: var(--paper); border: 1px solid var(--sand); box-sizing: border-box; min-height: 42px; padding: 12px; width: 100%; }
+.tenant-application-stripe-fields > label > div.StripeElement--focus, .tenant-application-stripe-expiry-row label > div.StripeElement--focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(22, 124, 128, .12); outline: 0; }
+.tenant-application-stripe-expiry-row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
 .tenant-application-card-form input { background: var(--paper); border: 1px solid var(--sand); box-sizing: border-box; color: var(--ink); font: inherit; padding: 10px; width: 100%; }
 .tenant-application-card-form input::placeholder { color: var(--ink); opacity: .65; }
 .tenant-application-card-form input:focus { border-color: var(--teal); outline: 2px solid rgba(34, 119, 105, .14); }
+.tenant-application-submit-button { display: none; }
+.tenant-application-detail-page .tenant-application-submit-button { display: none !important; }
+.tenant-application-review-panel .tenant-application-consent-row { margin-bottom: 6px; }
+.tenant-application-detail-page[data-active-section="review"] .tenant-application-detail-actions { margin-top: -30px !important; }
+.tenant-application-payment-loading { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 9px; margin: 4px 0 14px; }
+.tenant-application-payment-loading.is-error { color: #a13a1b; }
+.tenant-application-panel.payment-complete .tenant-application-pad-form, .tenant-application-panel.payment-complete .tenant-application-card-form { display: none; }
+.tenant-application-payment-complete { align-items: center; background: #eef7f5; border: 1px solid #cddfdb; color: var(--teal-dark); display: flex; gap: 10px; margin-top: 22px; padding: 14px; }
+.tenant-application-payment-complete > span { align-items: center; background: var(--teal); border-radius: 50%; color: #fff; display: flex; flex: 0 0 22px; font-size: 13px; height: 22px; justify-content: center; }
+.tenant-application-payment-complete div { display: grid; gap: 3px; }
+.tenant-application-payment-complete strong { font-size: 12px; }
+.tenant-application-payment-complete small { color: var(--muted); font-size: 11px; }
+.tenant-application-loading-spinner { animation: tenant-application-spin .8s linear infinite; border: 2px solid var(--sand); border-radius: 50%; border-top-color: var(--teal); display: inline-block; flex: 0 0 14px; height: 14px; width: 14px; }
+@keyframes tenant-application-spin { to { transform: rotate(360deg); } }
+@media (max-width: 600px) { .tenant-application-stripe-expiry-row { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .tenant-application-rules-summary { grid-template-columns: 1fr; } .tenant-application-rules-summary div, .tenant-application-rules-summary div:nth-child(odd) { border-right: 0; } .tenant-application-rules-summary div:nth-last-child(-n + 2) { border-bottom: 1px solid var(--sand); } .tenant-application-rules-summary div:last-child { border-bottom: 0; } }
 .tenant-application-detail-page .tenant-application-detail-actions { left: calc(var(--marketplace-rail, 3vw) + 16px + 280px); padding-left: 42px; padding-right: 42px; right: calc(var(--marketplace-rail, 3vw) + 16px + 360px); }
 @media (max-width: 950px) { .tenant-application-detail-page .tenant-application-detail-actions { left: 0; padding-left: 20px; padding-right: 20px; right: 0; } }
-.tenant-application-detail-page .tenant-application-detail-actions { background: var(--paper); border-top: 1px solid var(--sand); bottom: auto; box-sizing: border-box; left: calc(var(--marketplace-rail, 3vw) + 16px + 280px); margin: 0; padding: 13px 42px; position: relative; right: auto; width: calc(100% - (var(--marketplace-rail, 3vw) + 16px + 280px) - (var(--marketplace-rail, 3vw) + 16px + 360px)); }
+.tenant-application-detail-page .tenant-application-detail-actions { background: var(--paper); border-top: 1px solid var(--sand); bottom: auto; box-sizing: border-box; left: calc(var(--marketplace-rail, 3vw) + 16px + 280px); margin: 0; padding: 7px 42px; position: relative; right: auto; width: calc(100% - (var(--marketplace-rail, 3vw) + 16px + 280px) - (var(--marketplace-rail, 3vw) + 16px + 360px)); }
 @media (max-width: 950px) { .tenant-application-detail-page .tenant-application-detail-actions { left: 0; padding-left: 20px; padding-right: 20px; width: 100%; } }
 .tenant-application-detail-page .tenant-application-detail-layout { margin: 0; max-width: none; padding-left: calc(var(--marketplace-rail, 3vw) + 16px); padding-right: calc(var(--marketplace-rail, 3vw) + 16px); }
 .tenant-application-detail-page .tenant-application-detail-rail { padding-top: 24px; }

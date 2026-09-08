@@ -12,6 +12,17 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type RentalApplicationCreatePayload = Omit<Partial<RentalApplication>, "rentalApplicationID" | "reviewedByOrganizationMemberID" | "desiredMoveOutDate" | "reviewedAt" | "approvedAt" | "declinedAt" | "expiresAt"> & {
+  rentalApplicationID: string | null;
+  organizationID?: string | null;
+  reviewedByOrganizationMemberID: string | null;
+  desiredMoveOutDate: string | null;
+  reviewedAt: string | null;
+  approvedAt: string | null;
+  declinedAt: string | null;
+  expiresAt: string | null;
+};
+
 export type RentalApplicationsListParams = {
   pageSize?: number;
   pageNumber?: number;
@@ -105,7 +116,7 @@ export const getRentalApplication = async (id?: string): Promise<RentalApplicati
   }
 };
 
-export const createRentalApplication = async (RentalApplication?: RentalApplication): Promise<RentalApplication> => {
+export const createRentalApplication = async (RentalApplication?: RentalApplicationCreatePayload): Promise<RentalApplication> => {
   try {
     const url = `${BASE_URL}api/rentalapplication/createRentalApplication`;
     const response = await axios.post(url, RentalApplication);

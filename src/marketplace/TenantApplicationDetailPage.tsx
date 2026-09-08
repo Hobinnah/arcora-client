@@ -1,4 +1,6 @@
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { CardCvcElement, CardExpiryElement, CardNumberElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CheckIcon, FileIcon, PdfIcon, PencilIcon, ShieldIcon, TrashIcon } from "../components/Icons";
 import { fallbackListings, normalizeListing, type MarketplaceListing } from "./marketplaceData";
@@ -14,7 +16,14 @@ import { createApplicationOccupant, fetchApplicationOccupants, updateApplication
 import type { ApplicationOccupant } from "../types/ApplicationOccupant";
 import { createTenantGuarantor, fetchTenantGuarantors, updateTenantGuarantor } from "../apis/useTenantGuarantor";
 import type { TenantGuarantor } from "../types/TenantGuarantor";
-import { fetchRentalApplications } from "../apis/useRentalApplication";
+import { createRentalApplication, fetchRentalApplications } from "../apis/useRentalApplication";
+import {
+  createPaymentOnboardingSetupIntent,
+  getPaymentOnboardingStatus,
+  savePaymentOnboardingMethod,
+  startPaymentOnboarding,
+} from "../apis/usePaymentOnboarding";
+import type { PaymentOnboardingStatusResponse } from "../apis/usePaymentOnboarding";
 import TenantHeader from "./TenantHeader";
 import MarketplaceFooter from "./MarketplaceFooter";
 import TenantDatePicker from "./TenantDatePicker";
@@ -22,6 +31,72 @@ import CustomSelect from "../components/CustomSelect";
 import { publishHostApplicationNotification } from "../hosting/hostApplicationNotifications";
 import "./TenantApplicationDetailPage.css";
 
+function PaymentCardForm({
+  paymentCardName,
+  setPaymentCardName,
+  onCardReady,
+  onStripeReady,
+}: {
+  paymentCardName: string;
+  setPaymentCardName: (value: string) => void;
+  onCardReady: (element: unknown | null) => void;
+  onStripeReady: (stripe: ReturnType<typeof useStripe>) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  useEffect(() => {
+    onStripeReady(stripe);
+    if (!elements) {
+      onCardReady(null);
+      return;
+    }
+
+    const cardElement = elements.getElement(CardNumberElement);
+    onCardReady(cardElement ?? null);
+    return () => onCardReady(null);
+  }, [elements, onCardReady, onStripeReady, stripe]);
+
+  return (
+    <>
+      <div className="tenant-application-stripe-fields">
+        <label>
+          Card number
+          <CardNumberElement
+            onReady={(element) => onCardReady(element)}
+            options={{
+              style: {
+                base: {
+                  color: "#1f2a2d",
+                  fontSize: "14px",
+                  fontFamily: "system-ui, sans-serif",
+                  "::placeholder": { color: "#7f8f91" },
+                },
+              },
+            }}
+          />
+        </label>
+        <div className="tenant-application-stripe-expiry-row">
+          <label>
+            Expiry date
+            <CardExpiryElement options={{ style: { base: { color: "#1f2a2d", fontSize: "14px", fontFamily: "system-ui, sans-serif", "::placeholder": { color: "#7f8f91" } } } }} />
+          </label>
+          <label>
+            CVC
+            <CardCvcElement options={{ style: { base: { color: "#1f2a2d", fontSize: "14px", fontFamily: "system-ui, sans-serif", "::placeholder": { color: "#7f8f91" } } } }} />
+          </label>
+        </div>
+      </div>
+      <label>
+        Name on card
+        <input value={paymentCardName} onChange={(event) => setPaymentCardName(event.target.value)} placeholder="Obinna Eze" />
+      </label>
+      {!stripe || !elements ? <small className="tenant-application-payment-loading" role="status">Loading secure Stripe card entry...</small> : null}
+    </>
+  );
+}
+
+  setCompleted((current) => current.includes("review") ? current : [...current, "review"]);
 const getMaxAdultDateOfBirth = () => {
   const date = new Date();
   date.setFullYear(date.getFullYear() - 18);
@@ -214,6 +289,7 @@ export default function TenantApplicationDetailPage() {
           ...(savedTenantGuarantors.length ? ["guarantor" as const] : []),
           ...(tenant.verificationAuthorization || savedApplication?.verificationAuthorization ? ["documents" as const] : []),
           ...(tenant.leaseContractReviewed || savedApplication?.leaseContractReviewed ? ["rules" as const] : []),
+          ...(tenant.isPADRegistered && tenant.isCardRegistered ? ["payment" as const] : []),
         ]);
       } catch (error) {
         console.error("Failed to load saved application data:", error);
@@ -235,6 +311,7 @@ export default function TenantApplicationDetailPage() {
   const hasTenantDescription = Boolean(
     (tenantDescription ?? tenant?.description ?? "").trim(),
   );
+  const tenantName = `${tenant?.user?.firstName ?? currentUser?.user?.firstName ?? ""} ${tenant?.user?.lastName ?? currentUser?.user?.lastName ?? ""}`.trim();
 
   const paramMoveIn = searchParams.get("moveIn");
   const paramStayLength = searchParams.get("stayLengthMonths");
@@ -251,12 +328,103 @@ export default function TenantApplicationDetailPage() {
 
   const [activeSection, setActiveSection] = useState<SectionKey>("readiness");
   const [completed, setCompleted] = useState<SectionKey[]>([]);
-  const [rulesAcknowledged, setRulesAcknowledged] = useState(false);
-  const [paymentAuthorized, setPaymentAuthorized] = useState(false);
-  const [verificationAuthorized, setVerificationAuthorized] = useState(false);
+  const [rulesAcknowledged, setRulesAcknowledged] = useState<boolean | null>(null);
+  const [paymentAuthorized, setPaymentAuthorized] = useState<boolean | null>(null);
+  const [paymentPadForm, setPaymentPadForm] = useState({
+    accountHolderName: "",
+    institutionNumber: "",
+    transitNumber: "",
+    accountNumber: "",
+  });
+  const [paymentCardName, setPaymentCardName] = useState("");
+  const [paymentCardElement, setPaymentCardElement] = useState<unknown | null>(null);
+  const [paymentStripeInstance, setPaymentStripeInstance] = useState<ReturnType<typeof useStripe>>(null);
+  const [paymentPublishableKey, setPaymentPublishableKey] = useState("");
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentOnboardingStatusResponse | null>(null);
+  const [paymentStatusUnavailable, setPaymentStatusUnavailable] = useState(false);
+  const [paymentInitialization, setPaymentInitialization] = useState<"idle" | "ready" | "error">("idle");
+  const isPaymentInitializing = activeSection === "payment" && !paymentPublishableKey && paymentInitialization !== "error";
+  const providerConfirmsPad = paymentProviderStatus?.hasVerifiedPad === true;
+  const providerConfirmsCard = paymentProviderStatus?.hasVerifiedCard === true;
+  const providerStatusAllowsTenantFallback = paymentStatusUnavailable;
+  const isPadRegistered = tenant?.isPADRegistered === true
+    && (providerConfirmsPad || providerStatusAllowsTenantFallback);
+  const isCardRegistered = tenant?.isCardRegistered === true
+    && (providerConfirmsCard || providerStatusAllowsTenantFallback);
+  const paymentAlreadyConfigured = isPadRegistered && isCardRegistered;
+  const tenantPaymentAuthorized = tenant?.isPADRegistered === true && tenant?.isCardRegistered === true;
+  const effectivePaymentAuthorized = paymentAuthorized ?? tenantPaymentAuthorized;
+  const effectiveRulesAcknowledged = rulesAcknowledged ?? Boolean(tenant?.leaseContractReviewed);
+  const paymentStripePromise = useMemo(
+    () => (paymentPublishableKey ? loadStripe(paymentPublishableKey) : null),
+    [paymentPublishableKey],
+  );
+  const [previousTenantName, setPreviousTenantName] = useState("");
+  if (tenantName && tenantName !== previousTenantName) {
+    setPreviousTenantName(tenantName);
+    if (!paymentPadForm.accountHolderName) {
+      setPaymentPadForm((current) => ({ ...current, accountHolderName: tenantName }));
+    }
+    if (!paymentCardName) {
+      setPaymentCardName(tenantName);
+    }
+  }
+  useEffect(() => {
+    if (!tenant?.tenantID) return;
+    let cancelled = false;
+    getPaymentOnboardingStatus(tenant.tenantID)
+      .then((status) => {
+        if (cancelled) return;
+        setPaymentProviderStatus(status);
+        if (tenant.isPADRegistered && tenant.isCardRegistered && status.hasVerifiedPad && status.hasVerifiedCard) {
+          setPaymentAuthorized(true);
+          setCompleted((current) => current.includes("payment") ? current : [...current, "payment"]);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPaymentProviderStatus(null);
+        setPaymentStatusUnavailable(true);
+        if (tenant.isPADRegistered && tenant.isCardRegistered) {
+          setPaymentAuthorized(true);
+          setCompleted((current) => current.includes("payment") ? current : [...current, "payment"]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant?.isCardRegistered, tenant?.isPADRegistered, tenant?.tenantID]);
+  useEffect(() => {
+    if (activeSection !== "payment" || !tenant?.tenantID || paymentPublishableKey) return;
+    let cancelled = false;
+    startPaymentOnboarding(tenant.tenantID)
+      .then((onboarding) => {
+        if (cancelled) return;
+        if (!onboarding.publishableKey) {
+          setPaymentInitialization("error");
+          setNextError("Stripe could not be initialized for payment onboarding.");
+          return;
+        }
+        setPaymentPublishableKey(onboarding.publishableKey);
+        setPaymentInitialization("ready");
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setPaymentInitialization("error");
+          setNextError(error instanceof Error ? error.message : "Stripe could not be initialized for payment onboarding.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, paymentPublishableKey, tenant?.tenantID]);
+  const [verificationAuthorized, setVerificationAuthorized] = useState<boolean | null>(null);
+  const effectiveVerificationAuthorized = verificationAuthorized ?? Boolean(tenant?.verificationAuthorization);
   const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [applicationSubmitted, setApplicationSubmitted] = useState(false);
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   if (persistedCompletedSteps && !hasAppliedPersistedSteps) {
     const requiredResumeSteps: SectionKey[] = ["profile", "employment", "household", "documents", "rules", "payment"];
     const resumeSection = requiredResumeSteps.find((section) => !persistedCompletedSteps.includes(section)) ?? "review";
@@ -268,12 +436,6 @@ export default function TenantApplicationDetailPage() {
     (section) => section.key === activeSection,
   );
   const isComplete = (key: SectionKey) => completed.includes(key);
-  const toggleComplete = (key: SectionKey) =>
-    setCompleted((current) =>
-      current.includes(key)
-        ? current.filter((item) => item !== key)
-        : [...current, key],
-    );
   const goBack = () => {
     const previous = sections[currentIndex - 1];
     if (previous) setActiveSection(previous.key);
@@ -288,14 +450,98 @@ export default function TenantApplicationDetailPage() {
           ? ""
           : "Complete your employer, role, annual income, and employment start date before continuing.";
       case "documents":
-        return verificationAuthorized ? "" : "Authorize verification before continuing.";
+        return effectiveVerificationAuthorized ? "" : "Authorize verification before continuing.";
       case "rules":
-        return rulesAcknowledged ? "" : "Confirm that you reviewed the lease summary and house rules before continuing.";
+        return effectiveRulesAcknowledged ? "" : "Confirm that you reviewed the lease summary and house rules before continuing.";
       case "payment":
-        return paymentAuthorized ? "" : "Authorize the payment method before continuing.";
+        if (tenantPaymentAuthorized) return "";
+        if (!effectivePaymentAuthorized) return "Authorize the payment method before continuing.";
+        if (!paymentPadForm.accountHolderName.trim() || !paymentPadForm.institutionNumber.trim() || !paymentPadForm.transitNumber.trim() || !paymentPadForm.accountNumber.trim()) {
+          return "Complete the PAD / ACSS bank account details before continuing.";
+        }
+        return "";
       default:
         return "";
     }
+  };
+  const savePaymentSetupOnboarding = async () => {
+    if (!tenant?.tenantID) throw new Error("Complete and save your profile before configuring the payment method.");
+
+    const onboarding = paymentPublishableKey
+      ? null
+      : await startPaymentOnboarding(tenant.tenantID);
+    const publishableKey = paymentPublishableKey || onboarding?.publishableKey || "";
+    setPaymentPublishableKey(publishableKey);
+
+    if (!publishableKey) {
+      throw new Error("Stripe could not be initialized for payment onboarding.");
+    }
+
+    const stripe = paymentStripeInstance || await paymentStripePromise;
+    if (!stripe) {
+      throw new Error("Stripe is unavailable. Please try again.");
+    }
+
+    const padDetails = {
+      accountHolderName: paymentPadForm.accountHolderName.trim(),
+      institutionNumber: paymentPadForm.institutionNumber.trim(),
+      transitNumber: paymentPadForm.transitNumber.trim(),
+      accountNumber: paymentPadForm.accountNumber.trim(),
+    };
+
+    const setup = await createPaymentOnboardingSetupIntent(tenant.tenantID, "PAD");
+    const { error: padError, setupIntent } = await stripe.confirmAcssDebitSetup(setup.clientSecret, {
+      payment_method: {
+        acss_debit: {
+          institution_number: padDetails.institutionNumber,
+          transit_number: padDetails.transitNumber,
+          account_number: padDetails.accountNumber,
+        },
+        billing_details: {
+          name: padDetails.accountHolderName,
+          email: currentUser?.user?.email || "",
+        },
+      },
+    });
+
+    if (padError) {
+      throw new Error(padError.message || "Your PAD account could not be verified by Stripe.");
+    }
+
+    const padPaymentMethodId = String(setupIntent?.payment_method || "");
+    if (!padPaymentMethodId) {
+      throw new Error("Stripe did not return a payment method ID for the PAD setup.");
+    }
+
+    await savePaymentOnboardingMethod({
+      tenantID: tenant.tenantID,
+      providerPaymentMethodID: padPaymentMethodId,
+      methodKind: "PAD",
+    });
+
+    if (!paymentCardElement) {
+      throw new Error("Card entry is not ready yet.");
+    }
+
+    const { error: cardError, paymentMethod } = await stripe.createPaymentMethod({
+      type: "card",
+      card: paymentCardElement as never,
+      billing_details: { name: paymentCardName.trim() || tenantName || "Tenant" },
+    });
+
+    if (cardError) {
+      throw new Error(cardError.message || "Your backup card could not be verified by Stripe.");
+    }
+
+    if (!paymentMethod?.id) {
+      throw new Error("Stripe did not return a payment method ID for the backup card.");
+    }
+
+    await savePaymentOnboardingMethod({
+      tenantID: tenant.tenantID,
+      providerPaymentMethodID: paymentMethod.id,
+      methodKind: "CARD",
+    });
   };
   const saveTenantProfile = async () => {
     if (!userID) throw new Error("Your authenticated user profile is unavailable.");
@@ -550,6 +796,17 @@ export default function TenantApplicationDetailPage() {
         return;
       }
     }
+    if (activeSection === "payment") {
+      try {
+        setIsSavingPayment(true);
+        if (!tenantPaymentAuthorized) await savePaymentSetupOnboarding();
+      } catch (error) {
+        setNextError(error instanceof Error ? error.message : "We could not save your payment details. Please try again.");
+        return;
+      } finally {
+        setIsSavingPayment(false);
+      }
+    }
     if (["profile", "employment", "household", "guarantor", "documents", "rules", "payment"].includes(activeSection)) {
       setCompleted((current) =>
         current.includes(activeSection) ? current : [...current, activeSection],
@@ -693,8 +950,16 @@ export default function TenantApplicationDetailPage() {
         setSupportingDocuments((current) => current.filter((file) => file !== fileName));
         setSupportingLeaseDocuments((current) => current.filter((item) => item.leaseDocumentID !== document.leaseDocumentID));
       } else {
-        setUploadedDocuments((current) => { const next = { ...current }; delete next[documentKey]; return next; });
-        setUploadedLeaseDocuments((current) => { const next = { ...current }; delete next[documentKey]; return next; });
+        setUploadedDocuments((current) => {
+          const next = { ...current } as Record<string, string | undefined>;
+          delete next[documentKey];
+          return next as Partial<Record<Exclude<DocumentKey, "supporting">, string>>;
+        });
+        setUploadedLeaseDocuments((current) => {
+          const next = { ...current } as Record<string, LeaseDocuments | undefined>;
+          delete next[documentKey];
+          return next as Partial<Record<Exclude<DocumentKey, "identity" | "supporting">, LeaseDocuments>>;
+        });
         if (documentKey === "income") setEmploymentDocumentName("");
       }
     } catch (error) {
@@ -705,7 +970,57 @@ export default function TenantApplicationDetailPage() {
   };
   const requiredSections: SectionKey[] = ["profile", "employment", "household", "documents", "rules", "payment"];
   const missingSections = requiredSections.filter((section) => !isComplete(section));
-  const submitApplication = () => { if (missingSections.length === 0 && reviewConfirmed) { publishHostApplicationNotification({ applicationId: id || "app-1024", applicationCode: id || "ARC-1024", applicantName: "Obinna Eze", listingName: listing.title, createdAt: new Date().toISOString() }); setApplicationSubmitted(true); } };
+  const submitApplication = async () => {
+    if (missingSections.length > 0 || !reviewConfirmed || !tenant?.tenantID) return;
+    const currentUserProfile = currentUser?.user;
+    const capturedBy = `${currentUserProfile?.firstName ?? tenant.user?.firstName ?? ""} ${currentUserProfile?.lastName ?? tenant.user?.lastName ?? ""}`.trim() || "Tenant";
+    const now = new Date().toISOString();
+    const desiredMoveInDate = paramMoveIn || listing.availableFrom;
+    const requestedLeaseTermMonths = Number(paramStayLength || 6);
+    const applicationPayload = {
+      rentalApplicationID: null,
+      applicationCode: id || `ARC-${Date.now()}`,
+      listingID: listing.id,
+      organizationID: listing.organizationID ?? null,
+      tenantID: tenant.tenantID,
+      desiredMoveInDate,
+      desiredMoveOutDate: null,
+      requestedLeaseTermMonths,
+      adultOccupantCount: occupants.length + 1,
+      childOccupantCount: 0,
+      petCount: 0,
+      proposedMonthlyRentAmount: listing.price,
+      currency: "CAD",
+      status: "SUBMITTED",
+      screeningStatus: "PENDING",
+      leaseContractReviewed: tenant.leaseContractReviewed,
+      verificationAuthorization: tenant.verificationAuthorization,
+      notes: `Submitted from Arcora marketplace for ${listing.title}. ${guarantors.length} guarantor invitation${guarantors.length === 1 ? "" : "s"} attached.`,
+      submittedAt: now,
+      reviewedAt: null,
+      reviewedByOrganizationMemberID: null,
+      approvedAt: null,
+      declinedAt: null,
+      declineReason: "",
+      expiresAt: null,
+      capturedDate: now,
+      capturedBy,
+      updatedDate: now,
+      updatedBy: capturedBy,
+    };
+    setIsSubmittingApplication(true);
+    setNextError("");
+    try {
+      console.info("[Arcora] createRentalApplication payload:", applicationPayload);
+      await createRentalApplication(applicationPayload);
+      publishHostApplicationNotification({ applicationId: id || "app-1024", applicationCode: id || "ARC-1024", applicantName: tenantName || "Tenant", listingName: listing.title, createdAt: now });
+      setApplicationSubmitted(true);
+    } catch (error) {
+      setNextError(error instanceof Error ? error.message : "We could not submit your application. Please try again.");
+    } finally {
+      setIsSubmittingApplication(false);
+    }
+  };
 
   return (
     <main className="marketplace tenant-application-detail-page" data-active-section={activeSection} data-tenant-status={tenantStatus}>
@@ -896,7 +1211,7 @@ export default function TenantApplicationDetailPage() {
               <label className="tenant-application-consent-row">
                 <input
                   type="checkbox"
-                  checked={verificationAuthorized}
+                  checked={effectiveVerificationAuthorized}
                   onChange={(event) =>
                     setVerificationAuthorized(event.target.checked)
                   }
@@ -946,7 +1261,7 @@ export default function TenantApplicationDetailPage() {
               <label className="tenant-application-consent-row">
                 <input
                   type="checkbox"
-                  checked={rulesAcknowledged}
+                  checked={effectiveRulesAcknowledged}
                   onChange={(event) =>
                     setRulesAcknowledged(event.target.checked)
                   }
@@ -962,7 +1277,7 @@ export default function TenantApplicationDetailPage() {
             </section>
           )}
           {activeSection === "payment" && (
-            <section className="tenant-application-panel">
+            <section className={`tenant-application-panel${paymentAlreadyConfigured ? " payment-complete" : ""}`}>
               <p className="marketplace-eyebrow">Payment setup</p>
               <h3>Payment method</h3>
               <p className="tenant-application-panel-lead">
@@ -970,7 +1285,7 @@ export default function TenantApplicationDetailPage() {
                 charged today.
               </p>
               <div className="tenant-application-payment-due">
-                <span>Amount due on approval</span>
+                <span>Monthly due amount</span>
                 <strong>${listing.price.toLocaleString()}</strong>
                 <span>Total before move-in date</span>
                 <strong>${(listing.price + depositAmount).toLocaleString()}</strong>
@@ -979,43 +1294,62 @@ export default function TenantApplicationDetailPage() {
                 </small>
               </div>
               <div className="tenant-application-payment-methods tenant-application-required-methods">
-                <div className="tenant-application-required-method is-selected"><span className="tenant-application-payment-method-icon">PAD</span><span><strong>Stripe PAD / ACSS debit <small>Primary payment method</small></strong><small>Canadian bank account for the approval charge</small></span><span className="tenant-application-method-check">✓</span></div>
-                <div className="tenant-application-required-method"><span className="tenant-application-payment-method-icon">VISA</span><span><strong>Card <small>Fallback payment method</small></strong><small>Used only if the PAD payment cannot be completed</small></span><span className="tenant-application-method-check">✓</span></div>
+                <div className={`tenant-application-required-method${isPadRegistered ? " is-selected" : ""}`}><span className="tenant-application-payment-method-icon">PAD</span><span><strong>Stripe PAD / ACSS debit <small>Primary payment method</small></strong><small>Canadian bank account for the approval charge</small></span>{isPadRegistered && <span className="tenant-application-method-check">✓</span>}</div>
+                <div className={`tenant-application-required-method${isCardRegistered ? " is-selected" : ""}`}><span className="tenant-application-payment-method-icon">VISA</span><span><strong>Card <small>Fallback payment method</small></strong><small>Used only if the PAD payment cannot be completed</small></span>{isCardRegistered && <span className="tenant-application-method-check">✓</span>}</div>
               </div>
-              <div className="tenant-application-pad-form"><h4>Connect your primary bank account</h4><p>Stripe will securely verify your Canadian bank account. Arcora will never see or store your banking credentials.</p><label>Account holder name<input placeholder="Obinna Eze" /></label><label>Institution number<input placeholder="000" /></label><label>Transit number<input placeholder="00000" /></label><label>Account number<input placeholder="Account number" /></label></div>
-              <div className="tenant-application-saved-card">
-                <span className="tenant-application-card-brand">VISA</span>
-                <div>
-                  <strong>Visa ending in 4242</strong>
-                  <small>Expires 08/28</small>
+              {paymentAlreadyConfigured && (
+                <div className="tenant-application-payment-complete" role="status">
+                  <span aria-hidden="true">✓</span>
+                  <div>
+                    <strong>Payment methods already verified</strong>
+                    <small>Your PAD bank account and fallback card authorization are complete.</small>
+                  </div>
                 </div>
-                <span className="tenant-application-card-default">Default</span>
-              </div>
+              )}
+              <div className="tenant-application-pad-form"><h4>Connect your primary bank account</h4><p>Stripe will securely verify your Canadian bank account. Arcora will never see or store your banking credentials.</p><label>Account holder name<input value={paymentPadForm.accountHolderName} onChange={(event) => setPaymentPadForm((current) => ({ ...current, accountHolderName: event.target.value }))} placeholder="Obinna Eze" /></label><label>Institution number<input value={paymentPadForm.institutionNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, institutionNumber: event.target.value }))} placeholder="000" /></label><label>Transit number<input value={paymentPadForm.transitNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, transitNumber: event.target.value }))} placeholder="00000" /></label><label>Account number<input value={paymentPadForm.accountNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, accountNumber: event.target.value }))} placeholder="Account number" /></label></div>
+              {isCardRegistered && (
+                <div className="tenant-application-saved-card">
+                  <span className="tenant-application-card-brand">VISA</span>
+                  <div>
+                    <strong>Saved card</strong>
+                    <small>Card details already captured</small>
+                  </div>
+                  <span className="tenant-application-card-default">Default</span>
+                </div>
+              )}
               <div className="tenant-application-card-form">
                 <h4>Using a credit card</h4>
-                <label>
-                  Card number
-                  <input placeholder="1234  5678  9012  3456" />
-                </label>
-                <div>
-                  <label>
-                    Expiry date
-                    <input placeholder="MM / YY" />
-                  </label>
-                  <label>
-                    CVC
-                    <input placeholder="123" />
-                  </label>
-                </div>
-                <label>
-                  Name on card
-                  <input placeholder="Obinna Eze" />
-                </label>
+                {isPaymentInitializing && (
+                  <div className="tenant-application-payment-loading" role="status">
+                    <span className="tenant-application-loading-spinner" aria-hidden="true" />
+                    <span>Loading secure card fields...</span>
+                  </div>
+                )}
+                {paymentPublishableKey ? (
+                  <Elements stripe={paymentStripePromise}>
+                    <PaymentCardForm
+                      paymentCardName={paymentCardName}
+                      setPaymentCardName={setPaymentCardName}
+                      onCardReady={setPaymentCardElement}
+                      onStripeReady={setPaymentStripeInstance}
+                    />
+                  </Elements>
+                ) : (
+                  <>
+                    <label>
+                      Name on card
+                      <input value={paymentCardName} onChange={(event) => setPaymentCardName(event.target.value)} placeholder="Obinna Eze" />
+                    </label>
+                  </>
+                )}
+                {paymentInitialization === "error" && (
+                  <small className="tenant-application-payment-loading is-error" role="alert">We could not load the secure card fields. Please try again.</small>
+                )}
               </div>
               <label className="tenant-application-consent-row">
                 <input
                   type="checkbox"
-                  checked={paymentAuthorized}
+                  checked={effectivePaymentAuthorized}
                   onChange={(event) =>
                     setPaymentAuthorized(event.target.checked)
                   }
@@ -1024,16 +1358,6 @@ export default function TenantApplicationDetailPage() {
                   I authorize Arcora to charge my PAD / ACSS bank account first, and use my card as a fallback, only if my application is approved.
                 </span>
               </label>
-              <button
-                type="button"
-                className="tenant-application-complete-button"
-                disabled={!paymentAuthorized}
-                onClick={() => toggleComplete("payment")}
-              >
-                {isComplete("payment")
-                  ? "Marked complete"
-                  : "Save payment method"}
-              </button>
             </section>
           )}
           {activeSection === "employment" && (
@@ -1174,10 +1498,10 @@ export default function TenantApplicationDetailPage() {
         <button
           type="button"
           className="tenant-application-next-button"
-          onClick={goNext}
-          disabled={currentIndex === sections.length - 1 || isSavingProfile || isSavingEmployment || isSavingHousehold || isSavingGuarantors || isUploadingDocument}
+          onClick={activeSection === "review" ? submitApplication : goNext}
+          disabled={activeSection === "review" ? missingSections.length > 0 || !reviewConfirmed || isSubmittingApplication : isSavingProfile || isSavingEmployment || isSavingHousehold || isSavingGuarantors || isSavingPayment || isUploadingDocument}
         >
-          {isSavingProfile || isSavingEmployment || isSavingHousehold || isSavingGuarantors ? "Saving..." : <>Next <span aria-hidden="true">&gt;</span></>}
+          {isSubmittingApplication ? "Submitting..." : activeSection === "review" ? "Submit application" : isSavingProfile || isSavingEmployment || isSavingHousehold || isSavingGuarantors || isSavingPayment ? "Saving..." : <>Next <span aria-hidden="true">&gt;</span></>}
         </button>
       </div>
       <MarketplaceFooter />

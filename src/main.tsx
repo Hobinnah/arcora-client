@@ -9,6 +9,7 @@ import ListingPhotos from './marketplace/ListingPhotos.tsx';
 import TenantApplicationsPage from './marketplace/TenantApplicationsPage.tsx';
 import TenantApplicationDetailPage from './marketplace/TenantApplicationDetailPage.tsx';
 import AcceptInvitationPage from './marketplace/AcceptInvitationPage.tsx';
+import GuarantorInvitationPage from './marketplace/GuarantorInvitationPage';
 import TenantLeaseReviewPage from './marketplace/TenantLeaseReviewPage.tsx';
 import TenantLeaseLifecyclePage from './marketplace/TenantLeaseLifecyclePage.tsx';
 import TenantLeasePaymentPage from './marketplace/TenantLeasePaymentPage.tsx';
@@ -220,6 +221,7 @@ const router = createBrowserRouter([
   { path: "/applications", element: <ProtectedRoute allowedRoles={['viewer', 'user', 'admin']}><TenantApplicationsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/applications/:id", element: <ProtectedRoute allowedRoles={['viewer', 'user', 'admin']}><TenantApplicationDetailPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/accept-invite/:token", element: <AcceptInvitationPage />, errorElement: <NotFoundPage /> },
+  { path: "/guarantor-invite/:token", element: <GuarantorInvitationPage />, errorElement: <NotFoundPage /> },
   { path: "/tenant/leases/:leaseId/review", element: <TenantLeaseReviewPage />, errorElement: <NotFoundPage /> },
   { path: "/tenant/leases/:leaseId/payment", element: <TenantLeasePaymentPage />, errorElement: <NotFoundPage /> },
   { path: "/tenant/leases/:leaseId/:mode", element: <TenantLeaseLifecyclePage />, errorElement: <NotFoundPage /> },

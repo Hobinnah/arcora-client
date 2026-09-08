@@ -1,8 +1,8 @@
 .login-page { background: var(--paper, #fbfaf6); font-family: 'DM Sans', sans-serif; }
 .login-nav { align-items: center; background: var(--paper, #fbfaf6); display: flex; justify-content: space-between; padding: 14px 32px; position: relative; z-index: 5; }
-.login-brand { align-items: center; color: #172c2b; display: flex; font-size: 22px; font-weight: 700; gap: 4px; letter-spacing: -1px; text-decoration: none; }
-.login-brand-mark { align-items: center; background: #167c80; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; height: 28px; justify-content: center; transform: rotate(-45deg); width: 28px; }
-.login-brand-mark > span { display: inline-block; transform: rotate(45deg) translateY(-1px); }
+.login-brand { align-items: center; color: #172c2b; display: flex; font-size: 30px; font-weight: 700; gap: 10px; letter-spacing: -1px; text-decoration: none; }
+.login-brand-mark { align-items: center; background: #172c2b; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: Georgia, 'Times New Roman', serif; font-size: 25px; font-weight: 700; height: 38px; justify-content: center; transform: rotate(-45deg); width: 38px; }
+.login-brand-mark > span { display: inline-block; line-height: 1; transform: rotate(45deg) translateY(-1px); }
 .login-nav-right { align-items: center; display: flex; gap: 16px; }
 .login-nav-right > button { background: transparent; border: 0; color: #172c2b; font-size: 13px; font-weight: 600; }
 .login-nav-menu { align-items: center; background: #167c80 !important; border-radius: 50%; color: #fff !important; display: flex; height: 34px; justify-content: center; width: 34px; }
@@ -25,8 +25,8 @@
 /* Modal */
 .login-modal { animation: login-fade-in .35s ease-out; background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.2); left: 50%; max-width: 440px; padding: 40px 36px 36px; position: absolute; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 40px); z-index: 4; }
 .login-modal-logo { margin: 0 auto 18px; text-align: center; }
-.login-modal-mark { align-items: center; background: #167c80; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 600; height: 44px; justify-content: center; transform: rotate(-45deg); width: 44px; }
-.login-modal-mark > span { display: inline-block; transform: rotate(45deg) translateY(-1px); }
+.login-modal-mark { align-items: center; background: #172c2b; border-radius: 50% 50% 50% 4px; color: #fff; display: inline-flex; font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 700; height: 48px; justify-content: center; transform: rotate(-45deg); width: 48px; }
+.login-modal-mark > span { display: inline-block; line-height: 1; transform: rotate(45deg) translateY(-1px); }
 .login-modal h1 { color: #172c2b; font-family: 'DM Sans', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 0; margin: 0 0 24px; text-align: center; }
 .login-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 12px; margin-bottom: 14px; padding: 10px 12px; }
 .login-field { margin-bottom: 14px; }
