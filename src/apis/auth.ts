@@ -395,6 +395,10 @@ export async function getUser(): Promise<AuthResponse> {
 export async function login(username: string, password: string): Promise<AuthResponse> {
     const apiPaths = new DefaultApiPaths();
     const url = `${BASE_URL}${apiPaths.login[0]}`;
+
+    Cookies.remove(env.AUTH_COOKIE_NAME, { path: '/' });
+    clearPersistedAuthSession();
+
     try {
         const response = await fetch(url, {
             method: 'POST',

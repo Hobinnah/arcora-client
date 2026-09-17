@@ -7,10 +7,12 @@ export type RentalUnit = {
     rentalUnitID: string;
     propertyID: string;
     unitTypeID: string;
+    name?: string;
     unitNumber: string;
     floorNumber: string;
     bedrooms: number;
     bathrooms: number;
+    beds: number;
     squareFeet: number;
     maximumOccupants: number;
     notes: string;

@@ -1,7 +1,7 @@
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
 export type Organization = {
-    organizationID: string;
+    organizationID: string | null;
     legalName: string;
     displayName: string;
     businessNumber: string;
@@ -22,6 +22,6 @@ export type Organization = {
     rankingScore: number;
     capturedDate: string;
     capturedBy: string;
-    updatedDate: string;
+    updatedDate: string | null;
     updatedBy: string;
 };

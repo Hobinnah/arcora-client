@@ -25,6 +25,16 @@ export const env = {
     // API target URL switches based on environment mode
     API_TARGET_URL: apiTargetUrl,
 
+    DOCUMENT_STORAGE_BASE_URL: import.meta.env.VITE_DOCUMENT_STORAGE_BASE_URL || 'http://127.0.0.1:10000/devstoreaccount1',
+
+    STRIPE_FEES: {
+        padPercent: import.meta.env.VITE_STRIPE_PAD_PROCESSING_PERCENT || '1',
+        padFixed: import.meta.env.VITE_STRIPE_PAD_PROCESSING_FIXED || '0.40',
+        padMax: import.meta.env.VITE_STRIPE_PAD_PROCESSING_MAX || '5',
+        cardPercent: import.meta.env.VITE_STRIPE_CARD_PROCESSING_PERCENT || '2.9',
+        cardFixed: import.meta.env.VITE_STRIPE_CARD_PROCESSING_FIXED || '0.30',
+    },
+
     // Search strategy from .env file with fallback
     SEARCH_STRATEGY: (import.meta.env.VITE_SEARCH_STRATEGY as 'server' | 'client') || 'client',
 

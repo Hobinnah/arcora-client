@@ -32,8 +32,8 @@ import { useNavigate } from 'react-router-dom';
  */
 const ROLE_ROUTES = {
   /** Host roles redirect to the hosting dashboard */
-  host: "/hosting",
-  landlord: "/hosting",
+  host: "/verify-identity",
+  landlord: "/verify-identity",
   user: "/",
   admin: "/overview",
   viewer: "/",

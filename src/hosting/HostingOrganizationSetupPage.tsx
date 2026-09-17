@@ -28,6 +28,11 @@ export default function HostingOrganizationSetupPage() {
   const [businessNumber, setBusinessNumber] = useState("");
   const [provinceCode, setProvinceCode] = useState(CANADA_PROVINCES[0].code);
   const [currency, setCurrency] = useState("CAD");
+  const [timeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [lateFeeEnabled, setLateFeeEnabled] = useState(true);
+  const [autoInvoiceGeneration, setAutoInvoiceGeneration] = useState(true);
+  const [autoPaymentRetry, setAutoPaymentRetry] = useState(true);
+  const [requireBackgroundCheck, setRequireBackgroundCheck] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,8 +48,9 @@ export default function HostingOrganizationSetupPage() {
     setSubmitting(true);
     setError("");
     try {
-      await createLandlordOrganization({ legalName: legalName.trim(), displayName: displayName.trim(), isPersonal: accountType === "individual", businessNumber: businessNumber.trim(), provinceCode, defaultCurrency: currency }, userID);
-      navigate("/hosting", { replace: true });
+      const capturedBy = [currentUser?.user?.firstName, currentUser?.user?.lastName].filter(Boolean).join(" ").trim() || currentUser?.name || "";
+      await createLandlordOrganization({ legalName: legalName.trim(), displayName: displayName.trim(), isPersonal: accountType === "individual", businessNumber: businessNumber.trim(), provinceCode, defaultCurrency: currency, timeZone, lateFeeEnabled, autoInvoiceGeneration, autoPaymentRetry, requireBackgroundCheck }, capturedBy);
+      navigate("/hosting/listings/new", { replace: true });
     } catch {
       setError("We couldn't save your business details. Please try again.");
     } finally {
@@ -71,6 +77,14 @@ export default function HostingOrganizationSetupPage() {
         <label>Province<CustomSelect value={provinceLabel ? `${provinceLabel.name} (${provinceLabel.code})` : provinceOptions[0]} options={provinceOptions} onChange={(value) => setProvinceCode(value.slice(-3, -1))} ariaLabel="Province" /></label>
       </div>
       <label>Default currency<CustomSelect value={currency} options={["CAD", "USD"]} onChange={setCurrency} ariaLabel="Default currency" /></label>
+      <label>Time zone<input value={timeZone} readOnly /></label>
+      <fieldset className="hosting-org-setup-settings">
+        <legend>Organization settings</legend>
+        <label><input type="checkbox" checked={lateFeeEnabled} onChange={(event) => setLateFeeEnabled(event.target.checked)} /> Late fee enabled</label>
+        <label><input type="checkbox" checked={autoInvoiceGeneration} onChange={(event) => setAutoInvoiceGeneration(event.target.checked)} /> Auto invoice generation</label>
+        <label><input type="checkbox" checked={autoPaymentRetry} onChange={(event) => setAutoPaymentRetry(event.target.checked)} /> Auto payment retry</label>
+        <label><input type="checkbox" checked={requireBackgroundCheck} onChange={(event) => setRequireBackgroundCheck(event.target.checked)} /> Require background check</label>
+      </fieldset>
       <button type="button" className="hosting-org-setup-submit" disabled={!legalName.trim() || !displayName.trim() || submitting} onClick={onSubmit}>{submitting ? "Saving..." : "Continue"}</button>
     </section>
   </main>;

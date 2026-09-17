@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthProvider';
 import { BarChartIcon, CalendarIcon, CreditCardIcon, FileIcon, GlobeIcon, InfoIcon, LogOutIcon, MenuIcon, PlusIcon, ShieldIcon, UserIcon, UsersIcon } from '../components/Icons';
 import VerificationProfileSummary from '../components/VerificationProfileSummary';
+import { fetchConversationParticipants } from '../apis/useConversationParticipant';
+import { fetchConversations } from '../apis/useConversation';
+import { getCurrentOrganizationMember } from './organizationMemberIdentity';
 import './HostingPage.css';
 
 export default function HostingHeader() {
@@ -13,10 +16,32 @@ export default function HostingHeader() {
   const [languageModalOpen, setLanguageModalOpen] = useState(false);
   const [languageTab, setLanguageTab] = useState<'language' | 'currency'>('language');
   const [translationEnabled, setTranslationEnabled] = useState(true);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const profile = auth?.currentUser?.user;
   const profileName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || auth?.currentUser?.name || 'User';
   const profileImage = profile?.imageUrl || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=85';
+
+  useEffect(() => {
+    const userID = profile?.id ?? profile?.userId;
+    if (!userID) return;
+    let cancelled = false;
+    (async () => {
+      const member = await getCurrentOrganizationMember(userID);
+      if (!member?.organizationMemberID) return;
+      const [{ data: participants }, { data: conversations }] = await Promise.all([
+        fetchConversationParticipants({ pageSize: 200, pageNumber: 0 }),
+        fetchConversations({ pageSize: 200, pageNumber: 0 }),
+      ]);
+      const conversationMap = new Map(conversations.map((conversation) => [conversation.conversationID, conversation]));
+      const unread = participants.some((participant) => {
+        const conversation = conversationMap.get(participant.conversationID);
+        return participant.organizationMemberID === member.organizationMemberID && Boolean(conversation?.lastMessageAt && (!participant.lastReadAt || conversation.lastMessageAt > participant.lastReadAt));
+      });
+      if (!cancelled) setHasUnreadMessages(unread);
+    })().catch(() => { if (!cancelled) setHasUnreadMessages(false); });
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.userId]);
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -53,7 +78,7 @@ export default function HostingHeader() {
         <button className={location.pathname === '/hosting/calendar' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/calendar')}><CalendarIcon /> Calendar</button>
         <button className={location.pathname.startsWith('/hosting/listings') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/listings')}><FileIcon /> Listings</button>
         <button className={location.pathname.startsWith('/hosting/applications') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/applications')}><UsersIcon /> Applications</button>
-        <button className={location.pathname === '/hosting/messages' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/messages')}><InfoIcon /> Messages</button>
+        <button className={location.pathname === '/hosting/messages' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/messages')}><InfoIcon /> Messages{hasUnreadMessages && <span aria-label="Unread messages" style={{ marginLeft: 6, color: '#c45135' }}>●</span>}</button>
       </nav>
       <div className="hosting-header-actions">
         <button className="hosting-switch" type="button" onClick={() => navigate('/')}>Switch to renting</button>

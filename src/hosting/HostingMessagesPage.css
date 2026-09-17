@@ -1,3 +1,5 @@
+.hosting-messages-item-top strong.is-unread { font-weight: 700; }
+.hosting-messages-item-top strong:not(.is-unread) { font-weight: 400; }
 .hosting-messages-page { min-height: 100vh; }
 .hosting-messages-layout { display: grid; gap: 28px; grid-template-columns: 408px minmax(0, 1fr) 412px; height: calc(100vh - 72px); padding: 0 40px; }
 

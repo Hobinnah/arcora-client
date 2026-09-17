@@ -23,6 +23,8 @@ import HostingMessagesPage from './hosting/HostingMessagesPage.tsx';
 import HostingReviewPage from './hosting/HostingReviewPage.tsx';
 import HostingApplicationsPage from './hosting/HostingApplicationsPage.tsx';
 import HostingApplicationReviewPage from './hosting/HostingApplicationReviewPage.tsx';
+import HostingApplicationMessagesPage from './hosting/HostingApplicationMessagesPage.tsx';
+import TenantApplicationMessagesPage from './marketplace/TenantApplicationMessagesPage.tsx';
 import HostingInviteTenantPage from './hosting/HostingInviteTenantPage.tsx';
 import HostEarningsPage from './hosting/HostEarningsPage.tsx';
 import HostCohostsPage from './hosting/HostCohostsPage.tsx';
@@ -211,6 +213,7 @@ import UnitTypeList from './pages/unittypes/UnitTypeList.tsx';
 import UnitTypeDetails from './pages/unittypes/UnitTypeDetails.tsx';
 
 
+const hostAccessRoles = ['host', 'landlord'];
 
 const router = createBrowserRouter([
 
@@ -225,23 +228,25 @@ const router = createBrowserRouter([
   { path: "/tenant/leases/:leaseId/review", element: <TenantLeaseReviewPage />, errorElement: <NotFoundPage /> },
   { path: "/tenant/leases/:leaseId/payment", element: <TenantLeasePaymentPage />, errorElement: <NotFoundPage /> },
   { path: "/tenant/leases/:leaseId/:mode", element: <TenantLeaseLifecyclePage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting", element: <HostingPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/setup-business", element: <HostingOrganizationSetupPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/calendar", element: <HostingCalendarPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/listings", element: <HostingListingsPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/listings/new", element: <HostingCreateListingPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/listings/:id/edit", element: <HostingListingEditorPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/messages", element: <HostingMessagesPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/review", element: <HostingReviewPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/applications", element: <HostingApplicationsPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/applications/:id", element: <HostingApplicationReviewPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/invitations/new", element: <HostingInviteTenantPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/earnings", element: <HostEarningsPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/cohosts", element: <HostCohostsPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/verification", element: <HostVerificationPage />, errorElement: <NotFoundPage /> },
-  { path: "/hosting/deposits", element: <HostDepositsPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/setup-business", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingOrganizationSetupPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/calendar", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingCalendarPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/listings", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingListingsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/listings/new", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingCreateListingPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/listings/:id/edit", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingListingEditorPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/messages", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingMessagesPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/messages/application/:conversationID", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingApplicationMessagesPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/messages/application/:conversationID", element: <TenantApplicationMessagesPage />, errorElement: <NotFoundPage /> },
+  { path: "/hosting/review", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingReviewPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/applications", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingApplicationsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/applications/:id", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingApplicationReviewPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/invitations/new", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostingInviteTenantPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/earnings", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostEarningsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/cohosts", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostCohostsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/verification", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostVerificationPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/deposits", element: <ProtectedRoute allowedRoles={hostAccessRoles}><HostDepositsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/account-settings", element: <AccountSettingsPage />, errorElement: <NotFoundPage /> },
-  { path: "/verify-identity", element: <IdentityVerificationPage />, errorElement: <NotFoundPage /> },
+  { path: "/verify-identity", element: <ProtectedRoute allowedRoles={hostAccessRoles}><IdentityVerificationPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/reviews", element: <RatingsReviewsPage />, errorElement: <NotFoundPage /> },
   { path: "/tenant/verification", element: <TenantTrustPage />, errorElement: <NotFoundPage /> },
   { path: "*", element: <NotFoundPage /> },

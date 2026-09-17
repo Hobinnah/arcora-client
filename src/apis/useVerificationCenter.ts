@@ -97,7 +97,12 @@ export function useVerificationCenter(userID?: number) {
   // Passive check: email OTP already gates login, so once authenticated we can record it as verified.
   const ensureEmailVerified = useCallback(async () => {
     if (!userID || records.EMAIL_OTP) return;
-    await upsertApproval({ verificationType: "EMAIL_OTP", providerName: "ARCORA_AUTH" }, 100);
+    try {
+      await upsertApproval({ verificationType: "EMAIL_OTP", providerName: "ARCORA_AUTH" }, 100);
+    } catch (error) {
+      // Email login already verifies the user; audit-record validation must not block the verification flow.
+      if (import.meta.env.DEV) console.warn("[Verification] Could not persist EMAIL_OTP audit record", error);
+    }
   }, [records.EMAIL_OTP, upsertApproval, userID]);
 
   const requestPhoneOtp = useCallback(async (phoneNumber: string) => {

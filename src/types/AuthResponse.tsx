@@ -15,6 +15,7 @@
 import type { OrganizationMember } from "./OrganizationMember";
 import type { Tenant } from "./Tenant";
 import type { User } from "./User";
+import type { Organization } from "./Organization";
 
 /**
  * Authentication response interface returned from login API calls
@@ -106,6 +107,7 @@ export type AuthResponse = {
     roles: Array<string>;
     isLoginSuccessful: boolean;
     user: User;
+    organization?: Organization;
     tenant?: Tenant;
     memberOrganizations?: OrganizationMember[];
     requiresTwoFactor?: boolean;

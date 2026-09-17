@@ -1,6 +1,6 @@
 .hosting-listings-content { margin: 0 auto; max-width: 1180px; padding: 40px clamp(20px, 4vw, 48px) 90px; }
 .hosting-listings-toolbar { align-items: center; display: flex; justify-content: space-between; margin-bottom: 28px; }
-.hosting-listings-toolbar h1 { font-family: 'DM Sans', sans-serif; font-size: 26px; font-weight: 700; margin: 0; }
+.hosting-listings-toolbar h1 { font-family: 'DM Sans', sans-serif; font-size: 26px; margin: 0; }
 .hosting-listings-actions { display: flex; gap: 10px; }
 .hosting-listings-icon-button { align-items: center; background: #f1f2f1; border: 0; border-radius: 50%; color: var(--ink); display: inline-flex; height: 38px; justify-content: center; width: 38px; }
 .hosting-listings-icon-button:hover { background: #e4e9e7; }

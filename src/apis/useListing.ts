@@ -140,6 +140,35 @@ export const fetchListings = async ({
   }
 };
 
+export const fetchListingsByOrganization = async (organizationID: string): Promise<Listing[]> => {
+  try {
+    const url = `${BASE_URL}api/listing/GetByOrganization/${encodeURIComponent(organizationID)}`;
+    const response = await axios.get(url);
+    const data = response.data;
+    return Array.isArray(data) ? data : data?.data ?? data?.records ?? [];
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('[Arcora] Organization listings request failed', error);
+    return handleApiError(error, 'fetch listings by organization');
+  }
+};
+
+export const countListingsByOrganization = async (organizationID: string): Promise<number> => {
+  try {
+    const url = `${BASE_URL}api/listing/CountByOrganization/${encodeURIComponent(organizationID)}`;
+    const response = await axios.get(url);
+    const data = response.data;
+    const rawCount = typeof data === 'number' ? data : data?.count ?? data?.totalCount ?? data?.listingCount ?? data?.value;
+    const count = Number(rawCount);
+    if (import.meta.env.DEV) {
+      console.info('[Arcora] CountListingsByOrganization response', { organizationID, url, raw: data, count });
+      if (!Number.isFinite(count)) console.warn('[Arcora] Unrecognized listing count response shape', data);
+    }
+    return Number.isFinite(count) ? count : 0;
+  } catch (error) {
+    return handleApiError(error, 'count listings by organization');
+  }
+};
+
 export const getListing = async (id?: string): Promise<Listing> => {
   try {
     const url = `${BASE_URL}api/listing/getListingById/${id}`;

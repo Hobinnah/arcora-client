@@ -1,3 +1,14 @@
+.tenant-application-messages-layout { margin: 0 auto; max-width: 820px; padding: 52px 32px 90px; }
+.tenant-application-messages-layout h1 { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 500; margin: 7px 0 24px; }
+.tenant-application-message-thread { border: 1px solid var(--sand); display: grid; gap: 12px; min-height: 260px; padding: 20px; }
+.tenant-application-message { background: #f5f7f4; border-radius: 8px; justify-self: start; max-width: 78%; padding: 11px 14px; }
+.tenant-application-message.is-tenant { background: #eef7f5; justify-self: end; }
+.tenant-application-message small, .tenant-application-message time { color: var(--muted); display: block; font-size: 10px; }
+.tenant-application-message p { font-size: 13px; margin: 5px 0; white-space: pre-wrap; }
+.tenant-application-message-composer { display: flex; gap: 10px; margin-top: 16px; }
+.tenant-application-message-composer textarea { border: 1px solid var(--sand); border-radius: 7px; box-sizing: border-box; color: var(--ink); font: inherit; min-height: 48px; padding: 12px; resize: vertical; width: 100%; }
+.tenant-application-message-composer button { white-space: nowrap; }
+@media (max-width: 600px) { .tenant-application-messages-layout { padding-left: 20px; padding-right: 20px; }.tenant-application-message-composer { align-items: stretch; flex-direction: column; }.tenant-application-message-composer button { width: 100%; } }
 .tenant-date-picker, .tenant-date-picker .tenant-date-trigger, .tenant-date-picker .tenant-date-trigger svg, .tenant-date-picker .tenant-date-header-selects select, .tenant-date-picker .tenant-date-header button, .tenant-date-picker .tenant-date-actions button, .tenant-date-picker .tenant-date-weekdays span, .tenant-date-picker .tenant-date-grid button, .tenant-date-picker .tenant-date-header-selects select option:disabled { color: var(--ink); }
 .tenant-date-picker .tenant-date-grid button.is-selected, .tenant-date-picker .tenant-date-grid button.is-selected:hover { color: #fff; }
 .tenant-application-readiness-list { border: 0 !important; display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -16,6 +27,7 @@
 .tenant-application-upload-progress { color: var(--teal-dark); flex-basis: 100%; font-size: 12px; font-weight: 700; margin: 0; order: -1; }
 .tenant-application-next-error { color: #a13a1b; flex-basis: 100%; font-size: 12px; margin: 0; order: -1; }
 .tenant-application-detail-summary > div:not(.tenant-application-summary-total) strong { font-weight: 400; }
+.tenant-application-detail-summary .tenant-application-placement-fee-value { font-weight: 700 !important; }
 .tenant-application-detail-summary .tenant-application-summary-total strong { font-weight: 700; }
 .tenant-application-upload-limit { color: var(--muted); display: block; margin-top: 2px; }
 .tenant-application-upload-success { color: var(--teal-dark); display: block; margin-top: 4px; }
@@ -131,6 +143,7 @@
 .tenant-application-card-form input::placeholder { color: var(--ink); opacity: .65; }
 .tenant-application-card-form input:focus { border-color: var(--teal); outline: 2px solid rgba(34, 119, 105, .14); }
 .tenant-application-submit-button { display: none; }
+.tenant-application-submitted .tenant-application-panel-lead { margin-left: auto; margin-right: auto; text-align: center; }
 .tenant-application-detail-page .tenant-application-submit-button { display: none !important; }
 .tenant-application-review-panel .tenant-application-consent-row { margin-bottom: 6px; }
 .tenant-application-detail-page[data-active-section="review"] .tenant-application-detail-actions { margin-top: -30px !important; }

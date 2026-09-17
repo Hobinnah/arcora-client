@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
+    "@microsoft/signalr": "^10.0.11",
     "@stripe/react-stripe-js": "^6.9.0",
     "@stripe/stripe-js": "^9.15.0",
     "@tanstack/react-query": "^5.101.4",

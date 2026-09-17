@@ -53,6 +53,7 @@ export default function LoginPage() {
   const location = useLocation();
   const redirectUrl = new URLSearchParams(location.search).get('redirect_url') || '';
   const loginRedirect = redirectUrl || localStorage.getItem('arcora:pending-invite') || '';
+  const postLoginRedirect = loginRedirect === '/become-a-host' ? '/verify-identity' : loginRedirect;
   const registrationRole = redirectUrl.includes('become-a-host') ? 'landlord' : undefined;
   const { register, handleSubmit, setError, getValues, formState: { errors, isSubmitting } } = useForm<FormFields>({ defaultValues: { username: '', password: '', rememberMe: false }, resolver: zodResolver(loginSchema), mode: 'onBlur' });
   const auth = useContext(AuthContext);
@@ -71,10 +72,10 @@ export default function LoginPage() {
         setShow2FA(true);
         return;
       }
-      if (response?.isLoginSuccessful && response.roles) { if (loginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(loginRedirect); } else redirectToUserDashboard(response.roles, data.rememberMe); }
+      if (response?.isLoginSuccessful && response.roles) { if (postLoginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(postLoginRedirect); } else redirectToUserDashboard(response.roles, data.rememberMe); }
       else throw new Error('Login failed. Please check your credentials.');
     } catch (error) { setError('root', { type: 'manual', message: error instanceof Error ? error.message : 'An error occurred.' }); }
-  }, [auth, redirectToUserDashboard, setError, loginRedirect, navigate]);
+  }, [auth, redirectToUserDashboard, setError, postLoginRedirect, navigate]);
 
   const handle2FASuccess = useCallback(async (finalToken: string) => {
     try {
@@ -82,7 +83,7 @@ export default function LoginPage() {
         setShow2FA(false);
         if (twoFactorPurpose === 'signup') { setShowAccountSetup(true); return; }
         const roles = auth?.currentUser?.roles || [];
-        if (loginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(loginRedirect); } else redirectToUserDashboard(roles, pendingRememberMe);
+        if (postLoginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(postLoginRedirect); } else redirectToUserDashboard(roles, pendingRememberMe);
         return;
       }
 
@@ -91,10 +92,10 @@ export default function LoginPage() {
         setShow2FA(false);
         if (twoFactorPurpose === 'signup') { setShowAccountSetup(true); return; }
         const roles = auth?.currentUser?.roles || [];
-        if (loginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(loginRedirect); } else redirectToUserDashboard(roles, pendingRememberMe);
+        if (postLoginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(postLoginRedirect); } else redirectToUserDashboard(roles, pendingRememberMe);
       }
     } catch { setError('root', { type: 'manual', message: 'Authentication failed. Please try again.' }); setShow2FA(false); setTwoFactorData(null); }
-  }, [auth, twoFactorData, twoFactorPurpose, loginRedirect, pendingRememberMe, navigate, redirectToUserDashboard, setError]);
+  }, [auth, twoFactorData, twoFactorPurpose, postLoginRedirect, pendingRememberMe, navigate, redirectToUserDashboard, setError]);
 
   const handleVerifyCode = useCallback(async ({ emailAddress, token, otpCode }: { emailAddress: string; token: string; otpCode: string }) => {
     const result = await verifyLoginCode(emailAddress, token, otpCode);
@@ -147,7 +148,7 @@ export default function LoginPage() {
     <div className="login-page marketplace">
       <nav className="login-nav">
         <a className="login-brand" href="/"><span className="login-brand-mark"><span>a</span></span><span>arcora</span></a>
-        <div className="login-nav-right"><button type="button" onClick={() => navigate('/')}>Become a host / landlord</button><button className="login-nav-menu" type="button" aria-label="Menu"><MenuIcon /></button></div>
+        <div className="login-nav-right"><button type="button" onClick={() => navigate('/login?redirect_url=/become-a-host')}>Become a host / landlord</button><button className="login-nav-menu" type="button" aria-label="Menu"><MenuIcon /></button></div>
       </nav>
 
       <div className="login-hero">

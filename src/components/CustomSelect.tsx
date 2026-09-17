@@ -11,14 +11,40 @@ interface CustomSelectProps {
 export default function CustomSelect({ value, options, onChange, ariaLabel }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const selectRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+
   useEffect(() => {
     if (!open) return;
+
     const closeOnOutsideMouse = (event: MouseEvent) => {
       if (!selectRef.current?.contains(event.target as Node)) setOpen(false);
     };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (!menuRef.current || !menuRef.current.contains(event.target as Node)) return;
+
+      const menu = menuRef.current;
+      const atTop = menu.scrollTop <= 0 && event.deltaY < 0;
+      const atBottom = menu.scrollTop + menu.clientHeight >= menu.scrollHeight && event.deltaY > 0;
+
+      if (atTop || atBottom) {
+        event.preventDefault();
+        return;
+      }
+
+      event.preventDefault();
+      menu.scrollTop += event.deltaY;
+    };
+
     document.addEventListener("mousedown", closeOnOutsideMouse);
-    return () => document.removeEventListener("mousedown", closeOnOutsideMouse);
+    document.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideMouse);
+      document.removeEventListener("wheel", handleWheel);
+    };
   }, [open]);
+
   return (
     <div className="hosting-select" ref={selectRef}>
       <button
@@ -34,8 +60,7 @@ export default function CustomSelect({ value, options, onChange, ariaLabel }: Cu
       </button>
       {open && (
         <>
-          <div className="hosting-select-backdrop" onMouseDown={() => setOpen(false)} />
-          <ul className="hosting-select-menu" role="listbox" aria-label={ariaLabel}>
+          <ul className="hosting-select-menu" ref={menuRef} role="listbox" aria-label={ariaLabel}>
             {options.map((option) => (
               <li key={option}>
                 <button

@@ -89,12 +89,12 @@ export default function OrganizationForm({ onAlert, initialOrganization = null, 
       timeZone: "",
       invoicePrefix: "",
       receiptPrefix: "",
-      lateFeeEnabled: false,
-      autoInvoiceGeneration: false,
-      autoPaymentRetry: false,
+      lateFeeEnabled: true,
+      autoInvoiceGeneration: true,
+      autoPaymentRetry: true,
       paymentProvider: "",
       brandLogoUrl: "",
-      requireBackgroundCheck: false,
+      requireBackgroundCheck: true,
       rankingScore: 0,
     };
   }, [isEditMode, initialOrganization]);
@@ -114,8 +114,13 @@ export default function OrganizationForm({ onAlert, initialOrganization = null, 
     try {
       const action = isEditMode ? 'Updating' : 'Creating';
       onAlert?.(`${action} organization...`, 'info');
+      const currentUserName = [currentUser?.user?.firstName, currentUser?.user?.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || currentUser?.name || '';
+      const organizationID = isEditMode ? (initialOrganization?.organizationID || null) : null;
       const payload: any = {
-        organizationID: (isEditMode ? ((initialOrganization as any)?.organizationID ?? null) : null),
+        organizationID,
         legalName: data.legalName ?? '',
         displayName: data.displayName ?? '',
         businessNumber: data.businessNumber ?? '',
@@ -135,10 +140,12 @@ export default function OrganizationForm({ onAlert, initialOrganization = null, 
         requireBackgroundCheck: data.requireBackgroundCheck,
         rankingScore: data.rankingScore,
         capturedDate : (isEditMode ? ((initialOrganization as any)?.capturedDate ?? new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]),
-        capturedBy: (isEditMode ? ((initialOrganization as any)?.capturedBy ?? ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()) : ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
-        updatedDate : (isEditMode ? ((initialOrganization as any)?.updatedDate ?? null) : null),
-        updatedBy: (isEditMode ? ((initialOrganization as any)?.updatedBy ?? ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()) : ((currentUser?.user?.firstName || "") + " " + (currentUser?.user?.lastName || "")).trim()),
+        capturedBy: isEditMode ? (initialOrganization?.capturedBy ?? currentUserName) : currentUserName,
+        updatedDate: isEditMode ? (initialOrganization?.updatedDate ?? null) : null,
+        updatedBy: isEditMode ? (initialOrganization?.updatedBy ?? currentUserName) : '',
       };
+      console.log('[Organization] authenticated roles:', [...(currentUser?.roles ?? []), ...(currentUser?.user?.roles ?? [])]);
+      console.log('[Organization] request payload:', payload);
       let result: any;
       result = isEditMode ? await updateOrganization(payload as Organization) : await createOrganization(payload as Organization);
       const successAction = isEditMode ? 'updated' : 'created';
@@ -261,4 +268,3 @@ function Field({ label, error, children }: React.PropsWithChildren<{ label: stri
     </div>
   );
 }
-

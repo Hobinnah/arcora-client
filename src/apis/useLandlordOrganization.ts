@@ -1,7 +1,6 @@
 import { createOrganization, getOrganization, updateOrganization } from "./useOrganization";
-import { createOrganizationMember, fetchOrganizationMembers } from "./useOrganizationMember";
+import { fetchOrganizationMembers } from "./useOrganizationMember";
 import type { Organization } from "../types/Organization";
-import type { OrganizationMember } from "../types/OrganizationMember";
 
 export const CANADA_PROVINCES = [
   { code: "AB", name: "Alberta" },
@@ -26,6 +25,11 @@ export type LandlordOrganizationDraft = {
   businessNumber: string;
   provinceCode: string;
   defaultCurrency: string;
+  timeZone: string;
+  lateFeeEnabled: boolean;
+  autoInvoiceGeneration: boolean;
+  autoPaymentRetry: boolean;
+  requireBackgroundCheck: boolean;
 };
 
 export const hasLandlordOrganization = async (userID: number): Promise<boolean> => {
@@ -46,48 +50,32 @@ export const saveLandlordOrganization = async (organization: Organization): Prom
 };
 
 
-export const createLandlordOrganization = async (draft: LandlordOrganizationDraft, userID: number): Promise<Organization> => {
+export const createLandlordOrganization = async (draft: LandlordOrganizationDraft, capturedBy: string): Promise<Organization> => {
   const now = new Date().toISOString();
   const organization = await createOrganization({
-    organizationID: "",
+    organizationID: null,
     legalName: draft.legalName,
     displayName: draft.displayName,
     businessNumber: draft.isPersonal ? "" : draft.businessNumber,
     countryCode: "CA",
     provinceCode: draft.provinceCode,
     isPersonal: draft.isPersonal,
-    status: "DRAFT",
+    status: "ACTIVE",
     defaultCurrency: draft.defaultCurrency,
-    timeZone: "",
+    timeZone: draft.timeZone,
     invoicePrefix: "",
     receiptPrefix: "",
-    lateFeeEnabled: false,
-    autoInvoiceGeneration: true,
-    autoPaymentRetry: true,
+    lateFeeEnabled: draft.lateFeeEnabled,
+    autoInvoiceGeneration: draft.autoInvoiceGeneration,
+    autoPaymentRetry: draft.autoPaymentRetry,
     paymentProvider: "",
     brandLogoUrl: "",
-    requireBackgroundCheck: false,
+    requireBackgroundCheck: draft.requireBackgroundCheck,
     rankingScore: 0,
     capturedDate: now,
-    capturedBy: "",
-    updatedDate: now,
+    capturedBy,
+    updatedDate: null,
     updatedBy: "",
-  });
-  await createOrganizationMember({
-    organizationMemberID: "",
-    organizationID: organization.organizationID,
-    userID,
-    roleName: "OWNER",
-    status: "ACTIVE",
-    isPrimaryOwner: true,
-    invitedAt: now,
-    acceptedAt: now,
-    deactivatedAt: "",
-    capturedDate: now,
-    capturedBy: "",
-    updatedDate: now,
-    updatedBy: "",
-    organization,
-  } as OrganizationMember);
+  } as unknown as Organization);
   return organization;
 };

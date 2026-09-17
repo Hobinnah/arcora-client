@@ -86,6 +86,53 @@ export const createListingPhoto = async (ListingPhoto?: ListingPhoto): Promise<L
   }
 };
 
+export const uploadListingPhoto = async (
+  file: File,
+  listingID: string | null,
+  displayOrder: number,
+  isCoverPhoto: boolean,
+  options: { location?: string; caption?: string; altText?: string; capturedBy?: string; userID?: number } = {},
+): Promise<ListingPhoto> => {
+  try {
+    const formData = new FormData();
+    formData.append('File', file);
+    if (listingID && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(listingID)) {
+      formData.append('ListingID', listingID);
+    }
+    formData.append('Location', options.location ?? 'Additional');
+    formData.append('Caption', options.caption ?? '');
+    formData.append('AltText', options.altText ?? file.name);
+    formData.append('DisplayOrder', String(displayOrder));
+    formData.append('IsCoverPhoto', String(isCoverPhoto));
+    formData.append('CapturedBy', options.capturedBy ?? '');
+    if (options.userID !== undefined) formData.append('UserID', String(options.userID));
+    const url = `${BASE_URL}api/listingphoto/Upload`;
+    if (import.meta.env.DEV) {
+      console.info('[ListingPhotos] UploadListingPhoto payload', {
+        endpoint: url,
+        file: { name: file.name, type: file.type, size: file.size },
+        ListingID: listingID,
+        Location: isCoverPhoto ? 'CoverPhoto' : options.location,
+        Caption: options.caption,
+        AltText: options.altText,
+        DisplayOrder: displayOrder,
+        IsCoverPhoto: isCoverPhoto,
+        CapturedBy: listingID,
+        UserID: options.userID,
+      });
+    }
+    const response = await axios.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      // backend upload action can hang indefinitely on blob storage calls; fail fast instead of stalling the UI forever
+      timeout: 30000,
+    });
+    return response.data as ListingPhoto;
+  } catch (error) {
+    handleApiError(error, 'create listingPhotos');
+    throw error;
+  }
+};
+
 export const updateListingPhoto = async (listingPhoto?: ListingPhoto): Promise<ListingPhoto> => {
   try {
     const id = ((listingPhoto as any)?.listingPhotoID ?? '').toString();

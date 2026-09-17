@@ -1,6 +1,17 @@
-﻿import type { Listing } from "./Listing";
+﻿import type { ApplicationOccupant } from "./ApplicationOccupant";
+import type { CalendarEvent } from "./CalendarEvent";
+import type { Lease } from "./Lease";
+import type { LeaseDocuments } from "./LeaseDocuments";
+import type { Listing } from "./Listing";
 import type { OrganizationMember } from "./OrganizationMember";
+import type { ReservationHold } from "./ReservationHold";
 import type { Tenant } from "./Tenant";
+import type { TenantEmergencyContact } from "./TenantEmergencyContact";
+import type { TenantEmployment } from "./TenantEmployment";
+import type { TenantGuarantor } from "./TenantGuarantor";
+import type { TenantInvitation } from "./TenantInvitation";
+import type { TenantScreeningCheck } from "./TenantScreeningCheck";
+import type { ViewingAppointments } from "./ViewingAppointments";
 
 {/*  ===================================THIS FILE WAS AUTO GENERATED=================================== */}
 
@@ -36,4 +47,15 @@ export type RentalApplication = {
     listing: Listing;
     tenant: Tenant;
     reviewedByOrganizationMember: OrganizationMember;
+    applicationOccupants?: ApplicationOccupant[];
+    leaseDocuments?: LeaseDocuments[];
+    tenantGuarantors?: TenantGuarantor[];
+    tenantEmergencyContacts?: TenantEmergencyContact[];
+    tenantEmployments?: TenantEmployment[];
+    tenantScreeningChecks?: TenantScreeningCheck[];
+    tenantInvitations?: TenantInvitation[];
+    reservationHolds?: ReservationHold[];
+    viewingAppointments?: ViewingAppointments[];
+    calendarEvents?: CalendarEvent[];
+    leases?: Lease[];
 };

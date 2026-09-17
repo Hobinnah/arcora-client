@@ -96,6 +96,7 @@ export const getOrganization = async (id?: string): Promise<Organization> => {
 export const createOrganization = async (Organization?: Organization): Promise<Organization> => {
   try {
     const url = `${BASE_URL}api/organization/createOrganization`;
+    console.log('[Organization] createOrganization payload:', Organization);
     const response = await axios.post(url, Organization);
     return response.data as Organization;
   } catch (error) {

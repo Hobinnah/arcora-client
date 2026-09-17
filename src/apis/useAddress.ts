@@ -12,6 +12,30 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type AddressSuggestion = {
+  id: string;
+  text: string;
+  line1: string;
+  line2: string;
+  city: string;
+  provinceCode: string;
+  postalCode: string;
+  countryCode: string;
+};
+
+export const lookupPostalCode = async (postalCode: string, country = 'CAN'): Promise<AddressSuggestion[]> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/Address/LookupPostalCode`, {
+      params: { postalCode, country },
+    });
+    const data = response.data;
+    return Array.isArray(data) ? data as AddressSuggestion[] : Array.isArray(data?.data) ? data.data as AddressSuggestion[] : [];
+  } catch (error) {
+    handleApiError(error, 'look up postal code');
+    throw error;
+  }
+};
+
 export type AddressesListParams = {
   pageSize?: number;
   pageNumber?: number;

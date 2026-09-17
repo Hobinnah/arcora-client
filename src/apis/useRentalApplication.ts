@@ -15,6 +15,7 @@ const BASE_URL = env.API_BASE_URL;
 export type RentalApplicationCreatePayload = Omit<Partial<RentalApplication>, "rentalApplicationID" | "reviewedByOrganizationMemberID" | "desiredMoveOutDate" | "reviewedAt" | "approvedAt" | "declinedAt" | "expiresAt"> & {
   rentalApplicationID: string | null;
   organizationID?: string | null;
+  AttestationProvidedInfoIsCorrect?: boolean;
   reviewedByOrganizationMemberID: string | null;
   desiredMoveOutDate: string | null;
   reviewedAt: string | null;

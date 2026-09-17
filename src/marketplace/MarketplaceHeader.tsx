@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { HomeIcon, InfoIcon, MenuIcon, UserPlusIcon } from '../components/Icons';
+import { ApplicationIcon, HomeIcon, InfoIcon, MenuIcon, UserPlusIcon } from '../components/Icons';
 import { useContext } from 'react';
 import { AuthContext } from '../contexts/AuthProvider';
 import VerificationProfileSummary from '../components/VerificationProfileSummary';
@@ -42,11 +42,14 @@ export default function MarketplaceHeader({ activeLink = '', hostingMode = false
         <button className={`marketplace-account marketplace-menu-trigger ${menuOpen ? 'is-open' : ''}`} type="button" aria-label="Open menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}><MenuIcon /></button>
         {menuOpen && <div className="marketplace-menu-popover" role="menu">
           <a href="#help" role="menuitem"><InfoIcon /><span>Help Centre</span></a>
-          <a className="marketplace-menu-feature" href="#host" role="menuitem"><UserPlusIcon /><span><strong>Become a host</strong><small>Share your space and earn income.</small></span></a>
+          <a className="marketplace-menu-feature" href="/login?redirect_url=/become-a-host" role="menuitem"><UserPlusIcon /><span><strong>Become a host</strong><small>Share your space and earn income.</small></span></a>
           <a href="#refer" role="menuitem"><span>Refer a host</span></a>
           <a href="#cohost" role="menuitem"><span>Find a co-host</span></a>
           <a href="#gift-cards" role="menuitem"><span>Gift cards</span></a>
-          {auth?.isAuthenticated && <VerificationProfileSummary />}
+          {auth?.isAuthenticated && <>
+            <button type="button" className="marketplace-menu-application-link" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/applications'); }}><ApplicationIcon /><span>My applications</span></button>
+            <VerificationProfileSummary />
+          </>}
           <div className="marketplace-menu-divider" />
           {auth?.isAuthenticated ? <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); auth.handleLogout().then(() => navigate('/')); }}><span>Log out</span></button> : <a href="/login" role="menuitem"><span>Log in or sign up</span></a>}
         </div>}

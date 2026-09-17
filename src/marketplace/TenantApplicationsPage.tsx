@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TenantHeader from "./TenantHeader";
 import MarketplaceFooter from "./MarketplaceFooter";
-import { fallbackListings } from "./marketplaceData";
+import { fallbackListings, normalizeListing, type MarketplaceListing } from "./marketplaceData";
+import { getTenantByUserID } from "../apis/useTenant";
+import { fetchRentalApplications } from "../apis/useRentalApplication";
+import { fetchLeases } from "../apis/useLease";
+import { useAuth } from "../hooks/useAuth";
 import "./TenantApplicationsPage.css";
 
 type ApplicationStatus =
@@ -15,7 +19,8 @@ type ApplicationStatus =
   | "EXPIRED";
 type TenantApplicationCard = {
   id: string;
-  listingIndex: number;
+  recordType: "application" | "lease";
+  listing: MarketplaceListing;
   status: ApplicationStatus;
   capturedDate: string;
   moveIn: string;
@@ -24,48 +29,6 @@ type TenantApplicationCard = {
   nextAction: string;
 };
 
-const mockApplications: TenantApplicationCard[] = [
-  {
-    id: "app-1024",
-    listingIndex: 0,
-    status: "CHANGES_REQUESTED",
-    capturedDate: "2026-08-18",
-    moveIn: "2026-09-01",
-    term: 6,
-    code: "ARC-1024",
-    nextAction: "Review changes",
-  },
-  {
-    id: "app-1017",
-    listingIndex: 2,
-    status: "UNDER_REVIEW",
-    capturedDate: "2026-08-11",
-    moveIn: "2026-10-01",
-    term: 12,
-    code: "ARC-1017",
-    nextAction: "View application",
-  },
-  {
-    id: "app-0998",
-    listingIndex: 1,
-    status: "DRAFT",
-    capturedDate: "2026-07-29",
-    moveIn: "2026-09-15",
-    term: 3,
-    code: "ARC-0998",
-    nextAction: "Complete application",
-  },
-  {
-    id: "app-0942",
-    listingIndex: 3,
-    status: "APPROVED",
-    capturedDate: "2026-06-20",
-    moveIn: "2026-07-01",
-    term: 12,
-    code: "ARC-0942",
-    nextAction: "Review and sign lease",
-  },
-];
 const statusLabels: Record<ApplicationStatus, string> = {
   DRAFT: "Draft",
   SUBMITTED: "Submitted",
@@ -75,25 +38,78 @@ const statusLabels: Record<ApplicationStatus, string> = {
   DECLINED: "Declined",
   EXPIRED: "Expired",
 };
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat("en-US", {
+const formatDate = (value: string) => {
+  if (!value) return "Not provided";
+  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "Not provided";
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
+  }).format(date);
+};
 
 export default function TenantApplicationsPage() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const [applicationsData, setApplicationsData] = useState<TenantApplicationCard[]>([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | ApplicationStatus>(
     "ALL",
   );
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
+    if (!userID) return;
+    let cancelled = false;
+    const loadTenantRecords = async () => {
+      try {
+        const tenant = await getTenantByUserID(userID);
+        if (!tenant?.tenantID) return;
+        const [applicationResponse, leaseResponse] = await Promise.all([
+          fetchRentalApplications({ pageSize: 200, pageNumber: 0, tenantID: tenant.tenantID }),
+          fetchLeases({ pageSize: 200, pageNumber: 0, tenantID: tenant.tenantID }),
+        ]);
+        if (cancelled) return;
+        const applicationCards = applicationResponse.data.map((application, index) => ({
+          id: application.rentalApplicationID,
+          recordType: "application" as const,
+          listing: normalizeListing((application.listing ?? {}) as unknown as Record<string, any>, index) ?? fallbackListings[index % fallbackListings.length],
+          status: (Object.keys(statusLabels).includes(application.status?.toUpperCase()) ? application.status.toUpperCase() : "UNDER_REVIEW") as ApplicationStatus,
+          capturedDate: application.capturedDate || application.submittedAt || new Date().toISOString(),
+          moveIn: application.desiredMoveInDate || new Date().toISOString(),
+          term: application.requestedLeaseTermMonths || 0,
+          code: application.applicationCode || application.rentalApplicationID,
+          nextAction: application.status?.toUpperCase() === "APPROVED" ? "Review and sign lease" : application.status?.toUpperCase() === "CHANGES_REQUESTED" ? "Review changes" : "View application",
+        }));
+        const leaseCards = leaseResponse.data.map((lease, index) => ({
+          id: lease.leaseID,
+          recordType: "lease" as const,
+          listing: normalizeListing((lease.listing ?? {}) as unknown as Record<string, any>, applicationCards.length + index) ?? fallbackListings[(applicationCards.length + index) % fallbackListings.length],
+          status: "APPROVED" as ApplicationStatus,
+          capturedDate: lease.capturedDate || lease.startDate || new Date().toISOString(),
+          moveIn: lease.startDate || new Date().toISOString(),
+          term: lease.leaseTermMonths || 0,
+          code: lease.leaseCode || lease.leaseNumber || lease.leaseID,
+          nextAction: "View lease",
+        }));
+        setApplicationsData([...applicationCards, ...leaseCards]);
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "We could not load your rental records.");
+      } finally {
+        if (!cancelled) setIsLoadingApplications(false);
+      }
+    };
+    void loadTenantRecords();
+    return () => { cancelled = true; };
+  }, [currentUser?.user?.id, currentUser?.user?.userId]);
   const applications = useMemo(
     () =>
-      [...mockApplications]
+      [...applicationsData]
         .sort((a, b) => b.capturedDate.localeCompare(a.capturedDate))
         .filter((application) => {
-          const listing = fallbackListings[application.listingIndex];
+          const listing = application.listing;
           return (
             (statusFilter === "ALL" || application.status === statusFilter) &&
             `${listing.title} ${listing.location} ${application.code}`
@@ -101,10 +117,10 @@ export default function TenantApplicationsPage() {
               .includes(query.toLowerCase())
           );
         }),
-    [query, statusFilter],
+    [applicationsData, query, statusFilter],
   );
   const countFor = (status: ApplicationStatus) =>
-    mockApplications.filter((application) => application.status === status)
+    applicationsData.filter((application) => application.status === status)
       .length;
   useEffect(() => {
     const nativeSelect = document.querySelector<HTMLSelectElement>(
@@ -179,14 +195,14 @@ export default function TenantApplicationsPage() {
         <div className="tenant-applications-heading">
           <div>
             <p className="marketplace-eyebrow">Your rental journey</p>
-            <h1>Lease applications</h1>
+            <h1>Lease &amp; Rental applications</h1>
             <p>
               Keep track of the homes you’re considering and what happens next.
             </p>
           </div>
           <div className="tenant-applications-summary">
-            <strong>{mockApplications.length}</strong>
-            <span>applications</span>
+            <strong>{applicationsData.length}</strong>
+            <span>records</span>
           </div>
         </div>
         <div className="tenant-applications-toolbar">
@@ -215,7 +231,7 @@ export default function TenantApplicationsPage() {
             className={statusFilter === "ALL" ? "is-active" : ""}
             onClick={() => setStatusFilter("ALL")}
           >
-            All <small>{mockApplications.length}</small>
+            All <small>{applicationsData.length}</small>
           </button>
           {(
             [
@@ -241,17 +257,20 @@ export default function TenantApplicationsPage() {
         {applications.length > 0 ? (
           <div className="tenant-application-card-grid">
             {applications.map((application) => {
-              const listing = fallbackListings[application.listingIndex];
+              const listing = application.listing;
+              const recordPath = application.recordType === "lease"
+                ? `/tenant/leases/${application.id}/review`
+                : `/applications/${application.id}`;
               return (
                 <article
                   className="tenant-application-card"
                   key={application.id}
                   tabIndex={0}
                   role="link"
-                  onClick={() => navigate(`/applications/${application.id}`)}
+                  onClick={() => navigate(recordPath)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ")
-                      navigate(`/applications/${application.id}`);
+                      navigate(recordPath);
                   }}
                 >
                   <div className="tenant-application-card-image">
@@ -290,7 +309,7 @@ export default function TenantApplicationsPage() {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          navigate(application.status === "APPROVED" ? "/tenant/leases/demo-lease-001/review" : `/applications/${application.id}`);
+                          navigate(recordPath);
                         }}
                       >
                         {application.nextAction}{" "}
@@ -304,7 +323,7 @@ export default function TenantApplicationsPage() {
           </div>
         ) : (
           <div className="tenant-applications-empty">
-            <h2>No applications found</h2>
+            <h2>{isLoadingApplications ? "Loading your rental records..." : loadError || "No applications found"}</h2>
             <p>Try another status or search term.</p>
             <button
               type="button"

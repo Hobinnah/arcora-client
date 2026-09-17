@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarIcon,
@@ -18,12 +18,18 @@ import {
   XIcon,
 } from "../components/Icons";
 import CustomSelect from "../components/CustomSelect";
+import { useAuth } from "../hooks/useAuth";
+import { uploadListingPhoto } from "../apis/useListingPhoto";
+import type { ListingPhoto } from "../types/ListingPhoto";
+import { importListing, resolveOrganizationForUser, type ListingImportRequest } from "../apis/useListingImport";
+import { lookupPostalCode, type AddressSuggestion } from "../apis/useAddress";
 import "../marketplace/MarketplaceHome.css";
 import "./HostingCreateListingPage.css";
 
 type UnitDraft = {
   id: number;
   name: string;
+  unitNumber: string;
   type: string;
   bedrooms: string;
   bathrooms: string;
@@ -34,26 +40,65 @@ type UnitDraft = {
   description: string;
   occupants: string;
   beds: string;
+  minimumLeaseMonths: string;
+  maximumLeaseMonths: string;
+  isFurnished: boolean;
+  isPetFriendly: boolean;
 };
+
+type PropertyDraft = {
+  name: string;
+  type: string;
+  yearBuilt: string;
+  address: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  country: string;
+  latitude: string;
+  longitude: string;
+};
+
+type ListingDraftSnapshot = {
+  step: number;
+  property: PropertyDraft;
+  units: UnitDraft[];
+  selectedAmenities: string[];
+  safetyDetails: Record<string, string>;
+  unitPhotos: Record<number, string[]>;
+  uploadedListingPhotos: Record<number, Pick<ListingPhoto, "listingPhotoID" | "listingID" | "url" | "displayOrder" | "isCoverPhoto">[]>;
+};
+
+type PendingPhoto = { file: File; url: string };
 
 const createUnit = (id: number): UnitDraft => ({
   id,
-  name: `Unit ${id}`,
+  name: "",
+  unitNumber: "",
   type: "Apartment",
   bedrooms: "1",
   bathrooms: "1",
   occupants: "2",
   beds: "1",
+  minimumLeaseMonths: "1",
+  maximumLeaseMonths: "12",
   squareFeet: "",
   rent: "",
   deposit: "",
   availableFrom: "",
   description: "",
+  isFurnished: false,
+  isPetFriendly: false,
 });
 
 const formatAmount = (value: string) => {
   const digits = value.replace(/[^0-9]/g, "");
   return digits ? Number(digits).toLocaleString("en-US") : "";
+};
+
+const formatCanadianPostalCode = (value: string) => {
+  const compact = value.replace(/\s+/g, "").toUpperCase().slice(0, 6);
+  return compact.length > 3 ? `${compact.slice(0, 3)} ${compact.slice(3)}` : compact;
 };
 
 const getTodayIso = () => {
@@ -76,54 +121,6 @@ const steps = [
   { label: "Finish up", detail: "Publish your listing" },
   { label: "Safety", detail: "Share safety details" },
   { label: "Publish", detail: "Review and go live" },
-];
-
-const addressSuggestions = [
-  {
-    address: "123 Daisy Lane",
-    city: "Saskatoon",
-    province: "Saskatchewan",
-    postalCode: "S7V 1P4",
-    country: "Canada",
-    latitude: "52.1579",
-    longitude: "-106.6702",
-  },
-  {
-    address: "18 Willowbrook Crescent",
-    city: "Saskatoon",
-    province: "Saskatchewan",
-    postalCode: "S7V 1P6",
-    country: "Canada",
-    latitude: "52.1462",
-    longitude: "-106.6891",
-  },
-  {
-    address: "240 River Landing Drive",
-    city: "Saskatoon",
-    province: "Saskatchewan",
-    postalCode: "S7K 3J8",
-    country: "Canada",
-    latitude: "52.1305",
-    longitude: "-106.6602",
-  },
-  {
-    address: "88 Harbour Street",
-    city: "Toronto",
-    province: "Ontario",
-    postalCode: "M5V 2L7",
-    country: "Canada",
-    latitude: "43.6392",
-    longitude: "-79.3817",
-  },
-  {
-    address: "410 Cambie Street",
-    city: "Vancouver",
-    province: "British Columbia",
-    postalCode: "V6B 2N3",
-    country: "Canada",
-    latitude: "49.2820",
-    longitude: "-123.1105",
-  },
 ];
 
 const amenityGroups = [
@@ -194,9 +191,14 @@ function AmenityIcon({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg>;
 }
 
-function UnitCounter({ label, value, minimum = 0, step = 1, onChange }: { label: string; value: string; minimum?: number; step?: number; onChange: (value: string) => void }) {
+function UnitCounter({ label, value, minimum = 0, maximum, step = 1, onChange }: { label: string; value: string; minimum?: number; maximum?: number; step?: number; onChange: (value: string) => void }) {
   const numericValue = Number(value) || 0;
-  const changeValue = (amount: number) => onChange(String(Math.max(minimum, Number((numericValue + amount).toFixed(1)))));
+  const changeValue = (amount: number) => {
+    let next = Number((numericValue + amount).toFixed(1));
+    next = Math.max(minimum, next);
+    if (maximum !== undefined) next = Math.min(maximum, next);
+    onChange(String(next));
+  };
 
   return (
     <div className="hosting-unit-counter">
@@ -204,7 +206,7 @@ function UnitCounter({ label, value, minimum = 0, step = 1, onChange }: { label:
       <div className="hosting-unit-counter-controls">
         <button type="button" aria-label={`Decrease ${label}`} disabled={numericValue <= minimum} onClick={() => changeValue(-step)}>−</button>
         <strong>{value}</strong>
-        <button type="button" aria-label={`Increase ${label}`} onClick={() => changeValue(step)}>+</button>
+        <button type="button" aria-label={`Increase ${label}`} disabled={maximum !== undefined && numericValue >= maximum} onClick={() => changeValue(step)}>+</button>
       </div>
     </div>
   );
@@ -212,14 +214,24 @@ function UnitCounter({ label, value, minimum = 0, step = 1, onChange }: { label:
 
 function AvailabilityDatePicker({ value, minimum, onChange }: { value: string; minimum: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const initialMonth = value ? new Date(`${value}T00:00:00`) : new Date();
   const [month, setMonth] = useState(new Date(initialMonth.getFullYear(), initialMonth.getMonth(), 1));
   const minimumDate = new Date(`${minimum}T00:00:00`);
   const days = Array.from({ length: 42 }, (_, index) => new Date(month.getFullYear(), month.getMonth(), index - new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 1));
   const toIso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideMouse = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideMouse);
+    return () => document.removeEventListener("mousedown", closeOnOutsideMouse);
+  }, [open]);
+
   return (
-    <div className="hosting-date-picker">
+    <div className="hosting-date-picker" ref={containerRef}>
       <button type="button" className="hosting-date-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="dialog"><span>{value || 'Select a date'}</span><span className="hosting-date-trigger-icon"><CalendarIcon /></span></button>
       {open && <div className="hosting-date-popover" role="dialog" aria-label="Choose availability date"><div className="hosting-date-popover-header"><button type="button" aria-label="Previous month" disabled={month <= new Date(minimumDate.getFullYear(), minimumDate.getMonth(), 1)} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button><strong>{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong><button type="button" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button></div><div className="hosting-date-weekdays">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}</div><div className="hosting-date-grid">{days.map((date) => { const iso = toIso(date); const muted = date.getMonth() !== month.getMonth(); const disabled = iso < minimum; return <button type="button" key={iso} className={`${muted ? 'is-muted' : ''} ${value === iso ? 'is-selected' : ''}`} disabled={disabled} onClick={() => { onChange(iso); setOpen(false); }}>{date.getDate()}</button>; })}</div><div className="hosting-date-actions"><button type="button" onClick={() => { onChange(''); setOpen(false); }}>Clear</button><button type="button" onClick={() => { onChange(minimum); setMonth(new Date(minimumDate.getFullYear(), minimumDate.getMonth(), 1)); setOpen(false); }}>Today</button></div></div>}
     </div>
@@ -228,15 +240,30 @@ function AvailabilityDatePicker({ value, minimum, onChange }: { value: string; m
 
 export default function HostingCreateListingPage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
+  const { currentUser } = useAuth();
+  const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
+  const draftStorageKey = userID ? `arcora:hosting-listing-draft:${userID}` : null;
+  const [savedDraft] = useState<ListingDraftSnapshot | null>(() => {
+    if (!draftStorageKey) return null;
+    try {
+      const raw = localStorage.getItem(draftStorageKey);
+      return raw ? JSON.parse(raw) as ListingDraftSnapshot : null;
+    } catch {
+      return null;
+    }
+  });
+  const [step, setStep] = useState(savedDraft?.step ?? 0);
   const [saved, setSaved] = useState(false);
   const [addressSearched, setAddressSearched] = useState(false);
   const [addressSuggestionsOpen, setAddressSuggestionsOpen] = useState(false);
   const [addressMessage, setAddressMessage] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressLookupLoading, setAddressLookupLoading] = useState(false);
   const today = getTodayIso();
-  const [property, setProperty] = useState({
+  const [property, setProperty] = useState<PropertyDraft>(savedDraft?.property ?? {
     name: "",
     type: "Apartment building",
+    yearBuilt: "",
     address: "",
     city: "",
     province: "",
@@ -245,50 +272,276 @@ export default function HostingCreateListingPage() {
     latitude: "",
     longitude: "",
   });
-  const [units, setUnits] = useState<UnitDraft[]>([createUnit(1)]);
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-  const [safetyDetails, setSafetyDetails] = useState<Record<string, string>>({});
+  const [units, setUnits] = useState<UnitDraft[]>(savedDraft?.units?.length ? savedDraft.units : [createUnit(1)]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>(savedDraft?.selectedAmenities ?? []);
+  const [safetyDetails, setSafetyDetails] = useState<Record<string, string>>(savedDraft?.safetyDetails ?? {});
   const [activeSafetyItem, setActiveSafetyItem] = useState<string | null>(null);
   const [safetyDraft, setSafetyDraft] = useState("");
-  const [unitPhotos, setUnitPhotos] = useState<Record<number, string[]>>({});
+  const [unitPhotos, setUnitPhotos] = useState<Record<number, string[]>>(savedDraft?.unitPhotos ?? {});
+  const [uploadedListingPhotos, setUploadedListingPhotos] = useState<ListingDraftSnapshot["uploadedListingPhotos"]>(savedDraft?.uploadedListingPhotos ?? {});
   const [draggedPhoto, setDraggedPhoto] = useState<{ unitId: number; index: number } | null>(null);
   const [dragOverPhoto, setDragOverPhoto] = useState<{ unitId: number; index: number } | null>(null);
   const [activePhotoUnitId, setActivePhotoUnitId] = useState<number | null>(null);
   const [openTileMenu, setOpenTileMenu] = useState<{ unitId: number; index: number } | null>(null);
   const [showArrangeTip, setShowArrangeTip] = useState(true);
-  const [pendingUpload, setPendingUpload] = useState<{ unitId: number; items: { file: File; url: string }[] } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<{ unitId: number; items: PendingPhoto[] } | null>(null);
+  const [uploadingUnitId, setUploadingUnitId] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  const getTemporaryListingID = (unitId: number) => {
+    const unit = units.find((item) => item.id === unitId);
+    const unitName = (unit?.name || `Unit_${unitId}`).trim().replace(/\s+/g, "_");
+    return `${userID ?? "unknown"}_${unitName}_`;
+  };
+
+  const buildListingImportRequest = async (organizationID: string): Promise<ListingImportRequest> => {
+    const capturedBy = currentUser?.name?.trim() || [currentUser?.user?.firstName, currentUser?.user?.lastName].filter(Boolean).join(" ") || "Unknown user";
+    const parseAmount = (value: string) => Number(value.replace(/[^0-9.]/g, "")) || 0;
+    const listingTypeName = "LongTerm";
+
+    return {
+      property: {
+        organizationID,
+        name: property.name,
+        propertyType: property.type,
+        yearBuilt: property.yearBuilt ? Number(property.yearBuilt) : undefined,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        capturedBy,
+        address: {
+          line1: property.address,
+          city: property.city,
+          provinceCode: property.province,
+          postalCode: property.postalCode,
+          countryCode: property.country,
+          latitude: property.latitude ? Number(property.latitude) : undefined,
+          longitude: property.longitude ? Number(property.longitude) : undefined,
+          capturedBy,
+        },
+      },
+      units: units.map((unit) => {
+        const temporaryListingID = getTemporaryListingID(unit.id);
+        return {
+          rentalUnit: {
+            name: unit.name || undefined,
+            unitNumber: unit.unitNumber || unit.name || `Unit ${unit.id}`,
+            bedrooms: Number(unit.bedrooms) || 0,
+            bathrooms: Number(unit.bathrooms) || 0,
+            beds: Number(unit.beds) || 0,
+            squareFeet: unit.squareFeet ? Number(unit.squareFeet) : undefined,
+            maximumOccupants: unit.occupants ? Number(unit.occupants) : undefined,
+            notes: "",
+            capturedBy,
+          },
+          unitTypeName: unit.type,
+          listing: {
+            rentalUnitID: crypto.randomUUID(),
+            organizationID,
+            title: `${property.name || "Listing"} - ${unit.name || "Unit"}`.trim(),
+            description: unit.description,
+            baseMonthlyRentAmount: parseAmount(unit.rent),
+            securityDepositAmount: unit.deposit ? parseAmount(unit.deposit) : undefined,
+            currency: "CAD",
+            availableFrom: unit.availableFrom || undefined,
+            yearBuilt: 0,
+            minimumLeaseMonths: Number(unit.minimumLeaseMonths) || 1,
+            maximumLeaseMonths: Number(unit.maximumLeaseMonths) || 12,
+            notes: "",
+            isFurnished: unit.isFurnished,
+            isPetFriendly: unit.isPetFriendly,
+            capturedBy,
+          },
+          listingTypeName,
+          selectedAmenities,
+          listingPhotos: (uploadedListingPhotos[unit.id] || []).map((photo) => ({
+            url: photo.url,
+            displayOrder: photo.displayOrder,
+            isCoverPhoto: photo.isCoverPhoto,
+            capturedBy: temporaryListingID,
+          })),
+        };
+      }),
+      safetyDetails: Object.keys(safetyDetails).length ? safetyDetails : null,
+    };
+  };
+
+  const publishListing = async () => {
+    setPublishError(null);
+    setPublishing(true);
+    try {
+      if (userID === undefined) throw new Error("No authenticated user found.");
+      const organization = currentUser?.organization ?? await resolveOrganizationForUser(userID);
+      if (!organization.organizationID) throw new Error("The resolved organization has no organization ID.");
+      const request = await buildListingImportRequest(organization.organizationID);
+      await importListing(request);
+      setSaved(true);
+      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      navigate("/hosting/listings");
+    } catch (error) {
+      console.error("[ListingImport] Publish failed:", error);
+      setPublishError(error instanceof Error ? error.message : "Failed to publish listing. Please try again.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const uploadUnitPhotos = async (unitId: number, files: File[], startingOrder: number, previewUrls: string[]) => {
+    const listingID = getTemporaryListingID(unitId);
+    const uploaded = await Promise.all(files.map((file, index) => {
+      const isCoverPhoto = startingOrder + index === 0;
+      return uploadListingPhoto(
+        file,
+        listingID,
+        startingOrder + index,
+        isCoverPhoto,
+        {
+          location: isCoverPhoto ? "CoverPhoto" : "Additional",
+          caption: "",
+          altText: file.name,
+          capturedBy: listingID,
+          userID: typeof userID === "number" ? userID : undefined,
+        },
+      );
+    }));
+    setUnitPhotos((current) => {
+      const photos = [...(current[unitId] || [])];
+      uploaded.forEach((photo, index) => {
+        if (photo.url) {
+          photos[startingOrder + index] = photo.url;
+          URL.revokeObjectURL(previewUrls[index]);
+        }
+      });
+      return { ...current, [unitId]: photos };
+    });
+    setUploadedListingPhotos((current) => ({
+      ...current,
+      [unitId]: [...(current[unitId] || []), ...uploaded.map((photo) => ({
+        listingPhotoID: photo.listingPhotoID,
+        listingID: photo.listingID,
+        url: photo.url,
+        displayOrder: photo.displayOrder,
+        isCoverPhoto: photo.isCoverPhoto,
+      }))],
+    }));
+  };
+
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    const snapshot: ListingDraftSnapshot = {
+      step,
+      property,
+      units,
+      selectedAmenities,
+      safetyDetails,
+      unitPhotos,
+      uploadedListingPhotos,
+    };
+    localStorage.setItem(draftStorageKey, JSON.stringify(snapshot));
+  }, [draftStorageKey, step, property, units, selectedAmenities, safetyDetails, unitPhotos, uploadedListingPhotos]);
 
   const updateProperty = (field: keyof typeof property, value: string) =>
     setProperty((current) => ({ ...current, [field]: value }));
-  const matchingAddresses =
-    property.postalCode.trim().length >= 2
-      ? addressSuggestions
-          .filter((item) =>
-            `${item.postalCode} ${item.city}`
-              .toLowerCase()
-              .includes(property.postalCode.trim().toLowerCase()),
-          )
-          .slice(0, 4)
-      : [];
-  const selectAddress = (address: (typeof addressSuggestions)[number]) => {
-    setProperty((current) => ({ ...current, ...address }));
+
+  const uniqueAddressSuggestions = (suggestions: AddressSuggestion[]) => {
+    const seen = new Set<string>();
+    const normalizeAddressPart = (value: string) => {
+      const expanded = value
+        .toLowerCase()
+        .replace(/\bav\.?\b/g, "avenue")
+        .replace(/\bave\.?\b/g, "avenue")
+        .replace(/\bst\.?\b/g, "street")
+        .replace(/\bdr\.?\b/g, "drive")
+        .replace(/\bblvd\.?\b/g, "boulevard")
+        .replace(/\brd\.?\b/g, "road")
+        .replace(/\bct\.?\b/g, "court")
+        .replace(/\bpl\.?\b/g, "place")
+        .replace(/\btrl\.?\b/g, "trail")
+        .replace(/[^a-z0-9]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return expanded;
+    };
+
+    return suggestions.filter((address) => {
+      const key = [
+        address.line1 || address.text || "",
+        address.city || "",
+        address.provinceCode || "",
+        address.postalCode || "",
+      ]
+        .map(normalizeAddressPart)
+        .join("|");
+
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  useEffect(() => {
+    const postalCode = property.postalCode.trim();
+    if (step !== 1 || postalCode.replace(/\s/g, "").length < 6) {
+      setAddressSuggestions([]);
+      setAddressLookupLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setAddressLookupLoading(true);
+      try {
+        const suggestions = await lookupPostalCode(postalCode, "CAN");
+        if (!cancelled) setAddressSuggestions(uniqueAddressSuggestions(suggestions));
+      } catch {
+        if (!cancelled) {
+          setAddressSuggestions([]);
+          setAddressMessage("We couldn't look up that postal code. Please try again.");
+        }
+      } finally {
+        if (!cancelled) setAddressLookupLoading(false);
+      }
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [property.postalCode, step]);
+
+  const selectAddress = (address: AddressSuggestion) => {
+    setProperty((current) => ({
+      ...current,
+      address: address.line1 || address.text,
+      city: address.city || "",
+      province: address.provinceCode || "",
+      postalCode: (address.postalCode || current.postalCode).toUpperCase(),
+      country: address.countryCode || "CA",
+    }));
     setAddressSearched(true);
     setAddressSuggestionsOpen(false);
     setAddressMessage("Address selected. Add a property name to continue.");
   };
-  const updateUnit = (id: number, field: keyof UnitDraft, value: string) =>
+  const updateUnit = (id: number, field: keyof UnitDraft, value: string | boolean) =>
     setUnits((current) =>
-      current.map((unit) =>
-        unit.id === id
-          ? {
-              ...unit,
-              [field]:
-                field === "rent" || field === "deposit"
-                  ? formatAmount(value)
-                  : value,
-            }
-          : unit,
-      ),
+      current.map((unit) => {
+        if (unit.id !== id) return unit;
+        const clampedValue =
+          (field === "minimumLeaseMonths" || field === "maximumLeaseMonths") && typeof value === "string"
+            ? String(Math.min(12, Math.max(1, Number(value) || 1)))
+            : value;
+        const next = {
+          ...unit,
+          [field]:
+            field === "rent" || field === "deposit"
+              ? formatAmount(clampedValue as string)
+              : clampedValue,
+        };
+        // keep the lease range valid: max can never fall below min
+        if (field === "minimumLeaseMonths" && Number(next.maximumLeaseMonths) < Number(clampedValue)) {
+          next.maximumLeaseMonths = clampedValue as string;
+        }
+        if (field === "maximumLeaseMonths" && Number(next.minimumLeaseMonths) > Number(clampedValue)) {
+          next.minimumLeaseMonths = clampedValue as string;
+        }
+        return next;
+      }),
     );
   const toggleAmenity = (amenity: string) => setSelectedAmenities((current) => current.includes(amenity) ? current.filter((item) => item !== amenity) : [...current, amenity]);
   const toggleSafetyItem = (key: string) => {
@@ -321,13 +574,29 @@ export default function HostingCreateListingPage() {
     // capture files synchronously: callers reset the input value right after calling this,
     // which clears the live FileList before a deferred setState updater could read it.
     const incoming = Array.from(files);
+    const existingCount = unitPhotos[unitId]?.length || 0;
+    const allowedCount = Math.max(0, MAX_UNIT_PHOTOS - existingCount);
+    const uploadFiles = incoming.slice(0, allowedCount);
+    const previews = uploadFiles.map((file) => URL.createObjectURL(file));
+    setUploadError(null);
+    setUploadingUnitId(unitId);
     setUnitPhotos((current) => {
       const existing = current[unitId] || [];
       const remainingSlots = Math.max(0, MAX_UNIT_PHOTOS - existing.length);
       if (remainingSlots === 0) return current;
-      const previews = incoming.slice(0, remainingSlots).map((file) => URL.createObjectURL(file));
-      return { ...current, [unitId]: [...existing, ...previews] };
+      return { ...current, [unitId]: [...existing, ...previews.slice(0, remainingSlots)] };
     });
+    void uploadUnitPhotos(unitId, uploadFiles, existingCount, previews)
+      .catch((error) => {
+        console.error("[ListingPhotos] Upload failed:", error);
+        previews.forEach((preview) => URL.revokeObjectURL(preview));
+        setUnitPhotos((current) => ({
+          ...current,
+          [unitId]: (current[unitId] || []).filter((photo) => !previews.includes(photo)),
+        }));
+        setUploadError("Photo upload failed. Please try again.");
+      })
+      .finally(() => setUploadingUnitId((current) => current === unitId ? null : current));
   };
   const removeUnitPhoto = (unitId: number, photo: string) => {
     URL.revokeObjectURL(photo);
@@ -344,12 +613,11 @@ export default function HostingCreateListingPage() {
   };
   const queuePendingUpload = (unitId: number, files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const incoming = Array.from(files);
     const alreadyQueued = pendingUpload?.unitId === unitId ? pendingUpload.items.length : 0;
     const remainingSlots = Math.max(0, MAX_UNIT_PHOTOS - (unitPhotos[unitId]?.length || 0) - alreadyQueued);
     if (remainingSlots === 0) return;
-    const newItems = Array.from(files)
-      .slice(0, remainingSlots)
-      .map((file) => ({ file, url: URL.createObjectURL(file) }));
+    const newItems: PendingPhoto[] = incoming.slice(0, remainingSlots).map((file) => ({ file, url: URL.createObjectURL(file) }));
     setPendingUpload((current) =>
       current && current.unitId === unitId ? { unitId, items: [...current.items, ...newItems] } : { unitId, items: newItems },
     );
@@ -362,14 +630,29 @@ export default function HostingCreateListingPage() {
     pendingUpload?.items.forEach((item) => URL.revokeObjectURL(item.url));
     setPendingUpload(null);
   };
-  const confirmPendingUpload = () => {
+  const confirmPendingUpload = async () => {
     if (!pendingUpload || pendingUpload.items.length === 0) {
       setPendingUpload(null);
       return;
     }
     const { unitId, items } = pendingUpload;
+    const startingOrder = unitPhotos[unitId]?.length || 0;
+    setUploadError(null);
+    setUploadingUnitId(unitId);
     setUnitPhotos((current) => ({ ...current, [unitId]: [...(current[unitId] || []), ...items.map((item) => item.url)] }));
-    setPendingUpload(null);
+    try {
+      await uploadUnitPhotos(unitId, items.map((item) => item.file), startingOrder, items.map((item) => item.url));
+      setPendingUpload(null);
+    } catch (error) {
+      console.error("[ListingPhotos] Upload failed:", error);
+      setUnitPhotos((current) => ({
+        ...current,
+        [unitId]: (current[unitId] || []).filter((photo) => !items.some((item) => item.url === photo)),
+      }));
+      setUploadError("Photo upload failed. Please try again.");
+    } finally {
+      setUploadingUnitId(null);
+    }
   };
   const addUnit = () =>
     setUnits((current) => [...current, createUnit(current.length + 1)]);
@@ -377,6 +660,13 @@ export default function HostingCreateListingPage() {
     setUnits((current) =>
       current.length === 1 ? current : current.filter((unit) => unit.id !== id),
     );
+  const RequiredFieldLabel = ({ children }: { children: string }) => (
+    <span className="hosting-create-field-label">
+      {children}
+      <span className="hosting-create-field-required" aria-hidden="true">*</span>
+    </span>
+  );
+
   const canContinue =
     step === 0 || step === 3 || step === 4 || step === 7 || step === 8 || step === 9 || step === 10
       ? true
@@ -464,12 +754,12 @@ export default function HostingCreateListingPage() {
                 </div>
                 <div className="hosting-create-postal-search">
                   <label className="hosting-create-field">
-                    <span>Postal code</span>
+                    <RequiredFieldLabel>Postal code</RequiredFieldLabel>
                     <input
                       value={property.postalCode}
                       onFocus={() => setAddressSuggestionsOpen(true)}
                       onChange={(event) => {
-                        updateProperty("postalCode", event.target.value);
+                        updateProperty("postalCode", formatCanadianPostalCode(event.target.value));
                         setAddressSearched(false);
                         setAddressMessage("");
                         setAddressSuggestionsOpen(true);
@@ -477,17 +767,18 @@ export default function HostingCreateListingPage() {
                       placeholder="e.g. S7V 1P4"
                     />
                   </label>
-                  {addressSuggestionsOpen && matchingAddresses.length > 0 && (
+                  {addressSuggestionsOpen && (addressLookupLoading || addressSuggestions.length > 0) && (
                     <div
                       className="hosting-create-address-suggestions"
                       role="listbox"
                       aria-label="Matching addresses"
                     >
-                      {matchingAddresses.map((address) => (
+                      {addressLookupLoading && <div className="hosting-create-address-message">Looking up addresses...</div>}
+                      {addressSuggestions.map((address) => (
                         <button
                           type="button"
                           role="option"
-                          key={address.postalCode + address.address}
+                          key={address.id || address.text}
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => selectAddress(address)}
                         >
@@ -495,10 +786,9 @@ export default function HostingCreateListingPage() {
                             <HomeIcon />
                           </span>
                           <span>
-                            <strong>{address.address}</strong>
+                            <strong>{address.text || address.line1}</strong>
                             <small>
-                              {address.postalCode} · {address.city},{" "}
-                              {address.province}
+                              {address.postalCode} · {address.city}, {address.provinceCode}
                             </small>
                           </span>
                         </button>
@@ -515,7 +805,7 @@ export default function HostingCreateListingPage() {
                 )}
                 <div className="hosting-create-fields hosting-create-address-fields">
                   <label className="hosting-create-field hosting-create-field-wide">
-                    <span>Street address</span>
+                    <RequiredFieldLabel>Street address</RequiredFieldLabel>
                     <input
                       value={property.address}
                       onChange={(event) =>
@@ -525,7 +815,7 @@ export default function HostingCreateListingPage() {
                     />
                   </label>
                   <label className="hosting-create-field">
-                    <span>Country</span>
+                    <RequiredFieldLabel>Country</RequiredFieldLabel>
                     <input
                       value={property.country}
                       onChange={(event) =>
@@ -536,7 +826,7 @@ export default function HostingCreateListingPage() {
                     />
                   </label>
                   <label className="hosting-create-field">
-                    <span>Province / territory</span>
+                    <RequiredFieldLabel>Province / territory</RequiredFieldLabel>
                     <input
                       value={property.province}
                       onChange={(event) =>
@@ -547,7 +837,7 @@ export default function HostingCreateListingPage() {
                     />
                   </label>
                   <label className="hosting-create-field">
-                    <span>City / municipality</span>
+                    <RequiredFieldLabel>City / municipality</RequiredFieldLabel>
                     <input
                       value={property.city}
                       onChange={(event) =>
@@ -580,7 +870,7 @@ export default function HostingCreateListingPage() {
                     />
                   </label>
                   <label className="hosting-create-field">
-                    <span>Property name</span>
+                    <RequiredFieldLabel>Property name</RequiredFieldLabel>
                     <input
                       value={property.name}
                       onChange={(event) =>
@@ -590,12 +880,23 @@ export default function HostingCreateListingPage() {
                     />
                   </label>
                   <label className="hosting-create-field">
-                    <span>Property type</span>
+                    <RequiredFieldLabel>Property type</RequiredFieldLabel>
                     <CustomSelect
                       value={property.type}
                       options={["Apartment building", "House", "Condo", "Townhouse", "Duplex"]}
                       onChange={(value) => updateProperty("type", value)}
                       ariaLabel="Property type"
+                    />
+                  </label>
+                  <label className="hosting-create-field">
+                    <span>Year built</span>
+                    <input
+                      type="number"
+                      min="1000"
+                      max={new Date().getFullYear()}
+                      value={property.yearBuilt}
+                      onChange={(event) => updateProperty("yearBuilt", event.target.value)}
+                      placeholder="e.g. 2018"
                     />
                   </label>
                 </div>
@@ -664,13 +965,23 @@ export default function HostingCreateListingPage() {
                       </div>
                       <div className="hosting-create-fields hosting-unit-identification-fields">
                         <label className="hosting-create-field">
-                          <span>Unit name or number</span>
+                          <span>Unit name</span>
                           <input
                             value={unit.name}
                             onChange={(event) =>
                               updateUnit(unit.id, "name", event.target.value)
                             }
-                            placeholder="Unit 101"
+                            placeholder="Garden suite"
+                          />
+                        </label>
+                        <label className="hosting-create-field">
+                          <span>Unit number</span>
+                          <input
+                            value={unit.unitNumber}
+                            onChange={(event) =>
+                              updateUnit(unit.id, "unitNumber", event.target.value)
+                            }
+                            placeholder="101"
                           />
                         </label>
                         <label className="hosting-create-field">
@@ -688,6 +999,13 @@ export default function HostingCreateListingPage() {
                         <UnitCounter label="Bedrooms" value={unit.bedrooms} onChange={(value) => updateUnit(unit.id, "bedrooms", value)} />
                         <UnitCounter label="Beds" value={unit.beds} onChange={(value) => updateUnit(unit.id, "beds", value)} />
                         <UnitCounter label="Bathrooms" value={unit.bathrooms} step={0.5} onChange={(value) => updateUnit(unit.id, "bathrooms", value)} />
+                      </div>
+                      <div className="hosting-unit-lease-terms">
+                        <span className="hosting-unit-lease-terms-label">Lease terms</span>
+                        <div className="hosting-unit-counters hosting-unit-counters-lease" aria-label={`${unit.name} lease terms`}>
+                          <UnitCounter label="Minimum lease (months)" value={unit.minimumLeaseMonths} minimum={1} maximum={12} onChange={(value) => updateUnit(unit.id, "minimumLeaseMonths", value)} />
+                          <UnitCounter label="Maximum lease (months)" value={unit.maximumLeaseMonths} minimum={Number(unit.minimumLeaseMonths) || 1} maximum={12} onChange={(value) => updateUnit(unit.id, "maximumLeaseMonths", value)} />
+                        </div>
                       </div>
                     </article>
                   ))}
@@ -722,7 +1040,7 @@ export default function HostingCreateListingPage() {
                     <article className="hosting-unit-photo-card" key={unit.id}>
                       <div className="hosting-unit-detail-heading">
                         <div><span className="hosting-unit-number">Unit {index + 1}</span><h3>{unit.name}</h3></div>
-                        <span className={`hosting-unit-ready ${photos.length >= MIN_UNIT_PHOTOS ? "is-ready" : ""}`}>{photos.length}/{MAX_UNIT_PHOTOS} photos</span>
+                        <span className={`hosting-unit-ready ${photos.length >= MIN_UNIT_PHOTOS ? "is-ready" : ""} ${uploadingUnitId === unit.id ? "is-uploading" : ""}`}>{uploadingUnitId === unit.id ? "Uploading..." : `${photos.length}/${MAX_UNIT_PHOTOS} photos`}</span>
                       </div>
                       {photos.length === 0 ? (
                         <label className="hosting-photo-upload">
@@ -743,7 +1061,7 @@ export default function HostingCreateListingPage() {
                         <div className="hosting-unit-photo-summary">
                           <div className="hosting-unit-photo-summary-preview">
                             {photos.slice(0, 5).map((photo, photoIndex) => (
-                              <div className={`hosting-unit-photo-summary-item ${photoIndex === 0 ? "is-cover" : ""}`} key={photo}>
+                              <div className={`hosting-unit-photo-summary-item ${photoIndex === 0 ? "is-cover" : ""}`} key={`${photo}-${photoIndex}`}>
                                 <img src={photo} alt={`${unit.name} preview ${photoIndex + 1}`} />
                                 {photoIndex === 0 && <span>Cover</span>}
                               </div>
@@ -848,6 +1166,22 @@ export default function HostingCreateListingPage() {
                           <span>Available from</span>
                           <AvailabilityDatePicker value={unit.availableFrom} minimum={today} onChange={(value) => updateUnit(unit.id, "availableFrom", value)} />
                         </label>
+                        <label className="hosting-create-field hosting-checkbox-field">
+                          <input
+                            type="checkbox"
+                            checked={unit.isFurnished}
+                            onChange={(event) => updateUnit(unit.id, "isFurnished", event.target.checked)}
+                          />
+                          <span>Furnished</span>
+                        </label>
+                        <label className="hosting-create-field hosting-checkbox-field">
+                          <input
+                            type="checkbox"
+                            checked={unit.isPetFriendly}
+                            onChange={(event) => updateUnit(unit.id, "isPetFriendly", event.target.checked)}
+                          />
+                          <span>Pet friendly</span>
+                        </label>
                         <label className="hosting-create-field hosting-create-field-wide">
                           <span>Listing description</span>
                           <textarea
@@ -936,7 +1270,7 @@ export default function HostingCreateListingPage() {
                 <div className="hosting-create-welcome-copy">
                   <span className="hosting-create-welcome-step">Step 3</span>
                   <h2>Finish up and publish</h2>
-                  <p>You'll set your nightly price. Then answer a few quick questions and publish your listing when you're ready.</p>
+                  <p>You'll set your monthly price. Then answer a few quick questions and publish your listing when you're ready.</p>
                 </div>
                 <div className="hosting-create-welcome-image">
                   <img
@@ -992,6 +1326,7 @@ export default function HostingCreateListingPage() {
 
             {step === 10 && (() => {
               const coverPhoto = units.map((unit) => (unitPhotos[unit.id] || [])[0]).find(Boolean);
+              const coverUnit = units.find((unit) => (unitPhotos[unit.id] || [])[0]) || units[0];
               return (
                 <div className="hosting-publish-page">
                   <h2>Yay! It&apos;s time to publish.</h2>
@@ -1005,7 +1340,7 @@ export default function HostingCreateListingPage() {
                       <div className="hosting-publish-card-details">
                         <strong>{property.name || "Your listing"}</strong>
                         <span className="hosting-publish-card-rating">New <StarIcon /></span>
-                        <p><s>$68</s> <b>$54</b> night</p>
+                        <p>{coverUnit?.rent ? <><b>${coverUnit.rent}</b> /month</> : "Set your monthly rent"}</p>
                       </div>
                     </div>
                     <div className="hosting-publish-next">
@@ -1073,15 +1408,14 @@ export default function HostingCreateListingPage() {
               <button
                 type="button"
                 className="hosting-create-primary hosting-create-publish"
-                onClick={() => {
-                  setSaved(true);
-                  navigate("/hosting/listings");
-                }}
+                disabled={publishing}
+                onClick={() => void publishListing()}
               >
-                <CheckIcon /> Publish
+                <CheckIcon /> {publishing ? "Publishing..." : "Publish"}
               </button>
             )}
           </div>
+          {publishError && <p className="hosting-publish-error" role="alert">{publishError}</p>}
           <aside
             className={`hosting-create-side-image ${step === 0 || step === 3 || step === 4 || step === 8 ? "is-welcome" : ""}`}
             aria-label="Property preview"
@@ -1160,7 +1494,7 @@ export default function HostingCreateListingPage() {
                 {photos.map((photo, photoIndex) => (
                   <div
                     className={`hosting-photo-gallery-tile ${photoIndex === 0 ? "is-cover" : ""} ${dragOverPhoto?.unitId === unit.id && dragOverPhoto.index === photoIndex ? "is-drag-over" : ""}`}
-                    key={photo}
+                    key={`${photo}-${photoIndex}`}
                     draggable
                     onDragStart={() => setDraggedPhoto({ unitId: unit.id, index: photoIndex })}
                     onDragOver={(event) => { event.preventDefault(); if (draggedPhoto?.unitId === unit.id) setDragOverPhoto({ unitId: unit.id, index: photoIndex }); }}
@@ -1245,15 +1579,15 @@ export default function HostingCreateListingPage() {
               </button>
             </footer>
             {pendingUpload && pendingUpload.unitId === unit.id && (
-              <div className="hosting-photo-upload-modal-backdrop" onClick={(event) => { event.stopPropagation(); cancelPendingUpload(); }}>
+              <div className="hosting-photo-upload-modal-backdrop" onClick={(event) => { event.stopPropagation(); if (uploadingUnitId !== unit.id) cancelPendingUpload(); }}>
                 <div className="hosting-photo-upload-modal" role="dialog" aria-label="Upload photos" onClick={(event) => event.stopPropagation()}>
                   <div className="hosting-photo-upload-modal-header">
-                    <button type="button" aria-label="Close" onClick={cancelPendingUpload}><XIcon /></button>
+                    <button type="button" aria-label="Close" disabled={uploadingUnitId === unit.id} onClick={cancelPendingUpload}><XIcon /></button>
                     <div>
                       <strong>Upload photos</strong>
                       <span>{pendingUpload.items.length} item{pendingUpload.items.length === 1 ? "" : "s"} selected</span>
                     </div>
-                    <label aria-label="Add more files">
+                    <label aria-label="Add more files" className={uploadingUnitId === unit.id ? "is-disabled" : ""}>
                       <PlusIcon />
                       <input
                         type="file"
@@ -1267,13 +1601,18 @@ export default function HostingCreateListingPage() {
                     {pendingUpload.items.map((item) => (
                       <div className="hosting-photo-upload-modal-item" key={item.url}>
                         <img src={item.url} alt={item.file.name} />
-                        <button type="button" aria-label={`Remove ${item.file.name}`} onClick={() => removePendingUploadItem(item.url)}><TrashIcon /></button>
+                        <button type="button" aria-label={`Remove ${item.file.name}`} disabled={uploadingUnitId === unit.id} onClick={() => removePendingUploadItem(item.url)}><TrashIcon /></button>
                       </div>
                     ))}
                   </div>
                   <div className="hosting-photo-upload-modal-footer">
-                    <button type="button" onClick={cancelPendingUpload}>Cancel</button>
-                    <button type="button" className="is-primary" disabled={pendingUpload.items.length === 0} onClick={confirmPendingUpload}>Upload</button>
+                    <span className={`hosting-photo-upload-status ${uploadError ? "is-error" : ""} ${uploadingUnitId === unit.id ? "is-uploading" : ""}`} role={uploadError ? "alert" : "status"}>
+                      {uploadError || (uploadingUnitId === unit.id ? "Uploading photos..." : "Ready to upload")}
+                    </span>
+                    <button type="button" disabled={uploadingUnitId === unit.id} onClick={cancelPendingUpload}>Cancel</button>
+                    <button type="button" className="is-primary" disabled={pendingUpload.items.length === 0 || uploadingUnitId === unit.id} onClick={() => void confirmPendingUpload()}>
+                      {uploadingUnitId === unit.id ? "Uploading..." : "Upload"}
+                    </button>
                   </div>
                 </div>
               </div>

@@ -122,7 +122,7 @@ export default function AccountSetup({ emailAddress, role, onContinueToLogin }: 
         dateOfBirth: data.dateOfBirth,
         password: data.password,
         confirmPassword: data.confirmPassword,
-        roles: role ? [role] : undefined,
+        roles: role === 'landlord' ? ['LandLord'] : role ? [role] : undefined,
       });
       setSubmitted(true);
     } catch (error) {

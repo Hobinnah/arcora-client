@@ -17,6 +17,11 @@ import type { ApplicationOccupant } from "../types/ApplicationOccupant";
 import { createTenantGuarantor, fetchTenantGuarantors, updateTenantGuarantor } from "../apis/useTenantGuarantor";
 import type { TenantGuarantor } from "../types/TenantGuarantor";
 import { createRentalApplication, fetchRentalApplications } from "../apis/useRentalApplication";
+import { fetchFees } from "../apis/useFee";
+import { getNotifiableOrganizationMember } from "../hosting/organizationMemberIdentity";
+import { ensureApplicationConversation } from "../hosting/applicationConversations";
+import { findApplicationConversationForTenant } from "../hosting/applicationConversations";
+import type { Conversation } from "../types/Conversation";
 import {
   createPaymentOnboardingSetupIntent,
   getPaymentOnboardingStatus,
@@ -28,7 +33,8 @@ import TenantHeader from "./TenantHeader";
 import MarketplaceFooter from "./MarketplaceFooter";
 import TenantDatePicker from "./TenantDatePicker";
 import CustomSelect from "../components/CustomSelect";
-import { publishHostApplicationNotification } from "../hosting/hostApplicationNotifications";
+import { env } from "../env";
+
 import "./TenantApplicationDetailPage.css";
 
 function PaymentCardForm({
@@ -96,7 +102,6 @@ function PaymentCardForm({
   );
 }
 
-  setCompleted((current) => current.includes("review") ? current : [...current, "review"]);
 const getMaxAdultDateOfBirth = () => {
   const date = new Date();
   date.setFullYear(date.getFullYear() - 18);
@@ -144,10 +149,21 @@ export default function TenantApplicationDetailPage() {
     ];
   const [listing, setListing] = useState<MarketplaceListing>(fallbackListing);
   const [depositAmount, setDepositAmount] = useState<number>(fallbackListing.price);
+  const [tenantPlacementFee, setTenantPlacementFee] = useState<number | null>(null);
+  const moveInAmount = listing.price + depositAmount;
+  const stripePadProcessingFee = Math.min(
+    moveInAmount * Number(env.STRIPE_FEES.padPercent) / 100 + Number(env.STRIPE_FEES.padFixed),
+    Number(env.STRIPE_FEES.padMax),
+  );
+  const totalBeforeMoveIn = moveInAmount + stripePadProcessingFee;
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [tenantLookupComplete, setTenantLookupComplete] = useState(false);
   const [tenantDescription, setTenantDescription] = useState<string | undefined>();
   const [nextError, setNextError] = useState("");
+  const [completed, setCompleted] = useState<SectionKey[]>([]);
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
+  const [savedRentalApplicationCode, setSavedRentalApplicationCode] = useState<string | null>(null);
+  const [savedApplicationStatus, setSavedApplicationStatus] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingEmployment, setIsSavingEmployment] = useState(false);
   const [isSavingHousehold, setIsSavingHousehold] = useState(false);
@@ -197,6 +213,25 @@ export default function TenantApplicationDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchFees({ pageSize: 200, pageNumber: 0, isActive: "true" })
+      .then(({ data }) => {
+        const placementFee = data.find((fee) =>
+          fee.isActive === true
+          && fee.name === "Tenant Placement Fee"
+          && fee.feeType?.isPlatformFee === true,
+        );
+        if (!cancelled) setTenantPlacementFee(placementFee?.fixedAmount ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setTenantPlacementFee(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
   useEffect(() => {
@@ -282,6 +317,15 @@ export default function TenantApplicationDetailPage() {
         setSavedGuarantors(Object.fromEntries(savedTenantGuarantors.map((guarantor) => [guarantor.tenantGuarantorID, guarantor])));
         setGuarantors(savedTenantGuarantors.map((guarantor) => ({ tenantGuarantorID: guarantor.tenantGuarantorID, firstName: guarantor.firstName, lastName: guarantor.lastName, email: guarantor.email, phoneNumber: guarantor.phoneNumber, relationship: guarantor.relationship, annualIncome: guarantor.annualIncome.toLocaleString("en-US"), status: guarantor.status })));
         const savedApplication = applicationResponse.data[0] ?? null;
+        const savedApplicationStatus = savedApplication?.status?.toUpperCase() ?? "";
+        setSavedApplicationStatus(savedApplicationStatus);
+        if (savedApplication?.applicationCode) {
+          setSavedRentalApplicationCode(savedApplication.applicationCode);
+        }
+        if (["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DECLINED"].includes(savedApplicationStatus)) {
+          setApplicationSubmitted(true);
+          setCompleted((current) => current.includes("review") ? current : [...current, "review"]);
+        }
         setPersistedCompletedSteps([
           ...(tenant.code && tenant.description ? ["profile" as const] : []),
           ...(savedEmployment ? ["employment" as const] : []),
@@ -290,6 +334,7 @@ export default function TenantApplicationDetailPage() {
           ...(tenant.verificationAuthorization || savedApplication?.verificationAuthorization ? ["documents" as const] : []),
           ...(tenant.leaseContractReviewed || savedApplication?.leaseContractReviewed ? ["rules" as const] : []),
           ...(tenant.isPADRegistered && tenant.isCardRegistered ? ["payment" as const] : []),
+          ...(["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DECLINED"].includes(savedApplicationStatus) ? ["review" as const] : []),
         ]);
       } catch (error) {
         console.error("Failed to load saved application data:", error);
@@ -299,7 +344,7 @@ export default function TenantApplicationDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [listing.id, tenant?.code, tenant?.description, tenant?.leaseContractReviewed, tenant?.tenantID, tenant?.verificationAuthorization]);
+  }, [listing.id, tenant?.code, tenant?.description, tenant?.isCardRegistered, tenant?.isPADRegistered, tenant?.leaseContractReviewed, tenant?.tenantID, tenant?.verificationAuthorization]);
 
   const tenantStatus = !userID
     ? "unavailable"
@@ -327,7 +372,6 @@ export default function TenantApplicationDetailPage() {
     : "6 months";
 
   const [activeSection, setActiveSection] = useState<SectionKey>("readiness");
-  const [completed, setCompleted] = useState<SectionKey[]>([]);
   const [rulesAcknowledged, setRulesAcknowledged] = useState<boolean | null>(null);
   const [paymentAuthorized, setPaymentAuthorized] = useState<boolean | null>(null);
   const [paymentPadForm, setPaymentPadForm] = useState({
@@ -423,8 +467,10 @@ export default function TenantApplicationDetailPage() {
   const effectiveVerificationAuthorized = verificationAuthorized ?? Boolean(tenant?.verificationAuthorization);
   const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
-  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
+  const [applicationConversation, setApplicationConversation] = useState<Conversation | null>(null);
   if (persistedCompletedSteps && !hasAppliedPersistedSteps) {
     const requiredResumeSteps: SectionKey[] = ["profile", "employment", "household", "documents", "rules", "payment"];
     const resumeSection = requiredResumeSteps.find((section) => !persistedCompletedSteps.includes(section)) ?? "review";
@@ -970,7 +1016,8 @@ export default function TenantApplicationDetailPage() {
   };
   const requiredSections: SectionKey[] = ["profile", "employment", "household", "documents", "rules", "payment"];
   const missingSections = requiredSections.filter((section) => !isComplete(section));
-  const submitApplication = async () => {
+  const netToLandlord = Math.max(0, (listing.price || 0) + depositAmount - (tenantPlacementFee ?? 0));
+  const submitApplication = async (tenantNote?: string) => {
     if (missingSections.length > 0 || !reviewConfirmed || !tenant?.tenantID) return;
     const currentUserProfile = currentUser?.user;
     const capturedBy = `${currentUserProfile?.firstName ?? tenant.user?.firstName ?? ""} ${currentUserProfile?.lastName ?? tenant.user?.lastName ?? ""}`.trim() || "Tenant";
@@ -995,6 +1042,7 @@ export default function TenantApplicationDetailPage() {
       screeningStatus: "PENDING",
       leaseContractReviewed: tenant.leaseContractReviewed,
       verificationAuthorization: tenant.verificationAuthorization,
+      AttestationProvidedInfoIsCorrect: reviewConfirmed,
       notes: `Submitted from Arcora marketplace for ${listing.title}. ${guarantors.length} guarantor invitation${guarantors.length === 1 ? "" : "s"} attached.`,
       submittedAt: now,
       reviewedAt: null,
@@ -1012,15 +1060,53 @@ export default function TenantApplicationDetailPage() {
     setNextError("");
     try {
       console.info("[Arcora] createRentalApplication payload:", applicationPayload);
-      await createRentalApplication(applicationPayload);
-      publishHostApplicationNotification({ applicationId: id || "app-1024", applicationCode: id || "ARC-1024", applicantName: tenantName || "Tenant", listingName: listing.title, createdAt: now });
+      const createdApplication = await createRentalApplication(applicationPayload);
+      setSavedRentalApplicationCode(createdApplication.applicationCode);
+      setSavedApplicationStatus(createdApplication.status?.toUpperCase() ?? "SUBMITTED");
+      try {
+        const notifiableMember = await getNotifiableOrganizationMember(listing.organizationID);
+        if (notifiableMember) {
+          await ensureApplicationConversation({
+            applicationID: createdApplication.rentalApplicationID,
+            applicationCode: createdApplication.applicationCode,
+            listingTitle: listing.title,
+            tenantID: tenant.tenantID,
+            userID,
+            organizationMemberID: notifiableMember.organizationMemberID,
+            capturedBy,
+            applicantName: `${currentUserProfile?.firstName ?? tenant.user?.firstName ?? ""} ${currentUserProfile?.lastName ?? tenant.user?.lastName ?? ""}`.trim() || "Applicant",
+            monthlyRent: listing.price,
+            securityDeposit: depositAmount,
+            netToLandlord,
+            moveInDate: desiredMoveInDate,
+            note: tenantNote?.trim() || "Application submitted for review.",
+            viewUrl: `/hosting/applications/${createdApplication.rentalApplicationID}`,
+          });
+        }
+      } catch (conversationError) {
+        console.error("Failed to create application conversation:", conversationError);
+      }
       setApplicationSubmitted(true);
+      setCompleted((current) => current.includes("review") ? current : [...current, "review"]);
+      setReviewConfirmed(false);
+      setSubmitModalOpen(false);
+      setSubmitMessage("");
     } catch (error) {
       setNextError(error instanceof Error ? error.message : "We could not submit your application. Please try again.");
     } finally {
       setIsSubmittingApplication(false);
     }
   };
+
+  useEffect(() => {
+    if (!applicationSubmitted || !savedRentalApplicationCode || !tenant?.tenantID) return;
+    let cancelled = false;
+    findApplicationConversationForTenant(tenant.tenantID, savedRentalApplicationCode).then(async (conversation) => {
+      if (cancelled || !conversation) return;
+      setApplicationConversation(conversation);
+    });
+    return () => { cancelled = true; };
+  }, [applicationSubmitted, savedRentalApplicationCode, tenant?.tenantID]);
 
   return (
     <main className="marketplace tenant-application-detail-page" data-active-section={activeSection} data-tenant-status={tenantStatus}>
@@ -1069,14 +1155,14 @@ export default function TenantApplicationDetailPage() {
               <p className="marketplace-eyebrow">{listing.location}</p>
               <h2>{listing.title}</h2>
               <p>
-                Application captured August 18, 2026{" "}
+                {applicationSubmitted ? "Application saved" : "Application in progress"}{" "}
                 <span className="tenant-application-status-pill">
-                  Changes requested
+                  {applicationSubmitted ? "Submitted" : "Changes requested"}
                 </span>
               </p>
             </div>
             <div className="tenant-application-save-state">
-              <span className="tenant-application-save-dot" /> Saved
+              <span className="tenant-application-save-dot" /> {applicationSubmitted ? "Application saved" : "Saved"}
             </div>
           </header>
           {activeSection === "readiness" && (
@@ -1241,9 +1327,13 @@ export default function TenantApplicationDetailPage() {
                   <span>Security deposit</span>
                   <strong>${depositAmount.toLocaleString()}</strong>
                 </div>
+                <div>
+                  <span>Placement fee</span>
+                  <strong>{tenantPlacementFee === null ? "Loading..." : `$${tenantPlacementFee.toFixed(2)} + tax`}</strong>
+                </div>
                 <div className="tenant-application-rules-total">
                   <span>Total before move-in date</span>
-                  <strong>${(listing.price + depositAmount).toLocaleString()}</strong>
+                  <strong>${totalBeforeMoveIn.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
               </div>
               <div className="tenant-application-contract-preview">
@@ -1273,7 +1363,15 @@ export default function TenantApplicationDetailPage() {
           {contractPreviewOpen && <div className="tenant-application-preview-overlay" onClick={() => setContractPreviewOpen(false)}><section className="tenant-application-preview-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-application-preview-title" onClick={(event) => event.stopPropagation()}><button type="button" className="tenant-application-preview-close" aria-label="Close contract preview" onClick={() => setContractPreviewOpen(false)}>×</button><p className="marketplace-eyebrow">Application preview</p><h3 id="tenant-application-preview-title">Rental contract &amp; house rules</h3><p className="tenant-application-panel-lead">Review the key terms before you authorize payment. This preview is informational and is not a signature step.</p><div className="tenant-application-preview-summary"><div><span>Lease term</span><strong>6 months</strong></div><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div></div><div className="tenant-application-preview-section"><h4>House rules</h4><ul><li>Quiet hours are 10:00 PM to 8:00 AM.</li><li>No smoking or parties are permitted.</li><li>All occupants must be listed on the application.</li><li>Keep shared areas clean and respect neighbours.</li></ul></div><div className="tenant-application-preview-section"><h4>Rental contract</h4><p>The final residential lease will confirm the parties, rent, deposit, term, maintenance responsibilities, and applicable local requirements. It will be available for signature after the application is approved.</p></div><button type="button" className="tenant-application-complete-button" onClick={() => setContractPreviewOpen(false)}>Close preview</button></section></div>}
           {activeSection === "review" && (
             <section className="tenant-application-panel tenant-application-review-panel">
-              {!applicationSubmitted ? <><p className="marketplace-eyebrow">Final check</p><h3>Review your application</h3><p className="tenant-application-panel-lead">Everything looks right? Review the details below, then submit your application to the landlord.</p><div className={`tenant-application-review-status ${missingSections.length === 0 ? "is-ready" : "is-incomplete"}`}><span>{missingSections.length === 0 ? "✓" : "!"}</span><div><strong>{missingSections.length === 0 ? "Ready to submit" : `${missingSections.length} required section${missingSections.length === 1 ? "" : "s"} remaining`}</strong><small>{missingSections.length === 0 ? "Your required information and authorizations are complete." : "Complete the remaining sections before submitting."}</small></div></div><div className="tenant-application-review-list">{requiredSections.map((sectionKey) => { const section = sections.find((item) => item.key === sectionKey); return <button type="button" className="tenant-application-review-row" key={sectionKey} onClick={() => setActiveSection(sectionKey)}><span className={isComplete(sectionKey) ? "is-complete" : ""}>{isComplete(sectionKey) ? "✓" : "!"}</span><div><strong>{section?.label}</strong><small>{isComplete(sectionKey) ? "Complete and ready" : "Needs your attention"}</small></div><b>Review</b></button>; })}<button type="button" className="tenant-application-review-row" onClick={() => setActiveSection("guarantor")}><span className="is-optional">i</span><div><strong>Guarantors</strong><small>{guarantors.length ? `${guarantors.length} invitation${guarantors.length === 1 ? "" : "s"} pending` : "None added"}</small></div><b>Review</b></button></div><div className="tenant-application-review-summary"><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div><div><span>Payment</span><strong>No charge today</strong></div></div><label className="tenant-application-consent-row"><input type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} /><span>I confirm that my application information is accurate and I understand that submitting is not signing the lease or charging my payment method.</span></label><button type="button" className="tenant-application-complete-button tenant-application-submit-button" disabled={missingSections.length > 0 || !reviewConfirmed} onClick={submitApplication}>Submit application</button></> : <div className="tenant-application-submitted"><span className="tenant-application-submitted-icon">✓</span><p className="marketplace-eyebrow">Application submitted</p><h3>You&apos;re all set.</h3><p className="tenant-application-panel-lead">Your application has been sent to the landlord for review. We&apos;ll let you know when there&apos;s an update.</p><div className="tenant-application-submitted-details"><span>Application ID</span><strong>{id || "app-1024"}</strong><span>Status</span><strong>Under review</strong><span>Submitted</span><strong>Just now</strong></div><button type="button" className="tenant-application-complete-button" onClick={() => navigate("/applications")}>View my applications</button></div>}
+              {!applicationSubmitted ? <><p className="marketplace-eyebrow">Final check</p><h3>Review your application</h3><p className="tenant-application-panel-lead">Everything looks right? Review the details below, then submit your application to the landlord.</p><div className={`tenant-application-review-status ${missingSections.length === 0 ? "is-ready" : "is-incomplete"}`}><span>{missingSections.length === 0 ? "✓" : "!"}</span><div><strong>{missingSections.length === 0 ? "Ready to submit" : `${missingSections.length} required section${missingSections.length === 1 ? "" : "s"} remaining`}</strong><small>{missingSections.length === 0 ? "Your required information and authorizations are complete." : "Complete the remaining sections before submitting."}</small></div></div><div className="tenant-application-review-list">{requiredSections.map((sectionKey) => { const section = sections.find((item) => item.key === sectionKey); return <button type="button" className="tenant-application-review-row" key={sectionKey} onClick={() => setActiveSection(sectionKey)}><span className={isComplete(sectionKey) ? "is-complete" : ""}>{isComplete(sectionKey) ? "✓" : "!"}</span><div><strong>{section?.label}</strong><small>{isComplete(sectionKey) ? "Complete and ready" : "Needs your attention"}</small></div><b>Review</b></button>; })}<button type="button" className="tenant-application-review-row" onClick={() => setActiveSection("guarantor")}><span className="is-optional">i</span><div><strong>Guarantors</strong><small>{guarantors.length ? `${guarantors.length} invitation${guarantors.length === 1 ? "" : "s"} pending` : "None added"}</small></div><b>Review</b></button></div><div className="tenant-application-review-summary"><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div><div><span>Payment</span><strong>No charge today</strong></div></div><label className="tenant-application-consent-row"><input type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} /><span>I confirm that my application information is accurate and I understand that submitting is not signing the lease or charging my payment method.</span></label><button type="button" className="tenant-application-complete-button tenant-application-submit-button" disabled={missingSections.length > 0 || !reviewConfirmed} onClick={() => setSubmitModalOpen(true)}>Submit application</button></> : <div className="tenant-application-submitted"><span className="tenant-application-submitted-icon">✓</span><p className="marketplace-eyebrow">Application submitted</p><h3>You&apos;re all set.</h3><p className="tenant-application-panel-lead">Your application has been sent to the landlord for review. We&apos;ll let you know when there&apos;s an update.</p><div className="tenant-application-submitted-details"><span>Application code</span><strong>{savedRentalApplicationCode || "Pending"}</strong><span>Status</span><strong>Under review</strong><span>Submitted</span><strong>Just now</strong></div><button type="button" className="tenant-application-complete-button" onClick={() => navigate("/applications")}>View my applications</button></div>}
+            </section>
+          )}
+          {activeSection === "review" && applicationSubmitted && applicationConversation && (
+            <section className="tenant-application-panel tenant-application-review-panel tenant-application-message-callout">
+              <p className="marketplace-eyebrow">Application messages</p>
+              <h3>Message your landlord</h3>
+              <p className="tenant-application-panel-lead">Ask a question or share an update about your application.</p>
+              <button type="button" className="tenant-application-complete-button" onClick={() => navigate(`/messages/application/${applicationConversation.conversationID}?application=${encodeURIComponent(savedRentalApplicationCode ?? "")}`)}>Send message</button>
             </section>
           )}
           {activeSection === "payment" && (
@@ -1288,14 +1386,14 @@ export default function TenantApplicationDetailPage() {
                 <span>Monthly due amount</span>
                 <strong>${listing.price.toLocaleString()}</strong>
                 <span>Total before move-in date</span>
-                <strong>${(listing.price + depositAmount).toLocaleString()}</strong>
+                <strong>${moveInAmount.toLocaleString()}</strong>
                 <small>
                   First month&apos;s rent, charged only after landlord approval.
                 </small>
               </div>
               <div className="tenant-application-payment-methods tenant-application-required-methods">
-                <div className={`tenant-application-required-method${isPadRegistered ? " is-selected" : ""}`}><span className="tenant-application-payment-method-icon">PAD</span><span><strong>Stripe PAD / ACSS debit <small>Primary payment method</small></strong><small>Canadian bank account for the approval charge</small></span>{isPadRegistered && <span className="tenant-application-method-check">✓</span>}</div>
-                <div className={`tenant-application-required-method${isCardRegistered ? " is-selected" : ""}`}><span className="tenant-application-payment-method-icon">VISA</span><span><strong>Card <small>Fallback payment method</small></strong><small>Used only if the PAD payment cannot be completed</small></span>{isCardRegistered && <span className="tenant-application-method-check">✓</span>}</div>
+                <div className={`tenant-application-required-method${isPadRegistered ? " is-selected" : ""}`}><span className="tenant-application-payment-method-icon">PAD</span><span><strong>Stripe PAD / ACSS debit <small>Primary payment method</small></strong><small>Canadian bank account for the approval charge</small><small>Processing fee: {env.STRIPE_FEES.padPercent}% + ${env.STRIPE_FEES.padFixed} (maximum ${env.STRIPE_FEES.padMax})</small></span>{isPadRegistered && <span className="tenant-application-method-check">✓</span>}</div>
+                <div className={`tenant-application-required-method${isCardRegistered ? " is-selected" : ""}`}><span className="tenant-application-payment-method-icon">VISA</span><span><strong>Card <small>Fallback payment method</small></strong><small>Used only if the PAD payment cannot be completed</small><small>Processing fee: {env.STRIPE_FEES.cardPercent}% + ${env.STRIPE_FEES.cardFixed}</small></span>{isCardRegistered && <span className="tenant-application-method-check">✓</span>}</div>
               </div>
               {paymentAlreadyConfigured && (
                 <div className="tenant-application-payment-complete" role="status">
@@ -1469,9 +1567,13 @@ export default function TenantApplicationDetailPage() {
             <span>Security deposit</span>
             <strong>${depositAmount.toLocaleString()}</strong>
           </div>
+          <div className="tenant-application-placement-fee-row">
+            <span>Placement fee</span>
+            <strong className="tenant-application-placement-fee-value">{tenantPlacementFee === null ? "Loading..." : `$${tenantPlacementFee.toFixed(2)} + tax`}</strong>
+          </div>
           <div className="tenant-application-summary-total">
             <strong>Total amount before move-in date</strong>
-            <strong>${(listing.price + depositAmount).toLocaleString()}</strong>
+            <strong>${totalBeforeMoveIn.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
           <div>
             <span>Move-in</span>
@@ -1495,15 +1597,38 @@ export default function TenantApplicationDetailPage() {
         <button type="button" onClick={goBack}>
           Back
         </button>
-        <button
+        {activeSection !== "review" || !applicationSubmitted || savedApplicationStatus === "CHANGES_REQUESTED" ? <button
           type="button"
           className="tenant-application-next-button"
-          onClick={activeSection === "review" ? submitApplication : goNext}
+          onClick={activeSection === "review" ? () => setSubmitModalOpen(true) : goNext}
           disabled={activeSection === "review" ? missingSections.length > 0 || !reviewConfirmed || isSubmittingApplication : isSavingProfile || isSavingEmployment || isSavingHousehold || isSavingGuarantors || isSavingPayment || isUploadingDocument}
         >
           {isSubmittingApplication ? "Submitting..." : activeSection === "review" ? "Submit application" : isSavingProfile || isSavingEmployment || isSavingHousehold || isSavingGuarantors || isSavingPayment ? "Saving..." : <>Next <span aria-hidden="true">&gt;</span></>}
-        </button>
+        </button> : null}
       </div>
+      {submitModalOpen && (
+        <div className="tenant-application-submit-modal-backdrop" onClick={() => setSubmitModalOpen(false)}>
+          <div className="tenant-application-submit-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-application-submit-title" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="tenant-application-submit-close" aria-label="Close submit dialog" onClick={() => setSubmitModalOpen(false)}>×</button>
+            <p className="marketplace-eyebrow">Send your application</p>
+            <h3 id="tenant-application-submit-title">Add a note for the landlord</h3>
+            <textarea
+              aria-label="Message to the landlord"
+              value={submitMessage}
+              onChange={(event) => setSubmitMessage(event.target.value)}
+              placeholder="Hi, I’d like to share a quick note before you review my application."
+            />
+            <div className="tenant-application-submit-summary">
+              <span>Net to landlord</span>
+              <strong>${netToLandlord.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </div>
+            <div className="tenant-application-submit-actions">
+              <button type="button" className="tenant-application-ghost-button" onClick={() => setSubmitModalOpen(false)}>Cancel</button>
+              <button type="button" className="tenant-application-complete-button" onClick={() => void submitApplication(submitMessage)} disabled={isSubmittingApplication}>{isSubmittingApplication ? "Sending..." : "Send request"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <MarketplaceFooter />
     </main>
   );

@@ -20,7 +20,7 @@
  * - Cookie-based token storage for security
  */
 
-import { createContext, type PropsWithChildren, useEffect, useLayoutEffect, useState } from "react";
+import { createContext, type PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clearPersistedAuthSession, getUser, login, logout, persistAuthSession } from "../apis/auth";
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { AuthResponse } from "../types/AuthResponse";
@@ -83,6 +83,9 @@ type AuthProviderProps = PropsWithChildren;
  */
 export const exceptionPatterns = [
   '/api/task/',
+    '/api/identityverification/',
+    '/api/organization/',
+    '/api/organizationmember/',
   // Add more endpoint patterns here as needed
 ];
 
@@ -118,6 +121,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     const [currentUser, setCurrentUser] = useState<AuthResponse | null>();
     /** Authentication status flag */
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+    const authOperationRef = useRef(0);
 
     /**
      * FINAL APPROACH: Pure JavaScript Token Monitoring (No React State Changes)
@@ -264,9 +268,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
      * @private
      */
     async function fetchUser() {
+        const operation = authOperationRef.current;
         try {
             const response = await getUser();
+            if (operation !== authOperationRef.current) return;
             const hasActiveSession = Boolean(response.accessToken && response.isLoginSuccessful);
+
+            console.log('[Auth] restored session roles:', [...(response.roles ?? []), ...(response.user?.roles ?? [])]);
 
             if (!hasActiveSession) {
                 setAuthToken(null);
@@ -323,8 +331,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
      * ```
      */
     async function handleLogin(username: string, password: string): Promise<AuthResponse> {
+        const operation = ++authOperationRef.current;
         try {
             const response = await login(username, password);
+            if (operation !== authOperationRef.current) return response;
+            console.log('[Auth] login response roles:', [...(response.roles ?? []), ...(response.user?.roles ?? [])]);
             // console.log('AuthProvider - login response:', response); // SECURITY: Contains sensitive login data
             // console.log('AuthProvider - isLoginSuccessful:', response.isLoginSuccessful);
             // console.log('AuthProvider - requiresTwoFactor:', response.requiresTwoFactor);

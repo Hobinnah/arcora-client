@@ -4,7 +4,8 @@ import CustomSelect from "../../components/CustomSelect";
 import { CameraIcon, CheckIcon, IdCardIcon, MailIcon, PhoneIcon, ShieldIcon } from "../../components/Icons";
 import { useAuth } from "../../hooks/useAuth";
 import { useVerificationCenter, type VerificationStatus } from "../../apis/useVerificationCenter";
-import { hasLandlordOrganization } from "../../apis/useLandlordOrganization";
+import { getLandlordOrganization } from "../../apis/useLandlordOrganization";
+import { countListingsByOrganization } from "../../apis/useListing";
 import "./IdentityVerificationPage.css";
 
 const steps = ["Email", "Phone", "Government ID", "Selfie", "Done"] as const;
@@ -144,9 +145,15 @@ export default function IdentityVerificationPage() {
     }
     setLeavingVerification(true);
     try {
-      navigate(await hasLandlordOrganization(userID || 0) ? "/hosting" : "/hosting/setup-business");
+      const organization = await getLandlordOrganization(userID || 0);
+      if (!organization?.organizationID) {
+        navigate("/hosting/setup-business");
+        return;
+      }
+      const listingCount = await countListingsByOrganization(organization.organizationID);
+      navigate(listingCount === 0 ? "/hosting/listings/new" : "/hosting");
     } catch {
-      navigate("/hosting/setup-business");
+      navigate("/hosting");
     }
   };
 

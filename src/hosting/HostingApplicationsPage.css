@@ -1,3 +1,44 @@
+.hosting-application-review-layout { grid-template-columns: minmax(0, 1fr) 420px !important; max-width: 1240px !important; }
+.hosting-review-applicant-image { background: #dcefeb; border-radius: 50%; height: 76px; object-fit: cover; width: 76px; }
+.hosting-review-document-link.is-unavailable { cursor: not-allowed; opacity: .7; pointer-events: none; }
+@media (max-width: 800px) { .hosting-application-review-layout { grid-template-columns: 1fr; } }
+.hosting-review-listing-card { background: var(--paper); border: 1px solid var(--sand); border-radius: 10px; display: grid; grid-template-columns: 190px minmax(0, 1fr); margin: 28px 0 4px; overflow: hidden; }
+.hosting-review-listing-card img, .hosting-review-listing-placeholder { background: #eef3f1; display: block; height: 170px; object-fit: cover; width: 100%; }
+.hosting-review-listing-placeholder { align-items: center; color: var(--muted); display: flex; font-size: 11px; justify-content: center; padding: 20px; text-align: center; }
+.hosting-review-listing-card > div:last-child { padding: 20px; }
+.hosting-application-review-sidebar .hosting-review-listing-card { display: block; margin: 0 0 18px; }
+.hosting-application-review-sidebar .hosting-review-listing-card img, .hosting-application-review-sidebar .hosting-review-listing-placeholder { height: 170px; }
+.hosting-application-review-sidebar .hosting-review-listing-card > div:last-child { padding: 16px; }
+.hosting-application-review-sidebar .hosting-review-listing-card h2 { font-size: 17px; }
+.hosting-application-review-sidebar .hosting-review-listing-facts { gap: 12px; justify-content: space-between; }
+.hosting-application-review-sidebar .hosting-review-listing-facts strong { font-size: 11px; }
+.hosting-review-listing-card h2 { font-size: 20px; margin: 5px 0 4px; }
+.hosting-review-listing-card > div > span { color: var(--muted); font-size: 12px; }
+.hosting-review-listing-facts { border-top: 1px solid var(--sand); display: flex; gap: 28px; margin-top: 18px; padding-top: 14px; }
+.hosting-review-listing-facts span { display: grid; gap: 4px; }
+.hosting-review-listing-facts small { color: var(--muted); font-size: 10px; }
+.hosting-review-listing-facts strong { font-size: 12px; }
+.hosting-review-message-button { background: var(--teal); border: 0; border-radius: 7px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 700; margin-top: 16px; padding: 11px 16px; }
+.hosting-application-messages-layout { margin: 0 auto; max-width: 820px; padding: 52px 32px 90px; }
+.hosting-application-messages-layout h1 { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 500; margin: 6px 0 0; }
+.hosting-application-message-thread { border: 1px solid var(--sand); display: grid; gap: 12px; margin-top: 28px; min-height: 260px; padding: 20px; }
+.hosting-application-message { background: #f5f7f4; border-radius: 8px; justify-self: start; max-width: 78%; padding: 11px 14px; }
+.hosting-application-message.is-landlord { background: #eef7f5; justify-self: end; }
+.hosting-application-message small, .hosting-application-message time { color: var(--muted); display: block; font-size: 10px; }
+.hosting-application-message p { font-size: 13px; margin: 5px 0; white-space: pre-wrap; }
+.hosting-application-message-composer { display: flex; gap: 10px; margin-top: 16px; }
+.hosting-application-message-composer textarea { border: 1px solid var(--sand); border-radius: 7px; box-sizing: border-box; color: var(--ink); font: inherit; min-height: 48px; padding: 12px; resize: vertical; width: 100%; }
+.hosting-application-message-composer .hosting-review-message-button { margin-top: 0; white-space: nowrap; }
+@media (max-width: 600px) { .hosting-application-messages-layout { padding-left: 20px; padding-right: 20px; }.hosting-application-message-composer { align-items: stretch; flex-direction: column; }.hosting-application-message-composer .hosting-review-message-button { width: 100%; } }
+.hosting-review-guarantor-row { align-items: start !important; }
+.hosting-review-guarantor-row > span { display: grid; gap: 5px; text-align: left; }
+.hosting-review-guarantor-row > span strong { font-size: 11px; }
+.hosting-review-guarantor-row > span small, .hosting-review-document-link small { color: var(--muted); font-size: 10px; }
+.hosting-review-document-link { align-items: center; border-bottom: 1px solid var(--sand); color: inherit; display: flex; gap: 14px; justify-content: space-between; padding: 13px 14px; text-decoration: none; }
+.hosting-review-document-link:last-child { border-bottom: 0; }
+.hosting-review-document-link > span { display: grid; gap: 5px; text-align: left; }
+.hosting-review-document-link:hover { background: #f5f7f4; }
+@media (max-width: 600px) { .hosting-review-listing-card { grid-template-columns: 1fr; }.hosting-review-listing-card img, .hosting-review-listing-placeholder { height: 190px; } }
  .hosting-invite-section input { font-weight: 400 !important; }.hosting-invite-section input::placeholder { font-weight: 400; }
  .hosting-invite-layout { max-width: 1360px; width: calc(100% - 80px); grid-template-columns: minmax(0, 1fr) 340px; }
 @media (max-width: 800px) { .hosting-invite-layout { width: auto; } }

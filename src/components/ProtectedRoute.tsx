@@ -193,9 +193,13 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
         
         // Role-based authorization check - verify user has required permissions
         if (allowedRoles && allowedRoles.length > 0) {
+            const userRoles = [
+                ...(currentUser?.roles ?? []),
+                ...(currentUser?.user?.roles ?? []),
+            ];
             // Check if user has at least one of the required roles (case-insensitive)
             const hasRequiredRole = allowedRoles.some(role => 
-                currentUser?.roles?.some(userRole => 
+                userRoles.some(userRole => 
                     userRole.toLowerCase() === role.toLowerCase()
                 )
             );

@@ -1,4 +1,7 @@
+.tenant-application-status-submitted { background: #3e7180; }
 .tenant-application-status-under_review { background: #167c80 !important; color: #fff !important; }
+.tenant-application-status-declined { background: #9b4f4f; }
+.tenant-application-status-expired { background: #777; }
 .tenant-applications-page .tenant-applications-filters button.is-active { background: #167c80 !important; border-color: #167c80 !important; color: #fff !important; }
 .tenant-applications-page > .marketplace-footer { margin-top: 0 !important; }
 .tenant-applications-page > .marketplace-footer .marketplace-footer-columns { margin-left: 0 !important; margin-right: 0 !important; max-width: none !important; }
