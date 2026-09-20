@@ -87,6 +87,32 @@ export const getOrganizationMember = async (id?: string): Promise<OrganizationMe
   }
 };
 
+export const fetchOrganizationMembersByOrganization = async (organizationID: string): Promise<OrganizationMember[]> => {
+  try {
+    const url = `${BASE_URL}api/OrganizationMember/GetOrganizationMemberByOrgID/${encodeURIComponent(organizationID)}`;
+    const response = await axios.get(url);
+    const data = response.data;
+    if (import.meta.env.DEV) {
+      console.info('[Arcora] Organization members returned by GetOrganizationMemberByOrgID', {
+        organizationID,
+        url,
+        status: response.status,
+        data,
+      });
+    }
+    return Array.isArray(data) ? data : data?.data ?? data?.records ?? [];
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[Arcora] GetOrganizationMemberByOrgID failed', {
+        organizationID,
+        error,
+      });
+    }
+    handleApiError(error, 'fetch organization members by organization');
+    throw error;
+  }
+};
+
 export const createOrganizationMember = async (OrganizationMember?: OrganizationMember): Promise<OrganizationMember> => {
   try {
     const url = `${BASE_URL}api/organizationmember/createOrganizationMember`;

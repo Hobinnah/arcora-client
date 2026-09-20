@@ -27,6 +27,10 @@ import {
   WifiIcon,
 } from "../components/Icons";
 import CustomSelect from "../components/CustomSelect";
+import { getListing } from "../apis/useListing";
+import { fetchOrganizationMembers, fetchOrganizationMembersByOrganization } from "../apis/useOrganizationMember";
+import type { OrganizationMember } from "../types/OrganizationMember";
+import type { Listing } from "../types/Listing";
 import HostingHeader from "./HostingHeader";
 import "../marketplace/MarketplaceHome.css";
 import "./HostingPage.css";
@@ -47,7 +51,6 @@ type Section = {
 const hostFactItems = [
   { key: "travel", label: "Where I've always wanted to go", value: "France", prompt: "Where have you always wanted to travel?", icon: <GlobeIcon /> },
   { key: "work", label: "My work", value: "", prompt: "What do you do for work?", icon: <span className="hosting-editor-fact-icon">▣</span> },
-  { key: "funFact", label: "My fun fact", value: "", prompt: "What's a fun fact about you?", icon: <span className="hosting-editor-fact-icon">♧</span> },
   { key: "home", label: "What makes my home unique", value: "Stylish comfort with private security.", prompt: "What makes your home unique?", icon: <span className="hosting-editor-fact-icon">✣</span> },
   { key: "pets", label: "Pets", value: "", prompt: "Tell guests about your pets", icon: <UsersIcon /> },
   { key: "decade", label: "Decade I was born", value: "", prompt: "What decade were you born in?", icon: <span className="hosting-editor-fact-icon">♧</span> },
@@ -57,6 +60,26 @@ const hostFactItems = [
 const formatAmount = (value: string) => {
   const digits = value.replace(/[^0-9]/g, "");
   return digits ? Number(digits).toLocaleString("en-US") : "";
+};
+
+const formatCurrency = (value: string) => {
+  const amount = Number(value.replace(/,/g, ""));
+  return Number.isFinite(amount) ? amount.toLocaleString("en-US") : "0";
+};
+
+const getHostingDuration = (publishedAt?: string | null) => {
+  if (!publishedAt) return { value: "New", label: "hosting" };
+  const publishedTime = new Date(publishedAt).getTime();
+  const elapsedDays = Math.max(0, Math.floor((Date.now() - publishedTime) / (1000 * 60 * 60 * 24)));
+  if (elapsedDays >= 365) {
+    const years = Math.floor(elapsedDays / 365);
+    return { value: String(years), label: `${years === 1 ? "year" : "years"} hosting` };
+  }
+  if (elapsedDays >= 30) {
+    const months = Math.floor(elapsedDays / 30);
+    return { value: String(months), label: `${months === 1 ? "month" : "months"} hosting` };
+  }
+  return { value: String(elapsedDays), label: `${elapsedDays === 1 ? "day" : "days"} hosting` };
 };
 
 const photoRooms = [
@@ -73,7 +96,7 @@ const sleepingRooms = [
   { key: "bedroom", label: "Bedroom" },
 ];
 
-const advanceNoticeOptions = ["Same day", "1 day", "2 days", "3 days", "4 days", "5 days", "6 days", "7 days"];
+const advanceNoticeOptions = ["Same day", "2 days", "3 days", "4 days", "5 days", "6 days", "7 days"];
 
 const descriptionItems: { key: string; label: string; hint?: string; maxLength?: number; isInput?: boolean }[] = [
   { key: "listing", label: "Listing description", maxLength: 500 },
@@ -180,7 +203,6 @@ const arrivalCards = [
   { key: "arrival-wifi", label: "WiFi details", summary: "Network and password", icon: <WifiIcon /> },
   { key: "arrival-checkout", label: "Checkout instruction", summary: "Add details", icon: <ClockIcon /> },
   { key: "arrival-requirements", label: "Guest requirements", summary: "Add details", icon: <UsersIcon /> },
-  { key: "arrival-taxes", label: "Taxes", summary: "Add tax details", icon: <CreditCardIcon /> },
 ];
 const timeOptions = ["12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM", "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM"];
 
@@ -200,8 +222,6 @@ const listContent: Record<string, { icon: ReactElement; label: string; sub?: str
     { icon: <CameraIcon />, label: "Exterior security camera present" },
   ],
 };
-const cohostImage = "https://randomuser.me/api/portraits/women/44.jpg";
-
 const amenityCategories = [
   "All",
   "Basics",
@@ -334,7 +354,12 @@ function CatalogIcon({ name }: { name: string }) {
 
 export default function HostingListingEditorPage() {
   const navigate = useNavigate();
-  const { id = "daisys-inn" } = useParams();
+  const { id } = useParams();
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
+  const [primaryOwner, setPrimaryOwner] = useState<OrganizationMember | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [activeKey, setActiveKey] = useState("photos");
   const [editorTab, setEditorTab] = useState<"space" | "arrival">("space");
   const [checkinDetail, setCheckinDetail] = useState<"lock" | "instructions" | null>(null);
@@ -342,18 +367,26 @@ export default function HostingListingEditorPage() {
   const [houseManual, setHouseManual] = useState("Welcome to Daisy’s Inn!\n\nDoor Access:\nIf the door doesn’t open after entering the smart lock code, no worries — try these quick steps:\n\n1. Gently pull the door knob towards you once, leave it, then re-enter the code.\n2. If it still doesn’t open, please call or message me.\n3. If it’s at night and I haven’t responded, kindly press the doorbell at the main house entrance — I’ll be right with you!\n\nTo lock the door, pull the door handle once toward you, leave it, then press the Weiser button at the top of the smart lock pad.\n\nSecurity Light:\nThe external security light is sensor-activated and automatically turns on when it gets dark. Please make sure the switch is turned ON when you enter the suite.");
   const [doorCode, setDoorCode] = useState("1973");
   const [doorCodeDraft, setDoorCodeDraft] = useState("1973");
+  const [checkoutInstructions, setCheckoutInstructions] = useState("");
+  const [guestRequirementDetails, setGuestRequirementDetails] = useState("");
   const [photoCategory, setPhotoCategory] = useState<string | null>(null);
   const [title, setTitle] = useState("Daisy's Inn");
   const [placeType, setPlaceType] = useState("Secondary unit");
   const [propertyTypeValue, setPropertyTypeValue] = useState("Guest suite");
   const [listingType, setListingType] = useState("Entire place");
   const [sizeUnit, setSizeUnit] = useState("Unit");
+  const [propertySize, setPropertySize] = useState("");
+  const [yearBuilt, setYearBuilt] = useState("");
+  const [wifiNetwork, setWifiNetwork] = useState("");
+  const [wifiPassword, setWifiPassword] = useState("");
+  const [addressFields, setAddressFields] = useState({ line1: "", city: "", provinceCode: "", postalCode: "" });
   const [priceRange, setPriceRange] = useState({ min: "70", max: "75" });
   const [smartPricing, setSmartPricing] = useState(true);
   const [pricingView, setPricingView] = useState<"main" | "smart">("main");
-  const [weeklyDiscount, setWeeklyDiscount] = useState("0");
-  const [discountPercent, setDiscountPercent] = useState("3");
-  const [availability, setAvailability] = useState({ min: "1", max: "365", advanceNotice: "Same day", sameDayTime: "12:00 AM" });
+  const [quarterlyDiscount, setQuarterlyDiscount] = useState("0");
+  const [semiAnnualDiscount, setSemiAnnualDiscount] = useState("0");
+  const [yearlyDiscount, setYearlyDiscount] = useState("0");
+  const [availability, setAvailability] = useState({ min: "1", max: "365", advanceNotice: "3 days", sameDayTime: "No" });
   const [allowSameDay, setAllowSameDay] = useState(true);
   const [availabilityView, setAvailabilityView] = useState<"main" | "min" | "max">("main");
   const [advanceNoticeOpen, setAdvanceNoticeOpen] = useState(false);
@@ -413,10 +446,171 @@ export default function HostingListingEditorPage() {
   const instantBookRef = useRef<HTMLDivElement>(null);
   const approvalRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    void getListing(id)
+      .then((loadedListing) => {
+        if (cancelled) return;
+        const rentalUnit = loadedListing.rentalUnit;
+        const property = rentalUnit?.property;
+        const address = property?.address;
+        const photos = [...(loadedListing.listingPhotos ?? [])].sort((left, right) => left.displayOrder - right.displayOrder);
+        const amenities = loadedListing.listingAmenities?.map((item) => (item as typeof item & { amenityCatalog?: { name?: string } }).amenityCatalog?.name).filter((name): name is string => Boolean(name)) ?? [];
+        const accessInstruction = loadedListing.listingAccessInstructions?.find((item) => item.isActive);
+        // Map access-instruction records onto their matching UI fields using instructionType as the key.
+        const findAccessInstruction = (instructionType: string) =>
+          loadedListing.listingAccessInstructions?.find((item) => item.instructionType === instructionType && item.isActive)
+          ?? loadedListing.listingAccessInstructions?.find((item) => item.instructionType === instructionType);
+        const houseManualInstruction = findAccessInstruction("HOUSE_MANUAL");
+        const checkoutInstruction = findAccessInstruction("CHECKOUT_INSTRUCTION");
+        const guestRequirementInstruction = findAccessInstruction("GUEST_REQUIREMENT");
+        const policy = loadedListing.listingPolicies?.[0];
+        const location = [address?.line1, address?.city, address?.provinceCode, address?.postalCode, address?.countryCode].filter(Boolean).join(", ");
+        // Map house-rule records onto their matching UI fields using ruleType as the key.
+        const findRule = (ruleType: string) => loadedListing.listingRules?.find((rule) => rule.ruleType === ruleType);
+        const quietStartRule = findRule("QUIET_HOURS_START");
+        const quietEndRule = findRule("QUIET_HOURS_END");
+        const checkInRule = findRule("CHECK_IN");
+        const checkOutRule = findRule("CHECK_OUT");
+        const additionalRule = findRule("ADDITIONAL");
+        setListing(loadedListing);
+        setHostPhoto(loadedListing.organization?.brandLogoUrl || faceImage);
+        setTitle(loadedListing.title || rentalUnit?.name || "");
+        setPlaceType(property?.propertyType || "Secondary unit");
+        setPropertyTypeValue(rentalUnit?.unitType?.name || property?.propertyType || "Guest suite");
+        setListingType(loadedListing.listingType?.name || "Entire place");
+        setPropertySize(String(rentalUnit?.squareFeet ?? ""));
+        setSizeUnit("sq ft");
+        setYearBuilt(String(property?.yearBuilt ?? loadedListing.yearBuilt ?? ""));
+        const listingWithWifi = loadedListing as Listing & {
+          wifiNetwork?: string;
+          wifiPassword?: string;
+          wIFINetwork?: string;
+          wIFIPassword?: string;
+        };
+        setWifiNetwork(listingWithWifi.wifiNetwork || listingWithWifi.wIFINetwork || "");
+        setWifiPassword(listingWithWifi.wifiPassword || listingWithWifi.wIFIPassword || "");
+        setAddressFields({
+          line1: address?.line1 || "",
+          city: address?.city || "",
+          provinceCode: address?.provinceCode || "",
+          postalCode: address?.postalCode || "",
+        });
+        setDescriptionFields((current) => ({
+          ...current,
+          listing: loadedListing.description || current.listing,
+          property: property?.description || current.property,
+          access: accessInstruction?.instructions || current.access,
+        }));
+        setPriceRange({
+          min: String(loadedListing.baseMonthlyRentAmount ?? ""),
+          max: String(loadedListing.baseMonthlyRentAmount ?? ""),
+        });
+        setQuarterlyDiscount(String(loadedListing.quarterlyDiscountRate ?? 0));
+        setSemiAnnualDiscount(String(loadedListing.semiAnnualDiscountRate ?? 0));
+        setYearlyDiscount(String(loadedListing.yearlyDiscountRate ?? 0));
+        if (loadedListing.shortTermCancellationPolicy) setShortTermPolicy(loadedListing.shortTermCancellationPolicy);
+        if (loadedListing.longTermCancellationPolicy) setLongTermPolicy(loadedListing.longTermCancellationPolicy);
+        setAvailability({
+          min: String(loadedListing.minimumLeaseMonths ?? ""),
+          max: String(loadedListing.maximumLeaseMonths ?? ""),
+          advanceNotice: "3 days",
+          sameDayTime: "No",
+        });
+        setGuestsCount(policy?.maximumOccupants ?? rentalUnit?.maximumOccupants ?? 0);
+        setAddedAmenities(amenities);
+        setLocationFeatures(address ? [location] : []);
+        const loadedDoorCode = loadedListing.checkInDoorCode || accessInstruction?.secretReference || "";
+        setDoorCode(loadedDoorCode);
+        setDoorCodeDraft(loadedDoorCode);
+        setHouseManual(houseManualInstruction?.instructions || "");
+        setCheckoutInstructions(checkoutInstruction?.instructions || "");
+        setGuestRequirementDetails(guestRequirementInstruction?.instructions || "");
+        setRequireProfilePhoto(policy?.requiresBackgroundCheck ?? true);
+        // Property info toggles: prefer the listing policy, fall back to the listing's own flags.
+        const listingWithFlags = loadedListing as Listing & { isPetFriendly?: boolean };
+        setSafetyChoices((current) => ({
+          ...current,
+          "Smoking allowed": policy ? (policy.allowsSmoking ? "yes" : "no") : current["Smoking allowed"],
+          "Pets allowed": policy ? (policy.allowsPets ? "yes" : "no") : (listingWithFlags.isPetFriendly ? "yes" : "no"),
+          "Parking available": policy ? (policy.parkingIncluded ? "yes" : "no") : current["Parking available"],
+        }));
+        setRoomPhotos({
+          living: photos[0]?.url || photoRooms[0].photo,
+          bedroom: photos[1]?.url || photoRooms[1].photo,
+        });
+        setQuietHours(Boolean(quietStartRule || quietEndRule));
+        if (quietStartRule?.ruleTitle) setQuietStart(quietStartRule.ruleTitle);
+        if (quietEndRule?.ruleTitle) setQuietEnd(quietEndRule.ruleTitle);
+        if (checkInRule?.ruleTitle) setCheckInStart(checkInRule.ruleTitle);
+        if (checkOutRule?.ruleTitle) setCheckoutTime(checkOutRule.ruleTitle);
+        if (additionalRule?.ruleTitle) setHouseRuleText(additionalRule.ruleTitle);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "We could not load this listing.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [id]);
+  useEffect(() => {
+    const organizationID = listing?.organizationID;
+    if (!organizationID) return;
+    let cancelled = false;
+    void fetchOrganizationMembersByOrganization(organizationID)
+      .catch(async () => {
+        const response = await fetchOrganizationMembers({ pageSize: 200, pageNumber: 0 });
+        return response.data.filter((member) => String(member.organizationID) === String(organizationID));
+      })
+      .then((members) => {
+        if (!cancelled) {
+          setOrganizationMembers(members);
+          setPrimaryOwner(members.find((member) => member.isPrimaryOwner) ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOrganizationMembers([]);
+          setPrimaryOwner(null);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [listing?.organizationID]);
+  useEffect(() => {
     (instantBook ? instantBookRef.current : approvalRef.current)?.focus();
   }, [instantBook]);
-  const activeSection = useMemo(() => sections.find((section) => section.key === activeKey) ?? sections[0], [activeKey]);
-  const activeArrivalCard = arrivalCards.find((card) => card.key === activeKey) ?? arrivalCards[0];
+  const editorSections = useMemo(() => sections.map((section) => {
+    if (!listing) return section;
+    if (section.key === "title") return { ...section, summary: title || "Add a title" };
+    if (section.key === "photos") return { ...section, summary: `${listing.listingPhotos?.length ?? 0} photos`, thumbnail: listing.listingPhotos?.[0]?.url || section.thumbnail };
+    if (section.key === "location") return { ...section, summary: [listing.rentalUnit?.property?.address?.line1, listing.rentalUnit?.property?.address?.city, listing.rentalUnit?.property?.address?.provinceCode].filter(Boolean).join(", ") || "Add location" };
+    return section;
+  }), [listing, title]);
+  const activeSection = useMemo(() => editorSections.find((section) => section.key === activeKey) ?? editorSections[0], [activeKey, editorSections]);
+  const editorArrivalCards = useMemo(() => arrivalCards.map((card) => {
+    if (card.key === "arrival-manual") return { ...card, summary: houseManual.split("\n")[0] || "Add details" };
+    if (card.key === "arrival-checkout") return { ...card, summary: checkoutInstructions || "Add details" };
+    if (card.key === "arrival-requirements") return { ...card, summary: guestRequirementDetails || "Add details" };
+    if (card.key === "arrival-checkin") return { ...card, summary: doorCodeDraft.trim() || doorCode.trim() ? "Smart lock" : "Add details" };
+    return card;
+  }), [houseManual, checkoutInstructions, guestRequirementDetails, doorCode, doorCodeDraft]);
+  const activeArrivalCard = editorArrivalCards.find((card) => card.key === activeKey) ?? editorArrivalCards[0];
+  const editorPhotoRooms = useMemo(() => {
+    const photos = [...(listing?.listingPhotos ?? [])].sort((left, right) => left.displayOrder - right.displayOrder);
+    if (photos.length === 0) return photoRooms;
+    const grouped = new Map<string, typeof photos>();
+    photos.forEach((photo) => {
+      const label = photo.isCoverPhoto || photo.location === "CoverPhoto" ? "Cover photo" : "Additional photos";
+      grouped.set(label, [...(grouped.get(label) ?? []), photo]);
+    });
+    return [...grouped.entries()].map(([label, items]) => ({ label, count: items.length, photo: items[0].url }));
+  }, [listing]);
+  // Guest safety only shows amenities the listing actually has in the Home safety category.
+  const safetyAmenities = useMemo(
+    () => addedAmenities.filter((name) => amenityCatalog.some((item) => item.name === name && item.category === "Home safety")),
+    [addedAmenities],
+  );
   const changeBedCount = (roomKey: string, bedType: string, delta: number) => {
     setBedCounts((current) => {
       const room = current[roomKey] || {};
@@ -436,6 +630,24 @@ export default function HostingListingEditorPage() {
     setSafetyChoices((current) => ({ ...current, [item]: choice }));
   };
 
+  if (isLoading) {
+    return <main className="marketplace hosting-page"><HostingHeader /><p style={{ padding: "48px", textAlign: "center" }}>Loading listing...</p></main>;
+  }
+
+  if (!id || loadError || !listing) {
+    return <main className="marketplace hosting-page"><HostingHeader /><p style={{ padding: "48px", textAlign: "center" }}>{loadError || "No listing ID was provided."}</p></main>;
+  }
+
+  const hostName = primaryOwner?.user?.firstName || listing.organization?.displayName || listing.organization?.legalName || listing.capturedBy || "Host";
+  const hostingDuration = getHostingDuration(listing.publishedAt);
+  const orderedOrganizationMembers = [
+    ...organizationMembers.filter((member) => member.isPrimaryOwner),
+    ...organizationMembers.filter((member) => !member.isPrimaryOwner),
+  ];
+  const selectedMember = orderedOrganizationMembers.find((member) => member.organizationMemberID === selectedCohost) ?? primaryOwner ?? orderedOrganizationMembers[0];
+  const memberName = (member: OrganizationMember) => `${member.user?.firstName || ""} ${member.user?.lastName || ""}`.trim() || `Member ${member.userID}`;
+  const memberImage = (member: OrganizationMember) => member.user?.imageUrl || faceImage;
+
   return (
     <main className="marketplace hosting-page hosting-editor-page">
       <HostingHeader />
@@ -454,7 +666,7 @@ export default function HostingListingEditorPage() {
             <button type="button" className="hosting-editor-settings" aria-label="Editor settings"><SettingsIcon /></button>
           </div>
           <div className="hosting-editor-sidebar-list">
-            {(editorTab === "space" ? sections : arrivalCards).map((section) => (
+            {(editorTab === "space" ? editorSections.filter((section) => section.key !== "link") : editorArrivalCards).map((section) => (
               <button
                 type="button"
                 key={section.key}
@@ -464,7 +676,7 @@ export default function HostingListingEditorPage() {
                 {editorTab === "space" && "thumbnail" in section && section.thumbnail && (
                   <div className="hosting-editor-card-thumb">
                     <img src={section.thumbnail} alt="" />
-                    {section.key === "photos" && <span>44 photos</span>}
+                    {section.key === "photos" && <span>{listing.listingPhotos?.length ?? 0} photos</span>}
                   </div>
                 )}
                 {editorTab === "space" && section.key === "location" && (
@@ -482,33 +694,40 @@ export default function HostingListingEditorPage() {
                 {section.key === "host" && (
                   <div className="hosting-editor-host-thumb">
                     <div className="hosting-editor-host-thumb-person">
-                      <div className="hosting-editor-host-thumb-photo"><img src={hostPhoto} alt="Obi" /><span className="hosting-editor-host-thumb-badge"><ShieldIcon /></span></div>
-                      <strong>Obi</strong>
-                      <small><ShieldIcon /> Superhost</small>
+                      <div className="hosting-editor-host-thumb-photo"><img src={hostPhoto} alt={hostName} /><span className="hosting-editor-host-thumb-badge"><ShieldIcon /></span></div>
+                      <strong>{hostName}</strong>
+                      <small><ShieldIcon /> {listing.rating > 0 ? `${listing.rating.toFixed(2)} rating` : "Host"}</small>
                     </div>
                     <div className="hosting-editor-host-thumb-stats">
-                      <div><strong>29</strong><small>Reviews</small></div>
-                      <div><strong>4.93 <StarIcon /></strong><small>Rating</small></div>
-                      <div><strong>1</strong><small>Year hosting</small></div>
+                      <div><strong>{listing.reviews ?? 0}</strong><small>Reviews</small></div>
+                      <div><strong>{listing.rating > 0 ? listing.rating.toFixed(2) : "0"} <StarIcon /></strong><small>Rating</small></div>
+                      <div><strong>{hostingDuration.value}</strong><small>{hostingDuration.label}</small></div>
                     </div>
                   </div>
                 )}
                 {section.key === "cohosts" && (
                   <div className="hosting-editor-cohost-preview">
-                    <div><img src={faceImage} alt="Obinna Eze" /><span><strong>Obinna Eze (Obi)</strong><small>Listing owner</small></span></div>
-                    <div><img src={cohostImage} alt="Chimuanya Eze" /><span><strong>Chimuanya Eze</strong><small>Full access</small></span></div>
+                    {orderedOrganizationMembers.map((member) => <div key={member.organizationMemberID}><img src={memberImage(member)} alt={memberName(member)} /><span><strong>{memberName(member)}</strong><small>{member.isPrimaryOwner ? "Listing owner" : member.roleName || "Co-host"}</small></span></div>)}
                   </div>
                 )}
                 {section.key !== "host" && section.key !== "cohosts" && !(editorTab === "arrival" && section.key === "arrival-checkin") && <strong>{section.label}</strong>}
                 {editorTab === "arrival" ? (
-                  section.key === "arrival-taxes" ? <div className="hosting-editor-taxes-preview"><div><CheckIcon /><span>Goods and Services Tax (Saskatchewan)</span></div><div><CheckIcon /><span>Saskatchewan Provincial Sales Tax</span></div></div> : <small>{section.summary}</small>
+                  section.key === "arrival-taxes" ? <div className="hosting-editor-taxes-preview"><div><CheckIcon /><span>Goods and Services Tax (Saskatchewan)</span></div><div><CheckIcon /><span>Saskatchewan Provincial Sales Tax</span></div></div> : section.key === "arrival-wifi" ? (
+                    <small>Network: {wifiNetwork || "_____"}<br />Password: {wifiPassword || "_____"}</small>
+                  ) : <small>{section.summary}</small>
                 ) : section.key === "title" ? (
                   <small>{title}</small>
+                ) : section.key === "propertyType" ? (
+                  <small>{listingType} · {placeType}</small>
+                ) : section.key === "sleeping" ? (
+                  <small>{listing.rentalUnit?.bedrooms ?? 0} bedroom{listing.rentalUnit?.bedrooms === 1 ? "" : "s"} · {listing.rentalUnit?.beds ?? 0} bed{listing.rentalUnit?.beds === 1 ? "" : "s"} · {listing.rentalUnit?.bathrooms ?? 0} bath{listing.rentalUnit?.bathrooms === 1 ? "" : "s"}</small>
+                ) : section.key === "pricing" ? (
+                  <small>${formatCurrency(priceRange.min || "0")} CAD per month</small>
                 ) : section.key === "discounts" ? (
-                  <small>{discountPercent}% monthly discount</small>
+                  <small>{quarterlyDiscount}% quarterly discount</small>
                 ) : section.key === "availability" ? (
                   <>
-                    <small>{availability.min} – {availability.max} night stays</small>
+                    <small>{availability.min} – {availability.max} month stays</small>
                     <small>{availability.advanceNotice} advance notice</small>
                   </>
                 ) : section.key === "guests" ? (
@@ -526,13 +745,17 @@ export default function HostingListingEditorPage() {
                     {addedAmenities.length > 3 && <small>+{addedAmenities.length - 3} more</small>}
                   </div>
                 ) : section.key === "location" ? (
-                  <small>515 Schmeiser Ave, Saskatoon, SK S7V 1P4, Canada</small>
+                  <small>{section.summary || "Add location"}</small>
                 ) : section.key === "host" ? (
-                  <small>Obi · Superhost</small>
+                  <small>{hostName} · {listing.reviews ?? 0} reviews</small>
                 ) : section.key === "rules" ? (
-                  <div className="hosting-editor-rules-preview"><div><ClockIcon /><span>Check-in after 3:00 PM</span></div><div><ClockIcon /><span>Checkout before 11:00 AM</span></div><div><UsersIcon /><span>{guestsCount} guests maximum</span></div><small>+7 more</small></div>
+                  <div className="hosting-editor-rules-preview"><div><ClockIcon /><span>Check-in after {checkInStart}</span></div><div><ClockIcon /><span>Checkout before {checkoutTime}</span></div><div><UsersIcon /><span>{guestsCount} guests maximum</span></div><small>+7 more</small></div>
                 ) : section.key === "safety" ? (
-                  <div className="hosting-editor-safety-preview"><div><ShieldIcon /><span>Carbon monoxide alarm installed</span></div><div><ShieldIcon /><span>Smoke alarm installed</span></div><div><CameraIcon /><span>Exterior security camera present</span></div><small>+7 more</small></div>
+                  <div className="hosting-editor-safety-preview">
+                    {safetyAmenities.slice(0, 3).map((name) => <div key={name}>{name.toLowerCase().includes("camera") ? <CameraIcon /> : <ShieldIcon />}<span>{name} installed</span></div>)}
+                    {safetyAmenities.length > 3 && <small>+{safetyAmenities.length - 3} more</small>}
+                    {safetyAmenities.length === 0 && <small>Add details</small>}
+                  </div>
                 ) : section.key === "cancellation" ? (
                   <><small>{shortTermPolicy} for short-term stays</small><small>{longTermPolicy} for long-term stays</small></>
                 ) : section.key === "arrival-manual" ? (
@@ -553,10 +776,10 @@ export default function HostingListingEditorPage() {
                 <div className="hosting-editor-arrival-detail-icon">{activeArrivalCard.icon}</div>
                 {activeArrivalCard.key !== "arrival-manual" && activeArrivalCard.key !== "arrival-taxes" && <h3>{activeArrivalCard.summary}</h3>}
                 {activeArrivalCard.key === "arrival-checkin" && (checkinDetail ? <div className="hosting-editor-checkin-subpage"><h3>{checkinDetail === "lock" ? "Add smart lock details" : "Add check-in instructions"}</h3>{checkinDetail === "lock" ? <label className="hosting-editor-door-code-field"><span>Door code</span><input inputMode="numeric" maxLength={8} value={doorCodeDraft} onChange={(event) => setDoorCodeDraft(event.target.value.replace(/\D/g, ""))} placeholder="Enter door code" /></label> : <><p>This info will be shared with guests 24–48 hours before check-in.</p><textarea className="hosting-editor-arrival-textarea" placeholder="Add check-in instructions" /></>}</div> : <><div className="hosting-editor-lock-connect"><KeyIcon /><div><strong>Connect your lock for smooth check-ins</strong><p>Guests automatically get door codes based on the last four digits of their phone number. Codes are only active during the trip.</p><button type="button">Connect</button></div></div><button type="button" className="hosting-editor-arrival-callout" onClick={() => { setDoorCodeDraft(doorCode); setCheckinDetail("lock"); }}><KeyIcon /><span><strong>Smart lock</strong><small>Door code: {doorCode}</small></span><PencilIcon /></button><h3 className="hosting-editor-arrival-subtitle">Check-in instructions</h3><p>Help guests have a smooth arrival. Share tips for how to get inside.</p><button type="button" className="hosting-editor-add-instructions" onClick={() => setCheckinDetail("instructions")}><PlusIcon /> Add instructions</button></>) }
-                {activeArrivalCard.key === "arrival-wifi" && <><label className="hosting-editor-field"><span>Network name</span><input defaultValue="Netvileplus" /></label><label className="hosting-editor-field"><span>Password</span><input defaultValue="DaisyInn123@" /></label></>}
-                {activeArrivalCard.key === "arrival-checkout" && <><p>Tell guests what to do before they leave.</p><textarea className="hosting-editor-arrival-textarea" placeholder="Add checkout instructions" /></>}
-                {activeArrivalCard.key === "arrival-requirements" && <div className="hosting-editor-requirements-page"><h3>Require a profile photo <button type="button" className={`hosting-editor-switch ${requireProfilePhoto ? "is-on" : ""}`} aria-label="Require a profile photo" aria-pressed={requireProfilePhoto} onClick={() => setRequireProfilePhoto((current) => !current)}><i /></button></h3><p>When turned on, guests who book your listing need a profile photo. You&apos;ll only see it after their booking is confirmed. <u>Learn more</u></p><div className="hosting-editor-requirements-list"><strong>All Airbnb guests are required to:</strong><span>• Provide a confirmed email address and phone number</span><span>• Provide payment information</span><span>• Agree to your house rules</span><button type="button">Learn more <ChevIcon /></button></div></div>}
-                {activeArrivalCard.key === "arrival-taxes" && <>{taxDetailOpen ? <div className="hosting-editor-tax-detail"><h3>Add a tax</h3><p>You can add one or more taxes to apply to your listing. <u>Learn more</u></p><label className="hosting-editor-tax-field is-required"><span>Tax name</span><CustomSelect value={taxName || "Select"} options={["Goods and Services Tax (Saskatchewan)", "Saskatchewan Provincial Sales Tax", "City tax"]} onChange={setTaxName} ariaLabel="Tax name" /></label><label className="hosting-editor-tax-field"><span>Tax type</span><CustomSelect value={taxType || "Select"} options={["Percentage", "Fixed amount"]} onChange={setTaxType} ariaLabel="Tax type" /></label><label className="hosting-editor-tax-field"><span>Tax rate</span><input value={taxRate} onChange={(event) => setTaxRate(event.target.value)} placeholder="Enter tax rate" /></label><label className="hosting-editor-tax-field"><span>Partial-stay exemption</span><input placeholder="Optional" /></label><label className="hosting-editor-tax-field"><span>Full-stay exemption</span><input placeholder="Optional" /></label><label className="hosting-editor-tax-field"><span>Accommodations tax registration number</span><input placeholder="Tax registration number" /></label><label className="hosting-editor-tax-terms"><input type="checkbox" /> <span>I confirm the tax information is correct and will remit any tax collected.</span></label></div> : <div className="hosting-editor-tax-overview"><p>Airbnb automatically submits some taxes, and you can add other taxes you need to submit.</p><section><strong>Taxes Airbnb submits</strong><small>We&apos;ll collect these taxes from guests on your behalf and submit payment to the designated tax authority. <u>Learn more</u></small><span><CheckIcon /> Goods and Services Tax (Saskatchewan)</span><span><CheckIcon /> Saskatchewan Provincial Sales Tax</span></section><section><strong>Add taxes you&apos;ll submit</strong><small>We&apos;ll collect these taxes from guests on your behalf and pass the funds on to you. You must submit payment to the correct tax authority. <u>Learn more</u></small><button type="button" onClick={() => setTaxDetailOpen(true)}>Add a tax</button></section></div>}</>}
+                {activeArrivalCard.key === "arrival-wifi" && <><label className="hosting-editor-field"><span>Network name</span><input value={wifiNetwork} onChange={(event) => setWifiNetwork(event.target.value)} /></label><label className="hosting-editor-field"><span>Password</span><input value={wifiPassword} onChange={(event) => setWifiPassword(event.target.value)} /></label></>}
+                {activeArrivalCard.key === "arrival-checkout" && <><p>Tell guests what to do before they leave.</p><textarea className="hosting-editor-arrival-textarea" placeholder="Add checkout instructions" value={checkoutInstructions} onChange={(event) => setCheckoutInstructions(event.target.value)} /></>}
+                {activeArrivalCard.key === "arrival-requirements" && <div className="hosting-editor-requirements-page"><h3>Require a profile photo <button type="button" className={`hosting-editor-switch ${requireProfilePhoto ? "is-on" : ""}`} aria-label="Require a profile photo" aria-pressed={requireProfilePhoto} onClick={() => setRequireProfilePhoto((current) => !current)}><i /></button></h3><p>When turned on, guests who book your listing need a profile photo. You&apos;ll only see it after their booking is confirmed. <u>Learn more</u></p>{guestRequirementDetails && <p>{guestRequirementDetails}</p>}<div className="hosting-editor-requirements-list"><strong>All Arcora guests are required to:</strong><span>• Provide a confirmed email address and phone number</span><span>• Provide payment information</span><span>• Agree to your house rules</span><button type="button">Learn more <ChevIcon /></button></div></div>}
+                {activeArrivalCard.key === "arrival-taxes" && <>{taxDetailOpen ? <div className="hosting-editor-tax-detail"><h3>Add a tax</h3><p>You can add one or more taxes to apply to your listing. <u>Learn more</u></p><label className="hosting-editor-tax-field is-required"><span>Tax name</span><CustomSelect value={taxName || "Select"} options={["Goods and Services Tax (Saskatchewan)", "Saskatchewan Provincial Sales Tax", "City tax"]} onChange={setTaxName} ariaLabel="Tax name" /></label><label className="hosting-editor-tax-field"><span>Tax type</span><CustomSelect value={taxType || "Select"} options={["Percentage", "Fixed amount"]} onChange={setTaxType} ariaLabel="Tax type" /></label><label className="hosting-editor-tax-field"><span>Tax rate</span><input value={taxRate} onChange={(event) => setTaxRate(event.target.value)} placeholder="Enter tax rate" /></label><label className="hosting-editor-tax-field"><span>Partial-stay exemption</span><input placeholder="Optional" /></label><label className="hosting-editor-tax-field"><span>Full-stay exemption</span><input placeholder="Optional" /></label><label className="hosting-editor-tax-field"><span>Accommodations tax registration number</span><input placeholder="Tax registration number" /></label><label className="hosting-editor-tax-terms"><input type="checkbox" /> <span>I confirm the tax information is correct and will remit any tax collected.</span></label></div> : <div className="hosting-editor-tax-overview"><p>Arcora automatically submits some taxes, and you can add other taxes you need to submit.</p><section><strong>Taxes Arcora submits</strong><small>We&apos;ll collect these taxes from guests on your behalf and submit payment to the designated tax authority. <u>Learn more</u></small><span><CheckIcon /> Goods and Services Tax (Saskatchewan)</span><span><CheckIcon /> Saskatchewan Provincial Sales Tax</span></section><section><strong>Add taxes you&apos;ll submit</strong><small>We&apos;ll collect these taxes from guests on your behalf and pass the funds on to you. You must submit payment to the correct tax authority. <u>Learn more</u></small><button type="button" onClick={() => setTaxDetailOpen(true)}>Add a tax</button></section></div>}</>}
                 {activeArrivalCard.key === "arrival-manual" && <><small className="hosting-editor-shared-note"><ClockIcon /> Shared 24–48 hours before check-in</small><label className="hosting-editor-field"><span>House manual</span><textarea className="hosting-editor-arrival-textarea hosting-editor-manual-textarea" value={houseManual} onChange={(event) => setHouseManual(event.target.value)} /></label></>}
               </div>
             </div>
@@ -578,10 +801,10 @@ export default function HostingListingEditorPage() {
                 <div className="hosting-editor-category-gallery">
                   <button type="button" className="hosting-editor-gallery-back" onClick={() => setPhotoCategory(null)}><ArrowLeftIcon /> All photos</button>
                   <h3>{photoCategory}</h3>
-                  <div className="hosting-editor-photo-grid">{Array.from({ length: photoRooms.find((room) => room.label === photoCategory)?.count || 0 }, (_, index) => { const room = photoRooms.find((item) => item.label === photoCategory) || photoRooms[0]; return <div className="hosting-editor-gallery-photo" key={`${room.label}-${index}`}><img src={`${room.photo}&sig=${index}`} alt={`${room.label} photo ${index + 1}`} /><small>{index + 1} of {room.count}</small></div>; })}</div>
+                  <div className="hosting-editor-photo-grid">{(listing.listingPhotos ?? []).filter((photo) => (photoCategory === "Cover photo" ? photo.isCoverPhoto || photo.location === "CoverPhoto" : !photo.isCoverPhoto && photo.location !== "CoverPhoto")).sort((left, right) => left.displayOrder - right.displayOrder).map((photo, index, photos) => <div className="hosting-editor-gallery-photo" key={photo.listingPhotoID}><img src={photo.url} alt={photo.altText || `${photoCategory} photo ${index + 1}`} /><small>{index + 1} of {photos.length}</small></div>)}</div>
                 </div>
               ) : <div className="hosting-editor-photo-grid">
-                {photoRooms.map((room) => (
+                {editorPhotoRooms.map((room) => (
                   <button type="button" className="hosting-editor-photo-tile" key={room.label} onClick={() => setPhotoCategory(room.label)}>
                     <img src={room.photo} alt="" />
                     <strong>{room.label}</strong>
@@ -634,12 +857,12 @@ export default function HostingListingEditorPage() {
               </div>
               <label className="hosting-editor-field">
                 <span>Year built</span>
-                <input className="hosting-editor-title-input" defaultValue="2023" />
+                <input className="hosting-editor-title-input" value={yearBuilt} onChange={(event) => setYearBuilt(event.target.value)} />
               </label>
               <div className="hosting-editor-field-row">
                 <label className="hosting-editor-field">
                   <span>Property size</span>
-                  <input className="hosting-editor-title-input" placeholder="0" />
+                  <input className="hosting-editor-title-input" placeholder="0" value={propertySize} onChange={(event) => setPropertySize(event.target.value)} />
                 </label>
                 <label className="hosting-editor-field">
                   <span>&nbsp;</span>
@@ -655,7 +878,7 @@ export default function HostingListingEditorPage() {
               <h2>Pricing</h2>
               <p>These settings apply to all nights, unless you customize them by date. <a href="#">Learn more</a></p>
               <button type="button" className="hosting-editor-price-box" onClick={() => setPricingView("smart")}>
-                <span>${priceRange.min} CAD – ${priceRange.max} CAD</span>
+                <span>${formatCurrency(priceRange.min || "0")} CAD – ${formatCurrency(priceRange.max || "0")} CAD</span>
               </button>
               <div className="hosting-editor-toggle-row">
                 <div>
@@ -711,9 +934,8 @@ export default function HostingListingEditorPage() {
           )}
 
           {activeSection.kind === "discount" && (() => {
-            const avgNightly = (Number(priceRange.min.replace(/,/g, "")) + Number(priceRange.max.replace(/,/g, ""))) / 2 || 0;
-            const weeklyAverage = Math.round(avgNightly * 90 * (1 - Number(weeklyDiscount || 0) / 100)).toLocaleString("en-US");
-            const monthlyAverage = Math.round(avgNightly * 180 * (1 - Number(discountPercent || 0) / 100)).toLocaleString("en-US");
+            const monthlyPrice = (Number(priceRange.min.replace(/,/g, "")) + Number(priceRange.max.replace(/,/g, ""))) / 2 || 0;
+            const monthlyAverage = (months: number, rate: string) => Math.round((monthlyPrice * months * (1 - Number(rate || 0) / 100)) / months).toLocaleString("en-US");
             return (
               <div className="hosting-editor-form">
                 <h2>Discounts</h2>
@@ -724,31 +946,48 @@ export default function HostingListingEditorPage() {
                   <div className="hosting-editor-discount-card-body">
                     <div className="hosting-editor-discount-value">
                       <input
-                        value={weeklyDiscount}
+                        value={quarterlyDiscount}
                         inputMode="numeric"
                         maxLength={2}
-                        onChange={(event) => setWeeklyDiscount(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                        onChange={(event) => setQuarterlyDiscount(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
                       />
                       <span>%</span>
                     </div>
-                    <small>{"Quarterly average is $" + weeklyAverage + " CAD"}</small>
+                    <small>{"Quarterly average is $" + monthlyAverage(3, quarterlyDiscount) + " CAD"}</small>
                   </div>
                 </div>
                 <div className="hosting-editor-discount-card">
                   <div className="hosting-editor-discount-card-head">
-                    <span>Bi-Yearly</span> · For 180 nights or more
+                    <span>Semi-Yearly</span> · For 180 nights or more
                   </div>
                   <div className="hosting-editor-discount-card-body">
                     <div className="hosting-editor-discount-value">
                       <input
-                        value={discountPercent}
+                        value={semiAnnualDiscount}
                         inputMode="numeric"
                         maxLength={2}
-                        onChange={(event) => setDiscountPercent(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                        onChange={(event) => setSemiAnnualDiscount(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
                       />
                       <span>%</span>
                     </div>
-                    <small>{"Monthly average is $" + monthlyAverage + " CAD"}</small>
+                    <small>{"Semi-Yearly average is $" + monthlyAverage(6, semiAnnualDiscount) + " CAD"}</small>
+                  </div>
+                </div>
+                <div className="hosting-editor-discount-card">
+                  <div className="hosting-editor-discount-card-head">
+                    <span>Yearly</span> · For 365 nights
+                  </div>
+                  <div className="hosting-editor-discount-card-body">
+                    <div className="hosting-editor-discount-value">
+                      <input
+                        value={yearlyDiscount}
+                        inputMode="numeric"
+                        maxLength={2}
+                        onChange={(event) => setYearlyDiscount(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                      />
+                      <span>%</span>
+                    </div>
+                    <small>{"Yearly average is $" + monthlyAverage(12, yearlyDiscount) + " CAD"}</small>
                   </div>
                 </div>
                 <button type="button" className="hosting-editor-callout-link">
@@ -763,11 +1002,11 @@ export default function HostingListingEditorPage() {
               <h2>Availability</h2>
               <p>These settings apply to all nights, unless you customize them by date.</p>
               <button type="button" className="hosting-editor-avail-card" onClick={() => setAvailabilityView("min")}>
-                <span>Minimum nights</span>
+                <span>Minimum month(s)</span>
                 <strong>{availability.min}</strong>
               </button>
               <button type="button" className="hosting-editor-avail-card" onClick={() => setAvailabilityView("max")}>
-                <span>Maximum nights</span>
+                <span>Maximum month(s)</span>
                 <strong>{availability.max}</strong>
               </button>
               <div className="hosting-editor-avail-card-wrap">
@@ -824,7 +1063,7 @@ export default function HostingListingEditorPage() {
 
           {activeSection.kind === "availability" && availabilityView !== "main" && (
             <div className="hosting-editor-form">
-              <h2>{availabilityView === "min" ? "Minimum nights" : "Maximum nights"}</h2>
+              <h2>{availabilityView === "min" ? "Minimum month(s)" : "Maximum month(s)"}</h2>
               <p>Per stay</p>
               <div className="hosting-editor-avail-big">
                 <input
@@ -1056,7 +1295,7 @@ export default function HostingListingEditorPage() {
               <h2>Booking settings</h2>
               <div ref={instantBookRef} className={`hosting-editor-booking-primary ${instantBook ? "is-on" : ""}`} role="button" tabIndex={0} onClick={() => setInstantBook(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setInstantBook(true); }}>
                 <div className="hosting-editor-booking-primary-head"><div><strong>Use Instant Book</strong><p>Let guests book automatically, which can help you get more bookings.</p></div><span className="hosting-editor-booking-symbol">ϟ</span></div>
-                <div className="hosting-editor-booking-option"><span><strong>Require a good track record</strong><small>Only allow guests who have stayed on Airbnb without issues. <u>Learn more</u></small></span><button type="button" className={`hosting-editor-switch ${trackRecord ? "is-on" : ""}`} aria-label="Require a good track record" aria-pressed={trackRecord} onClick={(event) => { event.stopPropagation(); setTrackRecord((current) => !current); }}><i /></button></div>
+                <div className="hosting-editor-booking-option"><span><strong>Require a good track record</strong><small>Only allow guests who have stayed on Arcora without issues. <u>Learn more</u></small></span><button type="button" className={`hosting-editor-switch ${trackRecord ? "is-on" : ""}`} aria-label="Require a good track record" aria-pressed={trackRecord} onClick={(event) => { event.stopPropagation(); setTrackRecord((current) => !current); }}><i /></button></div>
                 <button type="button" className="hosting-editor-booking-message" onClick={() => setBookingMessageOpen((current) => !current)}><span><strong>Pre-booking message</strong><small>{preBookingMessage}</small></span><ChevIcon /></button>
                 {bookingMessageOpen && <div className="hosting-editor-booking-message-editor"><textarea value={preBookingMessage} onChange={(event) => setPreBookingMessage(event.target.value)} maxLength={500} /><small>{preBookingMessage.length}/500 characters</small></div>}
               </div>
@@ -1078,7 +1317,7 @@ export default function HostingListingEditorPage() {
               {quietHours && <div className="hosting-editor-quiet-hours"><label>Start time<CustomSelect value={quietStart} options={timeOptions} onChange={setQuietStart} ariaLabel="Quiet hours start time" /></label><label>End time<CustomSelect value={quietEnd} options={timeOptions} onChange={setQuietEnd} ariaLabel="Quiet hours end time" /></label></div>}
               <div className="hosting-editor-rule-toggle-row"><span>Commercial photography and filming allowed</span><div><button type="button" className={`hosting-editor-rule-choice ${!commercialPhotography ? "is-selected" : ""}`} onClick={() => setCommercialPhotography(false)} aria-label="Commercial photography not allowed">×</button><button type="button" className={`hosting-editor-rule-choice is-yes ${commercialPhotography ? "is-selected" : ""}`} onClick={() => setCommercialPhotography(true)} aria-label="Commercial photography allowed">✓</button></div></div>
               <div className="hosting-editor-rule-counter"><span>Number of guests</span><div><button type="button" onClick={() => setGuestsCount((count) => Math.max(1, count - 1))} aria-label="Decrease guests">−</button><strong>{guestsCount}</strong><button type="button" onClick={() => setGuestsCount((count) => count + 1)} aria-label="Increase guests">+</button></div></div>
-              <button type="button" className="hosting-editor-rule-detail-row" onClick={() => setHouseRulesDetail("times")}><span><strong>Check-in and checkout times</strong><small>Arrive between 3:00 PM - 11:00 PM<br />Leave before 11:00 AM</small></span><ChevIcon /></button>
+              <button type="button" className="hosting-editor-rule-detail-row" onClick={() => setHouseRulesDetail("times")}><span><strong>Check-in and checkout times</strong><small>Arrive between {checkInStart} - {checkInEnd}<br />Leave before {checkoutTime}</small></span><ChevIcon /></button>
               <button type="button" className="hosting-editor-rule-detail-row additional" onClick={() => setHouseRulesDetail("additional")}><span><strong>Additional rules</strong><small>{houseRuleText}</small></span><ChevIcon /></button>
             </div>
           )}
@@ -1092,15 +1331,15 @@ export default function HostingListingEditorPage() {
           )}
 
           {activeSection.key === "safety" && (
-            <div className="hosting-editor-safety-layout"><div className="hosting-editor-safety-overview"><h2>Guest safety</h2><p>The safety details you share will appear on your listing, along with information like your House Rules.</p><button type="button" className={safetyDetail === "considerations" ? "is-active" : ""} onClick={() => setSafetyDetail("considerations")}><span><strong>Safety considerations</strong><small>Add details</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "devices" ? "is-active" : ""} onClick={() => setSafetyDetail("devices")}><span><strong>Safety devices</strong><small>Exterior security camera present<br />Carbon monoxide alarm<br />Smoke alarm</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "property" ? "is-active" : ""} onClick={() => setSafetyDetail("property")}><span><strong>Property info</strong><small>Add details</small></span><ChevIcon /></button></div>{safetyDetail && <div className="hosting-editor-safety-detail"><h2>{safetyDetail === "considerations" ? "Safety considerations" : safetyDetail === "devices" ? "Safety devices" : "Property info"}</h2>{(safetyDetail === "considerations" ? ["Not a good fit for children 2 – 12", "Not a good fit for infants under 2", "Pool or hot tub doesn’t have a gate or lock", "Nearby water, like a lake or river", "Climbing or play structure(s) on the property"] : safetyDetail === "devices" ? ["Exterior security camera present", "Noise decibel monitor present", "Carbon monoxide alarm", "Smoke alarm"] : ["Smoking allowed", "Pets allowed", "Parking available"]).map((item) => { const choice = safetyChoices[item] || "yes"; return <div className="hosting-editor-safety-option" key={item}><span><strong>{item}</strong><small>Guests should know about this feature or consideration before booking.</small></span><div><button type="button" className={choice === "no" ? "is-selected" : ""} aria-label={`Not ${item}`} onClick={() => setSafetyChoice(item, "no")}>×</button><button type="button" className={choice === "yes" ? "is-selected" : ""} aria-label={`Yes ${item}`} onClick={() => setSafetyChoice(item, "yes")}>✓</button></div></div>; })}</div>}</div>
+            <div className="hosting-editor-safety-layout"><div className="hosting-editor-safety-overview"><h2>Guest safety</h2><p>The safety details you share will appear on your listing, along with information like your House Rules.</p><button type="button" className={safetyDetail === "considerations" ? "is-active" : ""} onClick={() => setSafetyDetail("considerations")}><span><strong>Safety considerations</strong><small>Add details</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "devices" ? "is-active" : ""} onClick={() => setSafetyDetail("devices")}><span><strong>Safety devices</strong><small>{safetyAmenities.length > 0 ? safetyAmenities.slice(0, 3).join(" · ") : "Add details"}</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "property" ? "is-active" : ""} onClick={() => setSafetyDetail("property")}><span><strong>Property info</strong><small>Add details</small></span><ChevIcon /></button></div>{safetyDetail && <div className="hosting-editor-safety-detail"><h2>{safetyDetail === "considerations" ? "Safety considerations" : safetyDetail === "devices" ? "Safety devices" : "Property info"}</h2>{(safetyDetail === "considerations" ? ["Not a good fit for children 2 – 12", "Not a good fit for infants under 2", "Pool or hot tub doesn’t have a gate or lock", "Nearby water, like a lake or river", "Climbing or play structure(s) on the property"] : safetyDetail === "devices" ? safetyAmenities : ["Smoking allowed", "Pets allowed", "Parking available"]).map((item) => { const choice = safetyChoices[item] || "yes"; return <div className="hosting-editor-safety-option" key={item}><span><strong>{item}</strong><small>Guests should know about this feature or consideration before booking.</small></span><div><button type="button" className={choice === "no" ? "is-selected" : ""} aria-label={`Not ${item}`} onClick={() => setSafetyChoice(item, "no")}>×</button><button type="button" className={choice === "yes" ? "is-selected" : ""} aria-label={`Yes ${item}`} onClick={() => setSafetyChoice(item, "yes")}>✓</button></div></div>; })}</div>}</div>
           )}
 
           {activeSection.key === "cancellation" && !cancellationDetail && (
-            <div className="hosting-editor-cancellation-form"><h2>Cancellation policy</h2><button type="button" className="hosting-editor-cancellation-card" onClick={() => setCancellationDetail("lastMinute")}><span><strong>Short-term stays</strong><small>For less than 28 nights</small><b>{shortTermPolicy}</b></span><span className="hosting-editor-cancellation-card-link">Add a policy for last-minute bookings <ChevIcon /></span></button><button type="button" className="hosting-editor-cancellation-card" onClick={() => setCancellationDetail("longTerm")}><span><strong>Long-term stays</strong><small>For 28 nights or more</small><b>{longTermPolicy}</b></span></button><p className="hosting-editor-cancellation-help">All standard stay policies include a 24-hour free cancellation period. Review the full policies in the <u>Help Center</u>.</p></div>
+            <div className="hosting-editor-cancellation-form"><h2>Cancellation policy</h2><button type="button" className="hosting-editor-cancellation-card" onClick={() => setCancellationDetail("lastMinute")}><span><strong>Short-term stays</strong><small>For less than 35 nights</small><b>{shortTermPolicy}</b></span><span className="hosting-editor-cancellation-card-link">Add a policy for last-minute bookings <ChevIcon /></span></button><button type="button" className="hosting-editor-cancellation-card" onClick={() => setCancellationDetail("longTerm")}><span><strong>Long-term stays</strong><small>For 35 nights or more</small><b>{longTermPolicy}</b></span></button><p className="hosting-editor-cancellation-help">All standard stay policies include a 24-hour free cancellation period. Review the full policies in the <u>Help Center</u>.</p></div>
           )}
 
           {activeSection.key === "cancellation" && cancellationDetail && (
-            <div className="hosting-editor-cancellation-detail"><h2>{cancellationDetail === "lastMinute" ? "Last-minute bookings" : "Long-term stays"}</h2><small>{cancellationDetail === "lastMinute" ? "0 – 14 days before arrival" : "For 28 nights or more"}</small><div className="hosting-editor-policy-options">{(cancellationDetail === "lastMinute" ? [["Flexible", "Full refund at least 1 day before check-in", "Partial refund within 1 day of check-in"], ["Moderate", "Full refund at least 5 days before check-in", "Partial refund within 5 days of check-in"], ["Limited", "Full refund at least 14 days before check-in", "Partial refund 7–14 days before check-in"]] : [["Firm Long Term", "Full refund up to 30 days before check-in", "After that, the first 30 days of the stay are non-refundable"], ["Strict Long Term", "Full refund if canceled within 48 hours of booking and at least 28 days before check-in", "After that, the first 30 days of the stay are non-refundable"]]).map(([name, line1, line2]) => <button type="button" key={name} className={(cancellationDetail === "lastMinute" ? shortTermPolicy : longTermPolicy) === name ? "is-selected" : ""} onClick={() => cancellationDetail === "lastMinute" ? setShortTermPolicy(name) : setLongTermPolicy(name)}><strong>{name}</strong><small>• {line1}<br />• {line2}</small></button>)}</div></div>
+            <div className="hosting-editor-cancellation-detail"><h2>{cancellationDetail === "lastMinute" ? "Last-minute bookings" : "Long-term stays"}</h2><small>{cancellationDetail === "lastMinute" ? "0 – 14 days before arrival" : "For 35 nights or more"}</small><div className="hosting-editor-policy-options">{(cancellationDetail === "lastMinute" ? [["Flexible", "Full refund at least 1 day before check-in", "Partial refund within 1 day of check-in"], ["Moderate", "Full refund at least 5 days before check-in", "Partial refund within 5 days of check-in"], ["Limited", "Full refund at least 14 days before check-in", "Partial refund 7–14 days before check-in"]] : [["Firm Long Term", "Full refund up to 30 days before check-in", "After that, the first 30 days of the stay are non-refundable"], ["Strict Long Term", "Full refund if canceled within 48 hours of booking and at least 28 days before check-in", "After that, the first 30 days of the stay are non-refundable"]]).map(([name, line1, line2]) => <button type="button" key={name} className={(cancellationDetail === "lastMinute" ? shortTermPolicy : longTermPolicy) === name ? "is-selected" : ""} onClick={() => cancellationDetail === "lastMinute" ? setShortTermPolicy(name) : setLongTermPolicy(name)}><strong>{name}</strong><small>• {line1}<br />• {line2}</small></button>)}</div></div>
           )}
 
           {activeSection.kind === "list" && activeSection.key !== "cohosts" && activeSection.key !== "rules" && activeSection.key !== "safety" && (
@@ -1120,11 +1359,10 @@ export default function HostingListingEditorPage() {
           {activeSection.key === "cohosts" && (
             <div className="hosting-editor-cohosts-layout">
               <div className="hosting-editor-cohosts-overview"><h2>Co-hosts</h2><div className="hosting-editor-cohost-cards">
-                <button type="button" className={`hosting-editor-cohost-card ${selectedCohost === "primary" && cohostView === "detail" ? "is-active" : ""}`} onClick={() => { setSelectedCohost("primary"); setCohostView("detail"); }}><img src={faceImage} alt="Obinna Eze" /><small>Primary Host</small><strong>Obinna Eze (Obi)</strong><span>Listing owner</span></button>
-                <button type="button" className={`hosting-editor-cohost-card ${selectedCohost === "chimuanya" && cohostView === "detail" ? "is-active" : ""}`} onClick={() => { setSelectedCohost("chimuanya"); setCohostView("detail"); }}><img src={cohostImage} alt="Chimuanya Eze" /><strong>Chimuanya Eze</strong><span>Full access</span></button>
+                {orderedOrganizationMembers.map((member) => <button type="button" key={member.organizationMemberID} className={`hosting-editor-cohost-card ${selectedCohost === member.organizationMemberID && cohostView === "detail" ? "is-active" : ""}`} onClick={() => { setSelectedCohost(member.organizationMemberID); setCohostView("detail"); }}><img src={memberImage(member)} alt={memberName(member)} />{member.isPrimaryOwner && <small>Primary Host</small>}<strong>{memberName(member)}</strong><span>{member.isPrimaryOwner ? "Listing owner" : member.roleName || "Co-host"}</span></button>)}
                 <button type="button" className={`hosting-editor-cohost-card hosting-editor-cohost-add-card ${cohostView === "add" ? "is-active" : ""}`} onClick={() => setCohostView("add")}><i><PlusIcon /></i><strong>Add a co-host</strong></button>
               </div><a href="#feedback">Give feedback</a></div>
-              {cohostView === "detail" && <div className="hosting-editor-cohost-detail"><img src={selectedCohost === "primary" ? faceImage : cohostImage} alt="Selected co-host" /><small>Primary Host</small><h2>{selectedCohost === "primary" ? "Obinna Eze (Obi)" : "Chimuanya Eze"}</h2><u>{selectedCohost === "primary" ? "hobinnnah@yahoo.com · +1 306-280-0753" : "chimuanya@example.com"}</u><h3>Permissions</h3><div className="hosting-editor-cohost-detail-row"><strong>{selectedCohost === "primary" ? "Listing owner" : "Full access"}</strong><span>Access to all hosting tools and payouts setup.</span></div><h3>{selectedCohost === "primary" ? "Primary Host" : "Activity log"}</h3><div className="hosting-editor-cohost-detail-row"><strong>{selectedCohost === "primary" ? "Yes" : "Your activity"}</strong><span>View and manage this co-host&apos;s listing access.</span></div></div>}
+              {cohostView === "detail" && selectedMember && <div className="hosting-editor-cohost-detail"><img src={memberImage(selectedMember)} alt={memberName(selectedMember)} /><small>{selectedMember.isPrimaryOwner ? "Primary Host" : "Co-host"}</small><h2>{memberName(selectedMember)}</h2><u>{selectedMember.user?.email || "No email available"}{selectedMember.user?.phoneNumber ? ` · ${selectedMember.user.phoneNumber}` : ""}</u><h3>Permissions</h3><div className="hosting-editor-cohost-detail-row"><strong>{selectedMember.isPrimaryOwner ? "Listing owner" : selectedMember.roleName || "Co-host"}</strong><span>Access to the hosting tools assigned to this organization member.</span></div><h3>{selectedMember.isPrimaryOwner ? "Primary Host" : "Activity log"}</h3><div className="hosting-editor-cohost-detail-row"><strong>{selectedMember.isPrimaryOwner ? "Yes" : "Your activity"}</strong><span>View and manage this co-host&apos;s listing access.</span></div></div>}
               {cohostView === "add" && <div className="hosting-editor-cohost-detail"><h2>Add a co-host</h2><button type="button" className="hosting-editor-cohost-option" onClick={() => { setInviteStep(1); setInviteDialogOpen(true); }}><MailIcon /><strong>Invite someone you know</strong><span>Text or email them an invitation to help.</span></button><button type="button" className="hosting-editor-cohost-option"><SearchIcon /><strong>Find someone to help</strong><span>Hire a high-quality, local host.</span></button></div>}
             </div>
           )}
@@ -1144,7 +1382,7 @@ export default function HostingListingEditorPage() {
                 </div>
                 <button type="button" className="hosting-editor-location-verify"><span><strong>Verify your listing&apos;s location</strong><small>Take a few photos or short videos that guests won&apos;t see.</small></span><ChevIcon /></button>
                 {[
-                  ["address", "Address", "515 Schmeiser Ave, Saskatoon, SK S7V 1P4, Canada"],
+                  ["address", "Address", [addressFields.line1, addressFields.city, addressFields.provinceCode, addressFields.postalCode].filter(Boolean).join(", ")],
                   ["features", "Location sharing", "Show listing's specific location"],
                   ["features", "Location features", locationFeatures.join(", ") || "Add details"],
                   ["neighborhood", "Neighborhood description", "Add details"],
@@ -1157,7 +1395,7 @@ export default function HostingListingEditorPage() {
               </div>
               {locationDetail && (
                 <div className="hosting-editor-location-detail">
-                  {locationDetail === "address" && <><h2>Address</h2><div className="hosting-editor-address-fields"><label>Street address<input defaultValue="515 Schmeiser Avenue" /></label><label>Apt, suite, unit (if applicable)<input /></label><label>City / municipality<input defaultValue="Saskatoon" /></label><label>Province / territory<input defaultValue="SK" /></label><label>Postal code<input defaultValue="S7V 1P4" /></label></div></>}
+                  {locationDetail === "address" && <><h2>Address</h2><div className="hosting-editor-address-fields"><label>Street address<input value={addressFields.line1} onChange={(event) => setAddressFields((current) => ({ ...current, line1: event.target.value }))} /></label><label>Apt, suite, unit (if applicable)<input value={listing.rentalUnit?.unitNumber || ""} readOnly /></label><label>City / municipality<input value={addressFields.city} onChange={(event) => setAddressFields((current) => ({ ...current, city: event.target.value }))} /></label><label>Province / territory<input value={addressFields.provinceCode} onChange={(event) => setAddressFields((current) => ({ ...current, provinceCode: event.target.value }))} /></label><label>Postal code<input value={addressFields.postalCode} onChange={(event) => setAddressFields((current) => ({ ...current, postalCode: event.target.value }))} /></label></div></>}
                   {locationDetail === "features" && <><h2>Location features</h2><div className="hosting-editor-location-options">{["Beach access", "Lake access", "Laundromat nearby", "Private entrance", "Resort access", "Ski-in/Ski-out", "Waterfront"].map((item) => <label key={item}><span><strong>{item}</strong><small>{item === "Private entrance" ? "An entrance that's only available to guests" : `Guests can access ${item.toLowerCase()}`}</small></span><input type="checkbox" checked={locationFeatures.includes(item)} onChange={() => setLocationFeatures((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} /><i /></label>)}</div></>}
                   {locationDetail === "neighborhood" && <><h2>Neighborhood description</h2><p>Share some highlights about the neighborhood.</p><textarea className="hosting-editor-location-textarea" placeholder="Tell guests about the neighborhood" /></>}
                   {locationDetail === "gettingAround" && <><h2>Getting around</h2><p>Let guests know how they can get around the neighborhood and what parking is like.</p><textarea className="hosting-editor-location-textarea" placeholder="Add details about getting around" /></>}
@@ -1170,9 +1408,27 @@ export default function HostingListingEditorPage() {
           {activeSection.kind === "host" && (
             <div className="hosting-editor-form hosting-editor-host-form">
               <h2>About the host</h2>
+              <section className="hosting-editor-organization-card" aria-label="Organization information">
+                <div className="hosting-editor-organization-mark"><HomeIcon /></div>
+                <div className="hosting-editor-organization-content">
+                  <div className="hosting-editor-organization-heading">
+                    <div>
+                      <span className="hosting-editor-organization-kicker">Organization</span>
+                      <h3>{listing.organization?.displayName || listing.organization?.legalName || "Organization"}</h3>
+                    </div>
+                    <span className="hosting-editor-organization-badge">{listing.organization?.isPersonal ? "Personal" : "Business"}</span>
+                  </div>
+                  <div className="hosting-editor-organization-details">
+                    <span><strong>Type</strong>{listing.organization?.isPersonal ? "Personal account" : "Business account"}</span>
+                    {!listing.organization?.isPersonal && listing.organization?.businessNumber && <span><strong>Business number</strong>{listing.organization.businessNumber}</span>}
+                  </div>
+                </div>
+              </section>
               <div className="hosting-editor-host-profile">
-                <div className="hosting-editor-host-profile-photo"><img src={hostPhoto} alt="Obi" /><button type="button" aria-label="Edit host photo" onClick={() => { setHostPhotoDraft(hostPhoto); setHostPhotoDialogOpen(true); }}><CameraIcon /> Edit</button></div>
-                <p>Hosts and guests can see your profile and it may appear across Airbnb to help us build trust in our community. <u>Learn more</u></p>
+                <div className="hosting-editor-host-profile-photo"><img src={hostPhoto} alt={hostName} /><button type="button" aria-label="Edit host photo" onClick={() => { setHostPhotoDraft(hostPhoto); setHostPhotoDialogOpen(true); }}><CameraIcon /> Edit</button></div>
+                <h3>{hostName}</h3>
+                <p>{listing.reviews ?? 0} reviews · {listing.rating > 0 ? `${listing.rating.toFixed(2)} rating` : "0 rating"} · {listing.organization?.isPersonal ? "Personal host" : "Business host"}</p>
+                <p>Hosts and guests can see your profile and it may appear across Arcora to help us build trust in our community. <u>Learn more</u></p>
                 <div className="hosting-editor-host-facts">
                   {hostFactItems.map((item) => {
                     const value = hostFacts[item.key];

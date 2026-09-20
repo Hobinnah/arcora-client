@@ -173,6 +173,13 @@ export const getListing = async (id?: string): Promise<Listing> => {
   try {
     const url = `${BASE_URL}api/listing/getListingById/${id}`;
     const response = await axios.get(url);
+    if (import.meta.env.DEV) {
+      console.info('[Arcora] Listing returned by getListingById', {
+        listingID: id,
+        url,
+        data: response.data,
+      });
+    }
     return response.data as Listing;
   } catch (error) {
     handleApiError(error, 'get listing');

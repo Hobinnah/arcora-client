@@ -38,6 +38,11 @@ export type Listing = {
     availableTo: string;
     minimumLeaseMonths: number;
     maximumLeaseMonths: number;
+    quarterlyDiscountRate: number;
+    semiAnnualDiscountRate: number;
+    yearlyDiscountRate: number;
+    shortTermCancellationPolicy: string;
+    longTermCancellationPolicy: string;
     applicationDeadline: string;
     notes: string;
     wIFINetwork: string;
