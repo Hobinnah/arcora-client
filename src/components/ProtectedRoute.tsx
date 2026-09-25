@@ -30,12 +30,12 @@
 import { type PropsWithChildren, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { hasHostingPermission, type HostingPermission } from '../hosting/cohostAccess';
 import type { User } from "../types/User";
 import { isTokenExpired } from "../apis/helpers";
 
 /**
  * Props interface for the ProtectedRoute component
- * 
  * @interface ProtectedRouteProps
  */
 type ProtectedRouteProps = PropsWithChildren & {
@@ -47,6 +47,7 @@ type ProtectedRouteProps = PropsWithChildren & {
      * @example undefined - Any authenticated user can access
      */
     allowedRoles?: User['roles'];
+    hostingPermission?: HostingPermission;
 };
 
 /**
@@ -141,13 +142,23 @@ type ProtectedRouteProps = PropsWithChildren & {
  * - Early returns prevent unnecessary processing
  * - Debounced navigation to prevent redirect loops
  */
-export default function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps) {
+export default function ProtectedRoute({ allowedRoles, hostingPermission, children }: ProtectedRouteProps) {
     
     const { currentUser, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const requestedPath = `${location.pathname}${location.search}${location.hash}`;
     const loginPath = `/login?redirect_url=${encodeURIComponent(requestedPath)}`;
+    const userRoles = [
+        ...(currentUser?.roles ?? []),
+        ...(currentUser?.user?.roles ?? []),
+    ].flatMap(role => role.split(',')).map(role => role.trim().toLowerCase()).filter(Boolean);
+    const hasActiveOrganizationMembership = currentUser?.memberOrganizations?.some(member => member.status?.toUpperCase() === 'ACTIVE') ?? false;
+    const isHostRoute = allowedRoles?.some(role => ['host', 'landlord'].includes(role.toLowerCase())) ?? false;
+    const hasAllowedRole = !allowedRoles?.length
+        || allowedRoles.some(role => userRoles.includes(role.toLowerCase()))
+        || (isHostRoute && hasActiveOrganizationMembership);
+    const hasRequiredRole = hasAllowedRole && (!hostingPermission || hasHostingPermission(currentUser, hostingPermission));
     
     // Debug logging for development and troubleshooting
     // console.log('ProtectedRoute - Auth State:', { // SECURITY: Contains sensitive auth state data
@@ -193,17 +204,6 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
         
         // Role-based authorization check - verify user has required permissions
         if (allowedRoles && allowedRoles.length > 0) {
-            const userRoles = [
-                ...(currentUser?.roles ?? []),
-                ...(currentUser?.user?.roles ?? []),
-            ];
-            // Check if user has at least one of the required roles (case-insensitive)
-            const hasRequiredRole = allowedRoles.some(role => 
-                userRoles.some(userRole => 
-                    userRole.toLowerCase() === role.toLowerCase()
-                )
-            );
-            
             if (!hasRequiredRole) {
                 // console.log('Access denied, redirecting to access-denied'); // SECURITY: Auth flow logging
                 // console.log('User roles:', currentUser?.roles); // SECURITY: Contains sensitive role data
@@ -212,7 +212,7 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
                 return;
             }
         }
-    }, [navigate, allowedRoles, currentUser, isAuthenticated, loginPath]);
+    }, [navigate, allowedRoles, currentUser, isAuthenticated, loginPath, hasRequiredRole]);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -267,14 +267,7 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
     }
     
     // Show loading while checking role authorization
-    if (allowedRoles && allowedRoles.length > 0) {
-        const hasRequiredRole = allowedRoles.some(role => 
-            currentUser?.roles?.some(userRole => 
-                userRole.toLowerCase() === role.toLowerCase()
-            )
-        );
-        
-        if (!hasRequiredRole) {
+    if (!hasRequiredRole) {
             return (
                 <div style={{ 
                     display: 'flex', 
@@ -287,7 +280,6 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
                     Access denied, redirecting...
                 </div>
             );
-        }
     }
 
     // Render protected content - only reached if all security checks pass

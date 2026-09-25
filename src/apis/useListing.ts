@@ -198,12 +198,13 @@ export const createListing = async (Listing?: Listing): Promise<Listing> => {
   }
 };
 
-export const updateListing = async (listing?: Listing): Promise<Listing> => {
+export const updateListing = async (listing: Listing): Promise<Listing> => {
   try {
-    const id = ((listing as any)?.listingID ?? '').toString();
+    const id = listing.listingID?.toString() ?? '';
+    if (!id) throw new Error('Cannot update listing without a listingID.');
     const url = `${BASE_URL}api/listing/updateListing/${id}`;
-    const response = await axios.put(url, listing);
-    return response.data as Listing;
+    const response = await axios.put<Listing>(url, listing, { timeout: 15000 });
+    return response.data ?? listing;
   } catch (error) {
     handleApiError(error, 'update listing');
     throw error;

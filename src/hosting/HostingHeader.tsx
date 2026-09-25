@@ -6,6 +6,7 @@ import VerificationProfileSummary from '../components/VerificationProfileSummary
 import { fetchConversationParticipants } from '../apis/useConversationParticipant';
 import { fetchConversations } from '../apis/useConversation';
 import { getCurrentOrganizationMember } from './organizationMemberIdentity';
+import { hasHostingPermission } from './cohostAccess';
 import './HostingPage.css';
 
 export default function HostingHeader() {
@@ -21,6 +22,11 @@ export default function HostingHeader() {
   const profile = auth?.currentUser?.user;
   const profileName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || auth?.currentUser?.name || 'User';
   const profileImage = profile?.imageUrl || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=85';
+  const canViewCalendar = hasHostingPermission(auth?.currentUser, 'calendar');
+  const canViewListings = hasHostingPermission(auth?.currentUser, 'listings');
+  const canViewApplications = hasHostingPermission(auth?.currentUser, 'applications');
+  const canViewMessages = hasHostingPermission(auth?.currentUser, 'messages');
+  const canManageHosting = hasHostingPermission(auth?.currentUser, 'manage');
 
   useEffect(() => {
     const userID = profile?.id ?? profile?.userId;
@@ -75,10 +81,10 @@ export default function HostingHeader() {
       <a className="marketplace-brand hosting-brand" href="/" aria-label="Arcora home"><span className="marketplace-brand-mark"><span className="marketplace-brand-letter">a</span></span><span>arcora</span></a>
       <nav className="hosting-nav" aria-label="Hosting navigation">
         <button className={location.pathname === '/hosting' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting')}>Today</button>
-        <button className={location.pathname === '/hosting/calendar' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/calendar')}><CalendarIcon /> Calendar</button>
-        <button className={location.pathname.startsWith('/hosting/listings') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/listings')}><FileIcon /> Listings</button>
-        <button className={location.pathname.startsWith('/hosting/applications') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/applications')}><UsersIcon /> Applications</button>
-        <button className={location.pathname === '/hosting/messages' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/messages')}><InfoIcon /> Messages{hasUnreadMessages && <span aria-label="Unread messages" style={{ marginLeft: 6, color: '#c45135' }}>●</span>}</button>
+        {canViewCalendar && <button className={location.pathname === '/hosting/calendar' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/calendar')}><CalendarIcon /> Calendar</button>}
+        {canViewListings && <button className={location.pathname.startsWith('/hosting/listings') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/listings')}><FileIcon /> Listings</button>}
+        {canViewApplications && <button className={location.pathname.startsWith('/hosting/applications') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/applications')}><UsersIcon /> Applications</button>}
+        {canViewMessages && <button className={location.pathname === '/hosting/messages' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/messages')}><InfoIcon /> Messages{hasUnreadMessages && <span aria-label="Unread messages" style={{ marginLeft: 6, color: '#c45135' }}>●</span>}</button>}
       </nav>
       <div className="hosting-header-actions">
         <button className="hosting-switch" type="button" onClick={() => navigate('/')}>Switch to renting</button>
@@ -90,15 +96,15 @@ export default function HostingHeader() {
           {menuOpen && <div className="hosting-menu-popover" role="menu">
             <div className="hosting-menu-profile"><span className="hosting-menu-profile-image"><img src={profileImage} alt="" /></span><span><strong>{profileName}</strong><small>Host account</small></span></div>
             <VerificationProfileSummary />
-            <button type="button" role="menuitem" onClick={() => navigate('/hosting/earnings')}><BarChartIcon /> <span>Earnings and payouts</span></button>
-            <button type="button" role="menuitem" onClick={() => navigate('/hosting/listings/new')}><PlusIcon /> <span>Create a new listing</span></button>
+            {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/earnings')}><BarChartIcon /> <span>Earnings and payouts</span></button>}
+            {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/listings/new')}><PlusIcon /> <span>Create a new listing</span></button>}
             <button type="button" role="menuitem" onClick={() => navigate('/account-settings')}><UserIcon /> <span>Account settings</span></button>
             <button type="button" role="menuitem" onClick={() => { setLanguageModalOpen(true); setMenuOpen(false); }}><GlobeIcon /> <span>Languages and currency</span></button>
             <button type="button" role="menuitem"><FileIcon /> <span>Hosting resources</span></button>
             <button type="button" role="menuitem"><InfoIcon /> <span>Get help</span></button>
-            <button type="button" role="menuitem" onClick={() => navigate('/hosting/cohosts')}><UsersIcon /> <span>Co-hosts and access</span></button>
-            <button type="button" role="menuitem" onClick={() => navigate('/hosting/verification')}><ShieldIcon /> <span>Host verification</span></button>
-            <button type="button" role="menuitem" onClick={() => navigate('/hosting/deposits')}><CreditCardIcon /> <span>Security deposits</span></button>
+            {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/cohosts')}><UsersIcon /> <span>Co-hosts and access</span></button>}
+            {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/verification')}><ShieldIcon /> <span>Host verification</span></button>}
+            {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/deposits')}><CreditCardIcon /> <span>Security deposits</span></button>}
             <button className="hosting-menu-divider" type="button" role="menuitem" onClick={() => auth?.handleLogout().then(() => navigate('/login'))}><LogOutIcon /> <span>Log out</span></button>
           </div>}
         </div>

@@ -10,6 +10,13 @@ export type OrganizationMember = {
     roleName: string;
     status: string;
     isPrimaryOwner: boolean;
+    profilePhotoUrl?: string;
+    travelDestination?: string;
+    workDescription?: string;
+    homeUniqueDescription?: string;
+    petsDescription?: string;
+    birthDecade?: string;
+    schoolDescription?: string;
     invitedAt: string;
     acceptedAt: string;
     deactivatedAt: string;

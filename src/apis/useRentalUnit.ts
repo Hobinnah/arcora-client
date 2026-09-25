@@ -98,12 +98,13 @@ export const createRentalUnit = async (RentalUnit?: RentalUnit): Promise<RentalU
   }
 };
 
-export const updateRentalUnit = async (rentalUnit?: RentalUnit): Promise<RentalUnit> => {
+export const updateRentalUnit = async (rentalUnit: RentalUnit): Promise<RentalUnit> => {
   try {
-    const id = ((rentalUnit as any)?.rentalUnitID ?? '').toString();
+    const id = rentalUnit.rentalUnitID?.toString() ?? '';
+    if (!id) throw new Error('Cannot update rental unit without a rentalUnitID.');
     const url = `${BASE_URL}api/rentalunit/updateRentalUnit/${id}`;
-    const response = await axios.put(url, rentalUnit);
-    return response.data as RentalUnit;
+    const response = await axios.put<RentalUnit>(url, rentalUnit, { timeout: 15000 });
+    return response.data ?? rentalUnit;
   } catch (error) {
     handleApiError(error, 'update rentalUnit');
     throw error;

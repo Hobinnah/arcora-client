@@ -7,7 +7,6 @@ import {
   CheckIcon,
   ChevIcon,
   ClockIcon,
-  CreditCardIcon,
   FileIcon,
   EyeIcon,
   GlobeIcon,
@@ -27,10 +26,22 @@ import {
   WifiIcon,
 } from "../components/Icons";
 import CustomSelect from "../components/CustomSelect";
-import { getListing } from "../apis/useListing";
-import { fetchOrganizationMembers, fetchOrganizationMembersByOrganization } from "../apis/useOrganizationMember";
+import { useAuth } from "../hooks/useAuth";
+import { getListing, updateListing } from "../apis/useListing";
+import { fetchListingTypes } from "../apis/useListingType";
+import { createListingAmenity, deleteListingAmenity } from "../apis/useListingAmenity";
+import { fetchAmenityCatalogs } from "../apis/useAmenityCatalog";
+import { createAmenityCatalog } from "../apis/useAmenityCatalog";
+import { updateProperty } from "../apis/useProperty";
+import { updateRentalUnit } from "../apis/useRentalUnit";
+import { uploadListingPhoto } from "../apis/useListingPhoto";
+import { fetchOrganizationMembers, fetchOrganizationMembersByOrganization, getAllCohostInvitationsByOrganization, getCohostInvitationsByOrganization, getOrganizationMember, inviteCohost, reactivateRevokedCohost, revokeCohostInvitation, updateOrganizationMember, type CohostAccess, type CohostInvitation } from "../apis/useOrganizationMember";
 import type { OrganizationMember } from "../types/OrganizationMember";
 import type { Listing } from "../types/Listing";
+import type { ListingPhoto } from "../types/ListingPhoto";
+import type { ListingType } from "../types/ListingType";
+import type { ListingAmenity } from "../types/ListingAmenity";
+import type { AmenityCatalog } from "../types/AmenityCatalog";
 import HostingHeader from "./HostingHeader";
 import "../marketplace/MarketplaceHome.css";
 import "./HostingPage.css";
@@ -91,12 +102,32 @@ const photoRooms = [
   { label: "Additional photos", count: 8, photo: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80" },
 ];
 
+type EditorPhotoLocation = "LivingRoom" | "Bedroom" | "Bathroom" | "Laundry" | "Exterior" | "Additional";
+type PendingEditorPhoto = { id: string; file: File; url: string; location: EditorPhotoLocation };
+const photoLocationOptions: { value: EditorPhotoLocation; label: string }[] = [
+  { value: "LivingRoom", label: "Living room" },
+  { value: "Bedroom", label: "Bedroom" },
+  { value: "Bathroom", label: "Full bathroom" },
+  { value: "Laundry", label: "Laundry area" },
+  { value: "Exterior", label: "Exterior" },
+  { value: "Additional", label: "Additional photos" },
+];
+
+const photoLocationLabel = (location: string) => photoLocationOptions.find((option) => option.value === location)?.label || "Additional photos";
+const photoLocationForCategory = (category: string | null): EditorPhotoLocation =>
+  photoLocationOptions.find((option) => option.label === category)?.value || "Additional";
+
 const sleepingRooms = [
   { key: "living", label: "Living room" },
   { key: "bedroom", label: "Bedroom" },
 ];
 
 const advanceNoticeOptions = ["Same day", "2 days", "3 days", "4 days", "5 days", "6 days", "7 days"];
+const cohostPermissionOptions: Array<[CohostAccess, string]> = [
+  ["Full access", "Edit calendar, message guests, manage damage requests, listing, and co-hosts"],
+  ["Calendar and message access", "View calendar and message guests"],
+  ["Calendar access", "View calendar"],
+];
 
 const descriptionItems: { key: string; label: string; hint?: string; maxLength?: number; isInput?: boolean }[] = [
   { key: "listing", label: "Listing description", maxLength: 500 },
@@ -355,9 +386,21 @@ function CatalogIcon({ name }: { name: string }) {
 export default function HostingListingEditorPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { currentUser } = useAuth();
+  const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
+  const capturedBy = currentUser?.name?.trim() || [currentUser?.user?.firstName, currentUser?.user?.lastName].filter(Boolean).join(" ").trim() || "Unknown user";
   const [listing, setListing] = useState<Listing | null>(null);
   const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
   const [primaryOwner, setPrimaryOwner] = useState<OrganizationMember | null>(null);
+  const [hostMember, setHostMember] = useState<OrganizationMember | null>(null);
+  const [pendingCohostInvitations, setPendingCohostInvitations] = useState<CohostInvitation[]>([]);
+  const [allCohostInvitations, setAllCohostInvitations] = useState<CohostInvitation[]>([]);
+  const [cohostInvitationView, setCohostInvitationView] = useState<"pending" | "history">("history");
+  const [cohostInvitationsLoading, setCohostInvitationsLoading] = useState(true);
+  const [cohostInvitationsError, setCohostInvitationsError] = useState("");
+  const [invitationReferenceTime] = useState(() => Date.now());
+  const [revokingInvitationID, setRevokingInvitationID] = useState("");
+  const [reactivatingInvitationID, setReactivatingInvitationID] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [activeKey, setActiveKey] = useState("photos");
@@ -370,10 +413,28 @@ export default function HostingListingEditorPage() {
   const [checkoutInstructions, setCheckoutInstructions] = useState("");
   const [guestRequirementDetails, setGuestRequirementDetails] = useState("");
   const [photoCategory, setPhotoCategory] = useState<string | null>(null);
+  const [photoUploadOpen, setPhotoUploadOpen] = useState(false);
+  const [pendingPhotoUploads, setPendingPhotoUploads] = useState<PendingEditorPhoto[]>([]);
+  const [photoUploadError, setPhotoUploadError] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [titleSaveError, setTitleSaveError] = useState("");
+  const [propertyInfoSaving, setPropertyInfoSaving] = useState(false);
+  const [propertyInfoSaveError, setPropertyInfoSaveError] = useState("");
   const [title, setTitle] = useState("Daisy's Inn");
   const [placeType, setPlaceType] = useState("Secondary unit");
+  const [propertyName, setPropertyName] = useState("");
+  const [unitName, setUnitName] = useState("");
+  const [timeZone, setTimeZone] = useState("UTC");
+  const [bedroomCount, setBedroomCount] = useState("1");
+  const [bathroomCount, setBathroomCount] = useState("1");
+  const [bedCount, setBedCount] = useState("1");
+  const [buildingFloorCount, setBuildingFloorCount] = useState(1);
+  const [listingFloorNumber, setListingFloorNumber] = useState(1);
   const [propertyTypeValue, setPropertyTypeValue] = useState("Guest suite");
   const [listingType, setListingType] = useState("Entire place");
+  const [listingTypeOptions, setListingTypeOptions] = useState<ListingType[]>([]);
+  const [amenityCatalogRecords, setAmenityCatalogRecords] = useState<AmenityCatalog[]>([]);
   const [sizeUnit, setSizeUnit] = useState("Unit");
   const [propertySize, setPropertySize] = useState("");
   const [yearBuilt, setYearBuilt] = useState("");
@@ -381,13 +442,13 @@ export default function HostingListingEditorPage() {
   const [wifiPassword, setWifiPassword] = useState("");
   const [addressFields, setAddressFields] = useState({ line1: "", city: "", provinceCode: "", postalCode: "" });
   const [priceRange, setPriceRange] = useState({ min: "70", max: "75" });
+  const [securityDeposit, setSecurityDeposit] = useState("");
   const [smartPricing, setSmartPricing] = useState(true);
   const [pricingView, setPricingView] = useState<"main" | "smart">("main");
   const [quarterlyDiscount, setQuarterlyDiscount] = useState("0");
   const [semiAnnualDiscount, setSemiAnnualDiscount] = useState("0");
   const [yearlyDiscount, setYearlyDiscount] = useState("0");
   const [availability, setAvailability] = useState({ min: "1", max: "365", advanceNotice: "3 days", sameDayTime: "No" });
-  const [allowSameDay, setAllowSameDay] = useState(true);
   const [availabilityView, setAvailabilityView] = useState<"main" | "min" | "max">("main");
   const [advanceNoticeOpen, setAdvanceNoticeOpen] = useState(false);
   const [guestsCount, setGuestsCount] = useState(2);
@@ -418,9 +479,12 @@ export default function HostingListingEditorPage() {
   const [selectedCohost, setSelectedCohost] = useState("primary");
   const [inviteStep, setInviteStep] = useState<1 | 2 | 3>(1);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
-  const [invitePermission, setInvitePermission] = useState("Calendar and messaging access");
+  const [invitePermission, setInvitePermission] = useState<CohostAccess>("Calendar and message access");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteError, setInviteError] = useState("");
   const [houseRulesDetail, setHouseRulesDetail] = useState<"times" | "additional" | null>(null);
   const [quietHours, setQuietHours] = useState(false);
   const [commercialPhotography, setCommercialPhotography] = useState(false);
@@ -443,19 +507,33 @@ export default function HostingListingEditorPage() {
   const [trackRecord, setTrackRecord] = useState(false);
   const [preBookingMessage, setPreBookingMessage] = useState("Hi there! Kindly introduce yourself by stating your full name. I’d love to hear a bit about you and your expected check-in time whenever you get a chance. Looking forward to welcoming you!");
   const [bookingMessageOpen, setBookingMessageOpen] = useState(false);
+  const [saveToast, setSaveToast] = useState("");
   const instantBookRef = useRef<HTMLDivElement>(null);
   const approvalRef = useRef<HTMLButtonElement>(null);
+  const showSaveToast = (message: string) => {
+    setSaveToast(message);
+    window.setTimeout(() => setSaveToast(""), 3200);
+  };
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    void getListing(id)
-      .then((loadedListing) => {
+    void Promise.all([
+      getListing(id),
+      fetchListingTypes({ pageSize: 100, pageNumber: 0 }),
+      fetchAmenityCatalogs({ pageSize: 500, pageNumber: 0 }),
+    ])
+      .then(([loadedListing, listingTypeResult, amenityCatalogResult]) => {
         if (cancelled) return;
+        setListingTypeOptions(listingTypeResult.data);
+        setAmenityCatalogRecords(amenityCatalogResult.data);
         const rentalUnit = loadedListing.rentalUnit;
         const property = rentalUnit?.property;
         const address = property?.address;
         const photos = [...(loadedListing.listingPhotos ?? [])].sort((left, right) => left.displayOrder - right.displayOrder);
-        const amenities = loadedListing.listingAmenities?.map((item) => (item as typeof item & { amenityCatalog?: { name?: string } }).amenityCatalog?.name).filter((name): name is string => Boolean(name)) ?? [];
+        const amenities = loadedListing.listingAmenities?.map((item) => {
+          const amenity = item.amenityAmenityCatalog || (item as typeof item & { amenityCatalog?: { name?: string } }).amenityCatalog;
+          return amenity?.name;
+        }).filter((name): name is string => Boolean(name)) ?? [];
         const accessInstruction = loadedListing.listingAccessInstructions?.find((item) => item.isActive);
         // Map access-instruction records onto their matching UI fields using instructionType as the key.
         const findAccessInstruction = (instructionType: string) =>
@@ -477,8 +555,17 @@ export default function HostingListingEditorPage() {
         setHostPhoto(loadedListing.organization?.brandLogoUrl || faceImage);
         setTitle(loadedListing.title || rentalUnit?.name || "");
         setPlaceType(property?.propertyType || "Secondary unit");
+        setPropertyName(property?.name || loadedListing.title || "");
+        setUnitName(rentalUnit?.name || "");
+        setTimeZone(property?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+        setBedroomCount(String(rentalUnit?.bedrooms ?? loadedListing.bedrooms ?? 1));
+        setBathroomCount(String(rentalUnit?.bathrooms ?? loadedListing.bathrooms ?? 1));
+        setBedCount(String(rentalUnit?.beds ?? 1));
+        const loadedFloorNumber = Math.max(0, Number.parseInt(rentalUnit?.floorNumber || "1", 10) || 1);
+        setListingFloorNumber(loadedFloorNumber);
+        setBuildingFloorCount(Math.max(loadedFloorNumber, 1));
         setPropertyTypeValue(rentalUnit?.unitType?.name || property?.propertyType || "Guest suite");
-        setListingType(loadedListing.listingType?.name || "Entire place");
+        setListingType(loadedListing.listingType?.name || listingTypeResult.data.find((item) => item.listingTypeID === loadedListing.listingTypeID)?.name || listingTypeResult.data[0]?.name || "");
         setPropertySize(String(rentalUnit?.squareFeet ?? ""));
         setSizeUnit("sq ft");
         setYearBuilt(String(property?.yearBuilt ?? loadedListing.yearBuilt ?? ""));
@@ -503,9 +590,10 @@ export default function HostingListingEditorPage() {
           access: accessInstruction?.instructions || current.access,
         }));
         setPriceRange({
-          min: String(loadedListing.baseMonthlyRentAmount ?? ""),
-          max: String(loadedListing.baseMonthlyRentAmount ?? ""),
+          min: formatAmount(String(loadedListing.baseMonthlyRentAmount ?? "")),
+          max: formatAmount(String(loadedListing.BaseMonthlyRentAmountMax ?? loadedListing.baseMonthlyRentAmount ?? "")),
         });
+        setSecurityDeposit(formatAmount(String(loadedListing.securityDepositAmount ?? "")));
         setQuarterlyDiscount(String(loadedListing.quarterlyDiscountRate ?? 0));
         setSemiAnnualDiscount(String(loadedListing.semiAnnualDiscountRate ?? 0));
         setYearlyDiscount(String(loadedListing.yearlyDiscountRate ?? 0));
@@ -514,10 +602,10 @@ export default function HostingListingEditorPage() {
         setAvailability({
           min: String(loadedListing.minimumLeaseMonths ?? ""),
           max: String(loadedListing.maximumLeaseMonths ?? ""),
-          advanceNotice: "3 days",
-          sameDayTime: "No",
+          advanceNotice: loadedListing.advanceNotice || "3 days",
+          sameDayTime: loadedListing.advanceNotice === "Same day" ? "Yes" : "No",
         });
-        setGuestsCount(policy?.maximumOccupants ?? rentalUnit?.maximumOccupants ?? 0);
+        setGuestsCount(rentalUnit?.maximumOccupants ?? policy?.maximumOccupants ?? 0);
         setAddedAmenities(amenities);
         setLocationFeatures(address ? [location] : []);
         const loadedDoorCode = loadedListing.checkInDoorCode || accessInstruction?.secretReference || "";
@@ -536,8 +624,8 @@ export default function HostingListingEditorPage() {
           "Parking available": policy ? (policy.parkingIncluded ? "yes" : "no") : current["Parking available"],
         }));
         setRoomPhotos({
-          living: photos[0]?.url || photoRooms[0].photo,
-          bedroom: photos[1]?.url || photoRooms[1].photo,
+          living: photos.find((photo) => photo.location === "LivingRoom")?.url || photoRooms[0].photo,
+          bedroom: photos.find((photo) => photo.location === "Bedroom")?.url || photoRooms[1].photo,
         });
         setQuietHours(Boolean(quietStartRule || quietEndRule));
         if (quietStartRule?.ruleTitle) setQuietStart(quietStartRule.ruleTitle);
@@ -565,15 +653,56 @@ export default function HostingListingEditorPage() {
       })
       .then((members) => {
         if (!cancelled) {
+          const owner = members.find((member) => member.isPrimaryOwner) ?? members[0] ?? null;
           setOrganizationMembers(members);
-          setPrimaryOwner(members.find((member) => member.isPrimaryOwner) ?? null);
+          setPrimaryOwner(owner);
+          if (owner) {
+            void getOrganizationMember(owner.organizationMemberID)
+              .then((member) => {
+                if (cancelled) return;
+                setHostMember(member);
+                setHostPhoto(member.profilePhotoUrl || member.user?.imageUrl || listing?.organization?.brandLogoUrl || faceImage);
+                setHostFacts({
+                  travel: member.travelDestination || "",
+                  work: member.workDescription || "",
+                  home: member.homeUniqueDescription || "",
+                  pets: member.petsDescription || "",
+                  decade: member.birthDecade || "",
+                  school: member.schoolDescription || "",
+                });
+              })
+              .catch(() => { if (!cancelled) setHostMember(owner); });
+          }
         }
       })
       .catch(() => {
         if (!cancelled) {
           setOrganizationMembers([]);
           setPrimaryOwner(null);
+          setHostMember(null);
         }
+      });
+    return () => { cancelled = true; };
+  }, [listing?.organizationID, listing?.organization?.brandLogoUrl]);
+  useEffect(() => {
+    const organizationID = listing?.organizationID;
+    if (!organizationID) return;
+    let cancelled = false;
+    void Promise.all([
+      getCohostInvitationsByOrganization(organizationID),
+      getAllCohostInvitationsByOrganization(organizationID),
+    ])
+      .then(([pendingInvitations, allInvitations]) => {
+        if (!cancelled) {
+          setPendingCohostInvitations(pendingInvitations);
+          setAllCohostInvitations(allInvitations);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setCohostInvitationsError(error instanceof Error ? error.message : "We could not load co-host invitations.");
+      })
+      .finally(() => {
+        if (!cancelled) setCohostInvitationsLoading(false);
       });
     return () => { cancelled = true; };
   }, [listing?.organizationID]);
@@ -584,6 +713,7 @@ export default function HostingListingEditorPage() {
     if (!listing) return section;
     if (section.key === "title") return { ...section, summary: title || "Add a title" };
     if (section.key === "photos") return { ...section, summary: `${listing.listingPhotos?.length ?? 0} photos`, thumbnail: listing.listingPhotos?.[0]?.url || section.thumbnail };
+    if (section.key === "sleeping") return { ...section, thumbnail: listing.listingPhotos?.find((photo) => photo.location === "Bedroom")?.url || section.thumbnail };
     if (section.key === "location") return { ...section, summary: [listing.rentalUnit?.property?.address?.line1, listing.rentalUnit?.property?.address?.city, listing.rentalUnit?.property?.address?.provinceCode].filter(Boolean).join(", ") || "Add location" };
     return section;
   }), [listing, title]);
@@ -601,7 +731,7 @@ export default function HostingListingEditorPage() {
     if (photos.length === 0) return photoRooms;
     const grouped = new Map<string, typeof photos>();
     photos.forEach((photo) => {
-      const label = photo.isCoverPhoto || photo.location === "CoverPhoto" ? "Cover photo" : "Additional photos";
+      const label = photo.isCoverPhoto || photo.location === "CoverPhoto" ? "Cover photo" : photoLocationLabel(photo.location);
       grouped.set(label, [...(grouped.get(label) ?? []), photo]);
     });
     return [...grouped.entries()].map(([label, items]) => ({ label, count: items.length, photo: items[0].url }));
@@ -618,13 +748,478 @@ export default function HostingListingEditorPage() {
       return { ...current, [roomKey]: { ...room, [bedType]: next } };
     });
   };
-  const changeRoomPhoto = (roomKey: string, files: FileList | null) => {
+  const changeRoomPhoto = async (roomKey: string, files: FileList | null) => {
     const file = files?.[0];
-    if (!file) return;
-    setRoomPhotos((current) => ({ ...current, [roomKey]: URL.createObjectURL(file) }));
+    if (!file || !listing || !id) return;
+    const location = roomKey === "bedroom" ? "Bedroom" : "LivingRoom";
+    const previewUrl = URL.createObjectURL(file);
+    setRoomPhotos((current) => ({ ...current, [roomKey]: previewUrl }));
+    try {
+      const startingOrder = Math.max(-1, ...(listing.listingPhotos ?? []).map((photo) => photo.displayOrder)) + 1;
+      const uploaded = await uploadListingPhoto(file, id, startingOrder, false, {
+        location,
+        altText: file.name,
+        capturedBy,
+        userID: typeof userID === "number" ? userID : undefined,
+      });
+      setListing((current) => current ? { ...current, listingPhotos: [...(current.listingPhotos ?? []), uploaded] } : current);
+      setRoomPhotos((current) => ({ ...current, [roomKey]: uploaded.url }));
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+    }
   };
-  const toggleAmenity = (name: string) => {
-    setAddedAmenities((current) => (current.includes(name) ? current.filter((item) => item !== name) : [...current, name]));
+  const queueEditorPhotos = (files: FileList | null) => {
+    if (!files?.length) return;
+    setPhotoUploadError("");
+    const defaultLocation = photoLocationForCategory(photoCategory);
+    const queued = Array.from(files).map((file) => ({ id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url: URL.createObjectURL(file), location: defaultLocation }));
+    setPendingPhotoUploads((current) => [...current, ...queued]);
+    setPhotoUploadOpen(true);
+  };
+  const removeQueuedEditorPhoto = (photoID: string) => {
+    const photo = pendingPhotoUploads.find((item) => item.id === photoID);
+    if (photo) URL.revokeObjectURL(photo.url);
+    const remainingPhotos = pendingPhotoUploads.filter((item) => item.id !== photoID);
+    setPendingPhotoUploads(remainingPhotos);
+    if (remainingPhotos.length === 0) setPhotoUploadOpen(false);
+  };
+  const closeEditorPhotoUpload = () => {
+    if (photoUploading) return;
+    pendingPhotoUploads.forEach((item) => URL.revokeObjectURL(item.url));
+    setPendingPhotoUploads([]);
+    setPhotoUploadError("");
+    setPhotoUploadOpen(false);
+  };
+  const uploadEditorPhotos = async () => {
+    if (!id || !listing || pendingPhotoUploads.length === 0) return;
+    setPhotoUploadError("");
+    setPhotoUploading(true);
+    try {
+      const startingOrder = Math.max(-1, ...(listing.listingPhotos ?? []).map((photo) => photo.displayOrder)) + 1;
+      const uploaded = await Promise.all(pendingPhotoUploads.map((item, index) => uploadListingPhoto(
+        item.file,
+        id,
+        startingOrder + index,
+        false,
+        { location: item.location, altText: item.file.name, capturedBy, userID: typeof userID === "number" ? userID : undefined },
+      )));
+      setListing((current) => current ? { ...current, listingPhotos: [...(current.listingPhotos ?? []), ...uploaded as ListingPhoto[]] } : current);
+      pendingPhotoUploads.forEach((item) => URL.revokeObjectURL(item.url));
+      setPendingPhotoUploads([]);
+      setPhotoUploadOpen(false);
+    } catch (error) {
+      setPhotoUploadError(error instanceof Error ? error.message : "We could not upload those photos. Please try again.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+  const saveTitle = async () => {
+    if (!listing || titleSaving) return;
+    const nextTitle = title.trim();
+    if (nextTitle === listing.title) {
+      showSaveToast("No title changes to save");
+      return;
+    }
+    setTitleSaveError("");
+    setTitleSaving(true);
+    try {
+      const payload = { ...listing, title: nextTitle, notes: listing.notes?.trim() || "N/A" };
+      if (import.meta.env.DEV) console.info("[ListingEditor] Update title payload", payload);
+      const updatedListing = await updateListing(payload);
+      setListing(updatedListing);
+      setTitle(updatedListing.title || nextTitle);
+      showSaveToast("Title saved successfully");
+    } catch (error) {
+      setTitleSaveError(error instanceof Error ? error.message : "We could not save the title. Please try again.");
+    } finally {
+      setTitleSaving(false);
+    }
+  };
+  const savePricing = async () => {
+    if (!listing || propertyInfoSaving) return;
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const baseMonthlyRentAmount = Number(priceRange.min.replace(/,/g, "")) || 0;
+      const maximumRent = Number(priceRange.max.replace(/,/g, "")) || baseMonthlyRentAmount;
+      const deposit = Number(securityDeposit.replace(/,/g, "")) || 0;
+      const pricingPayload = {
+        ...listing,
+        baseMonthlyRentAmount,
+        BaseMonthlyRentAmountMax: maximumRent,
+        securityDepositAmount: deposit,
+      };
+      const pricingChanged = listing.baseMonthlyRentAmount !== baseMonthlyRentAmount
+        || (listing.BaseMonthlyRentAmountMax ?? listing.baseMonthlyRentAmount) !== maximumRent
+        || listing.securityDepositAmount !== deposit;
+      if (!pricingChanged) {
+        setPricingView("main");
+        showSaveToast("No pricing changes to save");
+        return;
+      }
+      if (import.meta.env.DEV) console.info("[ListingEditor] Updating pricing", pricingPayload);
+      const updatedListing = await updateListing(pricingPayload);
+      setListing((current) => current ? { ...current, ...pricingPayload, ...updatedListing, baseMonthlyRentAmount, BaseMonthlyRentAmountMax: maximumRent, securityDepositAmount: deposit } : current);
+      setPriceRange({ min: formatAmount(String(baseMonthlyRentAmount)), max: formatAmount(String(maximumRent)) });
+      setSecurityDeposit(formatAmount(String(deposit)));
+      showSaveToast("Pricing saved successfully");
+      setPricingView("main");
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the pricing details. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveDiscounts = async () => {
+    if (!listing || propertyInfoSaving) return;
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const quarterlyDiscountRate = Number(quarterlyDiscount) || 0;
+      const semiAnnualDiscountRate = Number(semiAnnualDiscount) || 0;
+      const yearlyDiscountRate = Number(yearlyDiscount) || 0;
+      const discountPayload = { ...listing, quarterlyDiscountRate, semiAnnualDiscountRate, yearlyDiscountRate };
+      const discountsChanged = listing.quarterlyDiscountRate !== quarterlyDiscountRate
+        || listing.semiAnnualDiscountRate !== semiAnnualDiscountRate
+        || listing.yearlyDiscountRate !== yearlyDiscountRate;
+      if (!discountsChanged) {
+        showSaveToast("No discount changes to save");
+        return;
+      }
+      if (import.meta.env.DEV) console.info("[ListingEditor] Updating discounts", discountPayload);
+      const updatedListing = await updateListing(discountPayload);
+      setListing((current) => current ? { ...current, ...discountPayload, ...updatedListing, quarterlyDiscountRate, semiAnnualDiscountRate, yearlyDiscountRate } : current);
+      setQuarterlyDiscount(String(quarterlyDiscountRate));
+      setSemiAnnualDiscount(String(semiAnnualDiscountRate));
+      setYearlyDiscount(String(yearlyDiscountRate));
+      showSaveToast("Discounts saved successfully");
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the discount details. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveAvailability = async () => {
+    if (!listing || propertyInfoSaving) return;
+    setAdvanceNoticeOpen(false);
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const minimumLeaseMonths = Number(availability.min) || 0;
+      const maximumLeaseMonths = Number(availability.max) || minimumLeaseMonths;
+      const advanceNotice = availability.advanceNotice;
+      const allowSameDayRequests = advanceNotice === "Same day";
+      const availabilityPayload = {
+        ...listing,
+        minimumLeaseMonths,
+        maximumLeaseMonths,
+        advanceNotice,
+        allowSameDay: allowSameDayRequests,
+      };
+      const availabilityChanged = listing.minimumLeaseMonths !== minimumLeaseMonths
+        || listing.maximumLeaseMonths !== maximumLeaseMonths
+        || (listing.advanceNotice || "3 days") !== advanceNotice
+        || Boolean(listing.allowSameDay) !== allowSameDayRequests;
+      if (!availabilityChanged) {
+        setAdvanceNoticeOpen(false);
+        setAvailabilityView("main");
+        showSaveToast("No availability changes to save");
+        return;
+      }
+      if (import.meta.env.DEV) console.info("[ListingEditor] Updating availability", availabilityPayload);
+      const updatedListing = await updateListing(availabilityPayload);
+      setListing((current) => current ? { ...current, ...availabilityPayload, ...updatedListing, minimumLeaseMonths, maximumLeaseMonths, advanceNotice, allowSameDay: allowSameDayRequests } : current);
+      setAvailability((current) => ({ ...current, min: String(minimumLeaseMonths), max: String(maximumLeaseMonths), sameDayTime: allowSameDayRequests ? "Yes" : "No" }));
+      setAdvanceNoticeOpen(false);
+      setAvailabilityView("main");
+      showSaveToast("Availability saved successfully");
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the availability details. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveGuestCount = async () => {
+    if (!listing || !listing.rentalUnit?.rentalUnitID || propertyInfoSaving) return;
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const maximumOccupants = Math.max(1, guestsCount);
+      const rentalUnit = listing.rentalUnit;
+      const rentalUnitPayload = {
+        ...rentalUnit,
+        rentalUnitID: rentalUnit.rentalUnitID,
+        propertyID: rentalUnit.propertyID,
+        unitTypeID: rentalUnit.unitTypeID,
+        maximumOccupants,
+      };
+      if (rentalUnit.maximumOccupants === maximumOccupants) {
+        showSaveToast("No guest capacity changes to save");
+        return;
+      }
+      if (import.meta.env.DEV) console.info("[ListingEditor] Updating guest capacity", rentalUnitPayload);
+      const updatedRentalUnit = await updateRentalUnit(rentalUnitPayload);
+      setListing((current) => current ? {
+        ...current,
+        rentalUnit: { ...current.rentalUnit, ...rentalUnitPayload, ...updatedRentalUnit, maximumOccupants },
+      } : current);
+      setGuestsCount(maximumOccupants);
+      showSaveToast("Guest capacity saved successfully");
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the guest capacity. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveDescription = async () => {
+    if (!listing || !descriptionView || propertyInfoSaving) return;
+    const description = descriptionFields[descriptionView] || "";
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      if (descriptionView === "listing") {
+        if (description === listing.description) {
+          setDescriptionView(null);
+          showSaveToast("No listing description changes to save");
+          return;
+        }
+        const updatedListing = await updateListing({ ...listing, description });
+        setListing((current) => current ? { ...current, ...updatedListing, description } : current);
+      } else if (descriptionView === "property" && listing.rentalUnit?.property?.propertyID) {
+        const property = listing.rentalUnit.property;
+        if (description === property.description) {
+          setDescriptionView(null);
+          showSaveToast("No property description changes to save");
+          return;
+        }
+        const updatedProperty = await updateProperty({
+          propertyID: property.propertyID,
+          organizationID: property.organizationID,
+          addressID: property.addressID,
+          name: property.name,
+          propertyType: property.propertyType,
+          yearBuilt: property.yearBuilt,
+          timeZone: property.timeZone,
+          description,
+          status: property.status,
+          capturedDate: property.capturedDate,
+          capturedBy: property.capturedBy,
+          updatedDate: property.updatedDate,
+          updatedBy: property.updatedBy,
+        } as typeof property);
+        setListing((current) => current ? { ...current, rentalUnit: { ...current.rentalUnit, property: { ...current.rentalUnit.property, ...updatedProperty, description } } } : current);
+      }
+      setDescriptionView(null);
+      showSaveToast(`${descriptionView === "property" ? "Property" : "Listing"} description saved successfully`);
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the description. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const savePropertyDetails = async () => {
+    if (!listing || propertyInfoSaving) return;
+    const property = listing.rentalUnit?.property;
+    const rentalUnit = listing.rentalUnit;
+    if (!property?.propertyID || !rentalUnit?.rentalUnitID) {
+      setPropertyInfoSaveError("Property details are not available to save yet.");
+      return;
+    }
+
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const normalizedPropertyName = propertyName.trim() || title.trim() || property.name || "Property";
+      const normalizedUnitName = unitName.trim() || rentalUnit.name || property.name || "Unit";
+      const normalizedTimeZone = timeZone.trim() || property.timeZone || "UTC";
+      const normalizedBedrooms = Number.parseInt(String(bedroomCount).trim(), 10) || 0;
+      const normalizedBathrooms = Number.parseFloat(String(bathroomCount).trim()) || 0;
+      const normalizedBeds = Number.parseInt(String(bedCount).trim(), 10) || 0;
+      const normalizedYearBuilt = Number.parseInt(yearBuilt.trim(), 10) || property.yearBuilt || listing.yearBuilt || 0;
+      const normalizedSquareFeet = Number.parseFloat(propertySize.trim()) || rentalUnit.squareFeet || listing.squareFeet || 0;
+      const isPetFriendly = safetyChoices["Pets allowed"] === "yes";
+      const furnishedLabel = listing.isFurnished ? "Furnished" : "Unfurnished";
+      const petLabel = isPetFriendly ? "Pet-friendly" : "No pets";
+      const generatedListingTitle = `${normalizedPropertyName} - ${normalizedUnitName}`.slice(0, 50);
+      const generatedListingDescription = `${normalizedUnitName} at ${normalizedPropertyName}. ${normalizedBedrooms} bedroom${normalizedBedrooms === 1 ? "" : "s"}, ${normalizedBathrooms} bathroom${normalizedBathrooms === 1 ? "" : "s"}, ${furnishedLabel.toLowerCase()}, and ${petLabel.toLowerCase()}.`;
+
+      const propertyPayload = {
+        propertyID: property.propertyID,
+        organizationID: property.organizationID,
+        addressID: property.addressID,
+        name: normalizedPropertyName,
+        propertyType: propertyTypeValue || property.propertyType || "OTHER",
+        yearBuilt: normalizedYearBuilt,
+        timeZone: normalizedTimeZone,
+        description: property.description || "",
+        status: property.status || "ACTIVE",
+        capturedDate: property.capturedDate,
+        capturedBy: property.capturedBy,
+        updatedDate: property.updatedDate,
+        updatedBy: property.updatedBy,
+      } as typeof property;
+
+      const rentalUnitPayload = {
+        ...rentalUnit,
+        rentalUnitID: rentalUnit.rentalUnitID,
+        propertyID: rentalUnit.propertyID,
+        unitTypeID: rentalUnit.unitTypeID,
+        name: normalizedUnitName,
+        unitNumber: rentalUnit.unitNumber || "",
+        floorNumber: String(listingFloorNumber),
+        bedrooms: normalizedBedrooms,
+        bathrooms: normalizedBathrooms,
+        beds: normalizedBeds,
+        squareFeet: normalizedSquareFeet,
+        maximumOccupants: rentalUnit.maximumOccupants ?? 0,
+        notes: rentalUnit.notes || "",
+        status: rentalUnit.status || "ACTIVE",
+      };
+
+      const listingPayload = {
+        ...listing,
+        listingID: listing.listingID,
+        rentalUnitID: listing.rentalUnitID || rentalUnit.rentalUnitID,
+        listingTypeID: listingTypeOptions.find((item) => item.name === listingType)?.listingTypeID || listing.listingTypeID,
+        title: generatedListingTitle,
+        description: generatedListingDescription,
+        bedrooms: normalizedBedrooms,
+        bathrooms: normalizedBathrooms,
+        beds: normalizedBeds,
+        squareFeet: normalizedSquareFeet,
+        yearBuilt: normalizedYearBuilt,
+        isFurnished: listing.isFurnished,
+        isPetFriendly,
+        notes: listing.notes?.trim() || "N/A",
+      };
+      const propertyChanged = propertyPayload.name !== property.name
+        || propertyPayload.propertyType !== property.propertyType
+        || propertyPayload.yearBuilt !== property.yearBuilt
+        || propertyPayload.timeZone !== property.timeZone;
+      const rentalUnitChanged = rentalUnitPayload.name !== rentalUnit.name
+        || rentalUnitPayload.floorNumber !== rentalUnit.floorNumber
+        || rentalUnitPayload.bedrooms !== rentalUnit.bedrooms
+        || rentalUnitPayload.bathrooms !== rentalUnit.bathrooms
+        || rentalUnitPayload.beds !== rentalUnit.beds
+        || rentalUnitPayload.squareFeet !== rentalUnit.squareFeet;
+      const listingChanged = listingPayload.listingTypeID !== listing.listingTypeID
+        || listingPayload.title !== listing.title
+        || listingPayload.description !== listing.description
+        || listingPayload.bedrooms !== listing.bedrooms
+        || listingPayload.bathrooms !== listing.bathrooms
+        || listingPayload.squareFeet !== listing.squareFeet
+        || listingPayload.yearBuilt !== listing.yearBuilt
+        || listingPayload.isPetFriendly !== (listing as Listing & { isPetFriendly?: boolean }).isPetFriendly;
+      if (!propertyChanged && !rentalUnitChanged && !listingChanged) {
+        showSaveToast("No property changes to save");
+        return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.info("[ListingEditor] Updating property", propertyPayload);
+        console.info("[ListingEditor] Updating rental unit", rentalUnitPayload);
+        console.info("[ListingEditor] Updating listing", listingPayload);
+      }
+
+      const [updatedProperty, updatedRentalUnit, updatedListing] = await Promise.all([
+        propertyChanged ? updateProperty(propertyPayload) : Promise.resolve(property),
+        rentalUnitChanged ? updateRentalUnit(rentalUnitPayload) : Promise.resolve(rentalUnit),
+        listingChanged ? updateListing(listingPayload) : Promise.resolve(listing),
+      ]);
+
+      const savedListing = {
+        ...listingPayload,
+        ...updatedListing,
+        title: generatedListingTitle,
+        description: generatedListingDescription,
+        listingTypeID: listingPayload.listingTypeID,
+        bedrooms: normalizedBedrooms,
+        bathrooms: normalizedBathrooms,
+        squareFeet: normalizedSquareFeet,
+        yearBuilt: normalizedYearBuilt,
+        isFurnished: listing.isFurnished,
+        isPetFriendly,
+        rentalUnit: {
+          ...rentalUnit,
+          ...rentalUnitPayload,
+          ...updatedRentalUnit,
+          name: normalizedUnitName,
+          floorNumber: String(listingFloorNumber),
+          bedrooms: normalizedBedrooms,
+          bathrooms: normalizedBathrooms,
+          beds: normalizedBeds,
+          squareFeet: normalizedSquareFeet,
+          property: {
+            ...property,
+            ...propertyPayload,
+            ...updatedProperty,
+            name: normalizedPropertyName,
+            timeZone: normalizedTimeZone,
+            yearBuilt: normalizedYearBuilt,
+          },
+        },
+      };
+
+      setListing((current) => current ? {
+        ...current,
+        ...savedListing,
+      } : current);
+
+      setPropertyName(updatedProperty.name || normalizedPropertyName);
+      setUnitName(updatedRentalUnit.name || normalizedUnitName);
+      setTimeZone(updatedProperty.timeZone || normalizedTimeZone);
+      setTitle(generatedListingTitle);
+      setDescriptionFields((current) => ({ ...current, listing: generatedListingDescription }));
+      showSaveToast("Property details saved successfully");
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the property details. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const toggleAmenity = async (name: string) => {
+    if (!listing || propertyInfoSaving) return;
+    const isAdded = addedAmenities.includes(name);
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const existingAmenities = listing.listingAmenities ?? [];
+      const getAmenityName = (item: ListingAmenity) => {
+        const relation = item.amenityAmenityCatalog || (item as ListingAmenity & { amenityCatalog?: { name?: string } }).amenityCatalog;
+        return relation?.name || amenityCatalogRecords.find((catalog) => catalog.amenityID === item.amenityID)?.name;
+      };
+      if (isAdded) {
+        const linksToDelete = existingAmenities.filter((item) => getAmenityName(item) === name && item.listingAmenityID);
+        await Promise.all(linksToDelete.map((item) => deleteListingAmenity(item.listingAmenityID)));
+        const deletedIDs = new Set(linksToDelete.map((item) => item.listingAmenityID));
+        setAddedAmenities((current) => current.filter((item) => item !== name));
+        setListing((current) => current ? { ...current, listingAmenities: (current.listingAmenities ?? []).filter((item) => !deletedIDs.has(item.listingAmenityID)) } : current);
+        showSaveToast(`${name} removed successfully`);
+        return;
+      }
+
+      const catalog = amenityCatalogRecords.find((item) => item.name === name);
+      const ensuredCatalog = catalog || await createAmenityCatalog({
+        name,
+        category: amenityCatalog.find((item) => item.name === name)?.category || amenityCategory,
+        isActive: true,
+        capturedBy,
+      } as AmenityCatalog);
+      if (!catalog) setAmenityCatalogRecords((current) => [...current, ensuredCatalog]);
+      const createdAmenity = await createListingAmenity({
+        listingID: listing.listingID,
+        amenityID: ensuredCatalog.amenityID,
+        notes: "",
+        capturedBy,
+      } as ListingAmenity);
+      setAddedAmenities((current) => current.includes(name) ? current : [...current, name]);
+      setListing((current) => current ? { ...current, listingAmenities: [...(current.listingAmenities ?? []), { ...createdAmenity, amenityAmenityCatalog: ensuredCatalog }] } : current);
+      showSaveToast(`${name} added successfully`);
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not update that amenity. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
   };
   const setSafetyChoice = (item: string, choice: "yes" | "no") => {
     setSafetyChoices((current) => ({ ...current, [item]: choice }));
@@ -640,17 +1235,155 @@ export default function HostingListingEditorPage() {
 
   const hostName = primaryOwner?.user?.firstName || listing.organization?.displayName || listing.organization?.legalName || listing.capturedBy || "Host";
   const hostingDuration = getHostingDuration(listing.publishedAt);
+  const activeOrganizationMembers = organizationMembers.filter((member) => member.status?.toUpperCase() === "ACTIVE");
   const orderedOrganizationMembers = [
-    ...organizationMembers.filter((member) => member.isPrimaryOwner),
-    ...organizationMembers.filter((member) => !member.isPrimaryOwner),
+    ...activeOrganizationMembers.filter((member) => member.isPrimaryOwner),
+    ...activeOrganizationMembers.filter((member) => !member.isPrimaryOwner),
   ];
-  const selectedMember = orderedOrganizationMembers.find((member) => member.organizationMemberID === selectedCohost) ?? primaryOwner ?? orderedOrganizationMembers[0];
+  const selectedMember = orderedOrganizationMembers.find((member) => member.organizationMemberID === selectedCohost) ?? orderedOrganizationMembers.find((member) => member.isPrimaryOwner) ?? orderedOrganizationMembers[0];
   const memberName = (member: OrganizationMember) => `${member.user?.firstName || ""} ${member.user?.lastName || ""}`.trim() || `Member ${member.userID}`;
   const memberImage = (member: OrganizationMember) => member.user?.imageUrl || faceImage;
+  const saveHostMember = async (patch: Partial<OrganizationMember>, message: string) => {
+    if (!hostMember || propertyInfoSaving) return;
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const updatedMember = await updateOrganizationMember({ ...hostMember, ...patch });
+      setHostMember(updatedMember);
+      setOrganizationMembers((current) => current.map((member) => member.organizationMemberID === updatedMember.organizationMemberID ? { ...member, ...updatedMember } : member));
+      showSaveToast(message);
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the host profile. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const hostFactField = (key: string): keyof OrganizationMember | null => ({
+    travel: "travelDestination",
+    work: "workDescription",
+    home: "homeUniqueDescription",
+    pets: "petsDescription",
+    decade: "birthDecade",
+    school: "schoolDescription",
+  }[key] as keyof OrganizationMember | undefined) || null;
+  const sendCohostInvite = async () => {
+    if (!listing?.organizationID || inviteSending || !inviteName.trim() || !inviteEmail.trim() || !invitePhone.trim()) return;
+    setInviteError("");
+    setInviteSending(true);
+    try {
+      const invitation = await inviteCohost({
+        organizationID: listing.organizationID,
+        email: inviteEmail.trim().toLowerCase(),
+        cohostName: inviteName.trim(),
+        phoneNumber: invitePhone.trim(),
+        cohostAccess: invitePermission,
+      });
+      const invitationSummary: CohostInvitation = {
+        cohostInvitationID: invitation.cohostInvitationID,
+        organizationID: listing.organizationID,
+        email: invitation.email,
+        cohostName: invitation.cohostName || inviteName.trim(),
+        phoneNumber: invitation.phoneNumber,
+        cohostAccess: invitation.cohostAccess,
+        status: invitation.status,
+        expiresAtUtc: invitation.expiresAtUtc,
+        capturedDateUtc: new Date().toISOString(),
+        updatedDateUtc: new Date().toISOString(),
+      };
+      setPendingCohostInvitations((current) => [invitationSummary, ...current.filter((item) => item.cohostInvitationID !== invitationSummary.cohostInvitationID)]);
+      setAllCohostInvitations((current) => [invitationSummary, ...current.filter((item) => item.cohostInvitationID !== invitationSummary.cohostInvitationID)]);
+      setInviteDialogOpen(false);
+      setInviteStep(1);
+      setInviteName("");
+      setInviteEmail("");
+      setInvitePhone("");
+      showSaveToast("Co-host invitation sent successfully");
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setInviteError(apiMessage || (error instanceof Error ? error.message : "We could not send the invitation. Please try again."));
+    } finally {
+      setInviteSending(false);
+    }
+  };
+  const revokeInvitation = async (cohostInvitationID: string) => {
+    if (!listing?.organizationID || revokingInvitationID) return;
+    setCohostInvitationsError("");
+    setRevokingInvitationID(cohostInvitationID);
+    try {
+      await revokeCohostInvitation(cohostInvitationID);
+      const [pendingInvitations, allInvitations] = await Promise.all([
+        getCohostInvitationsByOrganization(listing.organizationID),
+        getAllCohostInvitationsByOrganization(listing.organizationID),
+      ]);
+      setPendingCohostInvitations(pendingInvitations);
+      setAllCohostInvitations(allInvitations);
+      showSaveToast("Co-host invitation revoked successfully");
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setCohostInvitationsError(apiMessage || (error instanceof Error ? error.message : "We could not revoke the invitation."));
+    } finally {
+      setRevokingInvitationID("");
+    }
+  };
+  const reactivateInvitation = async (cohostInvitationID: string) => {
+    if (!listing?.organizationID || reactivatingInvitationID) return;
+    setCohostInvitationsError("");
+    setReactivatingInvitationID(cohostInvitationID);
+    try {
+      await reactivateRevokedCohost(cohostInvitationID);
+      const [pendingInvitations, allInvitations] = await Promise.all([
+        getCohostInvitationsByOrganization(listing.organizationID),
+        getAllCohostInvitationsByOrganization(listing.organizationID),
+      ]);
+      setPendingCohostInvitations(pendingInvitations);
+      setAllCohostInvitations(allInvitations);
+      showSaveToast("Co-host reactivated successfully");
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setCohostInvitationsError(apiMessage || (error instanceof Error ? error.message : "We could not reactivate the co-host."));
+    } finally {
+      setReactivatingInvitationID("");
+    }
+  };
+  const invitationStatus = (invitation: CohostInvitation) => {
+    const status = invitation.status.toUpperCase();
+    return ["PENDING", "INVITED"].includes(status) && new Date(invitation.expiresAtUtc).getTime() <= invitationReferenceTime ? "EXPIRED" : status;
+  };
+  const formatInviteDate = (value?: string | null) => value
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+    : "Not available";
+  const displayedCohostInvitations = cohostInvitationView === "pending" ? pendingCohostInvitations : allCohostInvitations;
+  const cohostInvitationPanel: ReactElement = (
+    <section className="hosting-editor-cohost-invitations" aria-label="Co-host invitations">
+      <div className="hosting-editor-cohost-invitations-head">
+        <div><h3>Invitations</h3><p>{cohostInvitationView === "pending" ? "Invites waiting for a response." : "Complete invitation history for this organization."}</p></div>
+        <span>{cohostInvitationView === "pending" ? pendingCohostInvitations.length : allCohostInvitations.length}</span>
+      </div>
+      <div className="hosting-editor-cohost-invitation-tabs" role="tablist" aria-label="Invitation views">
+        <button type="button" role="tab" aria-selected={cohostInvitationView === "pending"} className={cohostInvitationView === "pending" ? "is-active" : ""} onClick={() => setCohostInvitationView("pending")}>Pending <span>{pendingCohostInvitations.length}</span></button>
+        <button type="button" role="tab" aria-selected={cohostInvitationView === "history"} className={cohostInvitationView === "history" ? "is-active" : ""} onClick={() => setCohostInvitationView("history")}>History <span>{allCohostInvitations.length}</span></button>
+      </div>
+      {cohostInvitationsLoading ? <p className="hosting-editor-cohost-invitations-state">Loading invitations...</p>
+        : cohostInvitationsError ? <p className="hosting-editor-cohost-invitations-state is-error">{cohostInvitationsError}</p>
+        : displayedCohostInvitations.length === 0 ? <p className="hosting-editor-cohost-invitations-state">{cohostInvitationView === "pending" ? "No pending invitations." : "No invitation history yet."}</p>
+        : <div className="hosting-editor-cohost-invitation-list">{[...displayedCohostInvitations].sort((left, right) => new Date(right.updatedDateUtc || right.capturedDateUtc).getTime() - new Date(left.updatedDateUtc || left.capturedDateUtc).getTime()).map((invitation) => {
+          const status = invitationStatus(invitation);
+          const statusDate = status === "ACCEPTED" ? invitation.acceptedAtUtc : status === "DECLINED" ? invitation.declinedAtUtc : invitation.expiresAtUtc;
+          return <article className="hosting-editor-cohost-invitation-card" key={invitation.cohostInvitationID}>
+            <div className="hosting-editor-cohost-invitation-card-head"><span className={`status-${status.toLowerCase()}`}>{status}</span><small>{status === "PENDING" || status === "EXPIRED" ? "Expires" : "Updated"} {formatInviteDate(statusDate)}</small></div>
+            {invitation.cohostName && <span className="hosting-editor-cohost-invitation-identity">{invitation.cohostName}</span>}
+            <span className="hosting-editor-cohost-invitation-identity">{invitation.email}</span>
+            <span className="hosting-editor-cohost-invitation-identity">{invitation.phoneNumber || "No phone number"}</span>
+            <footer><span>{invitation.cohostAccess}</span>{["PENDING", "INVITED", "ACCEPTED"].includes(status) && <button type="button" disabled={Boolean(revokingInvitationID || reactivatingInvitationID)} onClick={() => void revokeInvitation(invitation.cohostInvitationID)}>{revokingInvitationID === invitation.cohostInvitationID ? "Revoking..." : status === "ACCEPTED" ? "Revoke access" : "Revoke invite"}</button>}{status === "REVOKED" && <button type="button" className="is-reactivate" disabled={Boolean(revokingInvitationID || reactivatingInvitationID)} onClick={() => void reactivateInvitation(invitation.cohostInvitationID)}>{reactivatingInvitationID === invitation.cohostInvitationID ? "Reactivating..." : "Reactivate co-host"}</button>}</footer>
+          </article>;
+        })}</div>}
+    </section>
+  );
 
   return (
     <main className="marketplace hosting-page hosting-editor-page">
       <HostingHeader />
+      {saveToast && <div className="hosting-editor-save-toast" role="status">{saveToast}</div>}
       <div className="hosting-editor-layout">
         <aside className="hosting-editor-sidebar">
           <button type="button" className="hosting-editor-view-button" onClick={() => navigate(`/homes/${id}`)}><EyeIcon /> View</button>
@@ -794,14 +1527,17 @@ export default function HostingListingEditorPage() {
                 </div>
                 <div className="hosting-editor-main-header-actions">
                   <button type="button" className="hosting-editor-pill" onClick={() => setPhotoCategory(null)}><ImageIcon /> All photos</button>
-                  <button type="button" className="hosting-editor-icon-button" aria-label="Add photos"><PlusIcon /></button>
+                  <label className="hosting-editor-icon-button" aria-label="Add photos" title="Add photos">
+                    <PlusIcon />
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { queueEditorPhotos(event.target.files); event.target.value = ""; }} />
+                  </label>
                 </div>
               </div>
               {photoCategory ? (
                 <div className="hosting-editor-category-gallery">
                   <button type="button" className="hosting-editor-gallery-back" onClick={() => setPhotoCategory(null)}><ArrowLeftIcon /> All photos</button>
                   <h3>{photoCategory}</h3>
-                  <div className="hosting-editor-photo-grid">{(listing.listingPhotos ?? []).filter((photo) => (photoCategory === "Cover photo" ? photo.isCoverPhoto || photo.location === "CoverPhoto" : !photo.isCoverPhoto && photo.location !== "CoverPhoto")).sort((left, right) => left.displayOrder - right.displayOrder).map((photo, index, photos) => <div className="hosting-editor-gallery-photo" key={photo.listingPhotoID}><img src={photo.url} alt={photo.altText || `${photoCategory} photo ${index + 1}`} /><small>{index + 1} of {photos.length}</small></div>)}</div>
+                  <div className="hosting-editor-photo-grid">{(listing.listingPhotos ?? []).filter((photo) => photoCategory === "Cover photo" ? photo.isCoverPhoto || photo.location === "CoverPhoto" : photoLocationLabel(photo.location) === photoCategory).sort((left, right) => left.displayOrder - right.displayOrder).map((photo, index, photos) => <div className="hosting-editor-gallery-photo" key={photo.listingPhotoID}><img src={photo.url} alt={photo.altText || `${photoCategory} photo ${index + 1}`} /><small>{index + 1} of {photos.length}</small></div>)}</div>
                 </div>
               ) : <div className="hosting-editor-photo-grid">
                 {editorPhotoRooms.map((room) => (
@@ -812,12 +1548,69 @@ export default function HostingListingEditorPage() {
                   </button>
                 ))}
               </div>}
+              {photoUploadOpen && <div className="hosting-photo-upload-modal-backdrop" role="presentation" onClick={(event) => { event.stopPropagation(); closeEditorPhotoUpload(); }}>
+                <div className="hosting-photo-upload-modal hosting-editor-photo-upload-modal" role="dialog" aria-modal="true" aria-label="Upload photos" onClick={(event) => event.stopPropagation()}>
+                  <div className="hosting-photo-upload-modal-header">
+                    <button type="button" aria-label="Close" disabled={photoUploading} onClick={closeEditorPhotoUpload}>×</button>
+                    <div><strong>Upload photos</strong><span>{pendingPhotoUploads.length} item{pendingPhotoUploads.length === 1 ? "" : "s"} selected</span></div>
+                    <label aria-label="Add more photos" className={photoUploading ? "is-disabled" : ""}><PlusIcon /><input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={photoUploading} onChange={(event) => { queueEditorPhotos(event.target.files); event.target.value = ""; }} /></label>
+                  </div>
+                  <div className="hosting-photo-upload-modal-grid">
+                    {pendingPhotoUploads.map((item) => <div className="hosting-photo-upload-modal-item hosting-editor-photo-upload-item" key={item.id}>
+                      <img src={item.url} alt={item.file.name} />
+                      <button type="button" aria-label={`Remove ${item.file.name}`} disabled={photoUploading} onClick={() => removeQueuedEditorPhoto(item.id)}>×</button>
+                      <label className="hosting-editor-photo-location">Location<CustomSelect value={photoLocationLabel(item.location)} options={photoLocationOptions.map((option) => option.label)} onChange={(value) => setPendingPhotoUploads((current) => current.map((photo) => photo.id === item.id ? { ...photo, location: photoLocationOptions.find((option) => option.label === value)?.value || "Additional" } : photo))} ariaLabel="Photo location" /></label>
+                    </div>)}
+                  </div>
+                  <div className="hosting-photo-upload-modal-footer">
+                    <span className={`hosting-photo-upload-status ${photoUploadError ? "is-error" : ""} ${photoUploading ? "is-uploading" : ""}`} role={photoUploadError ? "alert" : "status"}>{photoUploadError || (photoUploading ? "Uploading photos..." : "Ready to upload")}</span>
+                    <button type="button" disabled={photoUploading} onClick={closeEditorPhotoUpload}>Cancel</button>
+                    <button type="button" className="is-primary" disabled={pendingPhotoUploads.length === 0 || photoUploading} onClick={() => void uploadEditorPhotos()}>{photoUploading ? "Uploading..." : "Upload"}</button>
+                  </div>
+                </div>
+              </div>}
             </div>
           )}
 
           {activeSection.kind === "property-type" && (
             <div className="hosting-editor-form">
               <h2>Property type</h2>
+              <div className="hosting-editor-property-overview-card">
+                <div className="hosting-editor-property-overview-header">
+                  <div>
+                    <span className="hosting-editor-property-overview-kicker">Property overview</span>
+                    <strong>{propertyName || title || "Untitled stay"}</strong>
+                  </div>
+                  <span className="hosting-editor-property-overview-pill">Live</span>
+                </div>
+                {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
+                <div className="hosting-editor-property-grid">
+                  <label className="hosting-editor-field hosting-editor-property-field">
+                    <span>Time zone</span>
+                    <input value={timeZone} onChange={(event) => setTimeZone(event.target.value)} />
+                  </label>
+                  <label className="hosting-editor-field hosting-editor-property-field">
+                    <span>Property name</span>
+                    <input value={propertyName} onChange={(event) => setPropertyName(event.target.value)} />
+                  </label>
+                  <label className="hosting-editor-field hosting-editor-property-field">
+                    <span>Unit name</span>
+                    <input value={unitName} onChange={(event) => setUnitName(event.target.value)} />
+                  </label>
+                  <label className="hosting-editor-field hosting-editor-property-field">
+                    <span>Bedrooms</span>
+                    <input type="number" min="0" value={bedroomCount} onChange={(event) => setBedroomCount(event.target.value)} />
+                  </label>
+                  <label className="hosting-editor-field hosting-editor-property-field">
+                    <span>Bathrooms</span>
+                    <input type="number" min="0" step="0.5" value={bathroomCount} onChange={(event) => setBathroomCount(event.target.value)} />
+                  </label>
+                  <label className="hosting-editor-field hosting-editor-property-field">
+                    <span>Beds</span>
+                    <input type="number" min="0" value={bedCount} onChange={(event) => setBedCount(event.target.value)} />
+                  </label>
+                </div>
+              </div>
               <label className="hosting-editor-field">
                 <span>Which is most like your place?</span>
                 <CustomSelect
@@ -841,7 +1634,7 @@ export default function HostingListingEditorPage() {
                 <span>Listing type</span>
                 <CustomSelect
                   value={listingType}
-                  options={["Entire place", "Private room", "Shared room"]}
+                  options={listingTypeOptions.map((item) => item.name)}
                   onChange={setListingType}
                   ariaLabel="Listing type"
                 />
@@ -849,11 +1642,11 @@ export default function HostingListingEditorPage() {
               </label>
               <div className="hosting-editor-counter-row">
                 <span>How many floors in the building?</span>
-                <div className="hosting-editor-counter"><button type="button" aria-label="Decrease">−</button><strong>1</strong><button type="button" aria-label="Increase">+</button></div>
+                <div className="hosting-editor-counter"><button type="button" aria-label="Decrease building floors" disabled={buildingFloorCount <= 1} onClick={() => { const nextCount = Math.max(1, buildingFloorCount - 1); setBuildingFloorCount(nextCount); setListingFloorNumber((current) => Math.min(current, nextCount)); }}>−</button><strong>{buildingFloorCount}</strong><button type="button" aria-label="Increase building floors" onClick={() => setBuildingFloorCount((current) => current + 1)}>+</button></div>
               </div>
               <div className="hosting-editor-counter-row">
                 <span>Which floor is the listing on?</span>
-                <div className="hosting-editor-counter"><button type="button" aria-label="Decrease">−</button><strong>1</strong><button type="button" aria-label="Increase">+</button></div>
+                <div className="hosting-editor-counter"><button type="button" aria-label="Decrease listing floor" disabled={listingFloorNumber <= 0} onClick={() => setListingFloorNumber((current) => Math.max(0, current - 1))}>−</button><strong>{listingFloorNumber}</strong><button type="button" aria-label="Increase listing floor" disabled={listingFloorNumber >= buildingFloorCount} onClick={() => setListingFloorNumber((current) => Math.min(buildingFloorCount, current + 1))}>+</button></div>
               </div>
               <label className="hosting-editor-field">
                 <span>Year built</span>
@@ -880,6 +1673,10 @@ export default function HostingListingEditorPage() {
               <button type="button" className="hosting-editor-price-box" onClick={() => setPricingView("smart")}>
                 <span>${formatCurrency(priceRange.min || "0")} CAD – ${formatCurrency(priceRange.max || "0")} CAD</span>
               </button>
+              <div className="hosting-editor-security-deposit-summary">
+                <span>Security deposit</span>
+                <strong>${formatCurrency(securityDeposit || "0")} CAD</strong>
+              </div>
               <div className="hosting-editor-toggle-row">
                 <div>
                   <strong>Smart Pricing</strong>
@@ -930,6 +1727,19 @@ export default function HostingListingEditorPage() {
                 </label>
               </div>
               <small className="hosting-editor-hint">*The price the guest sees could be lower than the minimum nightly price you set if you have discounts or promotions.</small>
+              <label className="hosting-editor-price-field hosting-editor-security-deposit-field">
+                <span>Security deposit</span>
+                <div>
+                  <b>$</b>
+                  <input
+                    value={securityDeposit}
+                    inputMode="numeric"
+                    onChange={(event) => setSecurityDeposit(formatAmount(event.target.value))}
+                    placeholder="0"
+                  />
+                </div>
+              </label>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
 
@@ -1032,29 +1842,22 @@ export default function HostingListingEditorPage() {
                         </li>
                       ))}
                     </ul>
-                    <div className="hosting-editor-toggle-row">
+                    <div className="hosting-editor-toggle-row is-read-only">
                       <div>
                         <strong>Allow requests for the same day</strong>
-                        <span>You&apos;ll review and approve each reservation request.</span>
+                        <span>{availability.advanceNotice === "Same day" ? "Yes, same-day requests are allowed." : "No, same-day requests are not allowed."}</span>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={allowSameDay}
-                        className={`hosting-editor-switch ${allowSameDay ? "is-on" : ""}`}
-                        onClick={() => setAllowSameDay((current) => !current)}
-                      >
-                        <span>{allowSameDay && <CheckIcon />}</span>
-                      </button>
+                      <strong>{availability.advanceNotice === "Same day" ? "Yes" : "No"}</strong>
                     </div>
-                    <button type="button" className="hosting-editor-save hosting-editor-advance-save" onClick={() => setAdvanceNoticeOpen(false)}>Save</button>
+                    <button type="button" className="hosting-editor-save hosting-editor-advance-save" disabled={propertyInfoSaving} onClick={() => void saveAvailability()}>{propertyInfoSaving ? "Saving..." : "Save"}</button>
                   </div>
                 )}
               </div>
               <div className="hosting-editor-avail-card is-static">
                 <span>Same day advance notice</span>
-                <strong className="is-regular">{availability.sameDayTime}</strong>
+                <strong className="is-regular">{availability.advanceNotice === "Same day" ? "Yes" : "No"}</strong>
               </div>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
               <button type="button" className="hosting-editor-callout-link">
                 <ExternalLinkIcon /> Find more availability settings like these in the calendar
               </button>
@@ -1090,6 +1893,7 @@ export default function HostingListingEditorPage() {
                 <strong>{guestsCount}</strong>
                 <button type="button" aria-label="Increase guests" onClick={() => setGuestsCount((current) => current + 1)}>+</button>
               </div>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
 
@@ -1097,7 +1901,7 @@ export default function HostingListingEditorPage() {
             <div className="hosting-editor-form">
               <h2>Description</h2>
               <div className="hosting-editor-desc-list">
-                {descriptionItems.map((item) => (
+                {descriptionItems.filter((item) => !["access", "interaction", "notes"].includes(item.key)).map((item) => (
                   <button type="button" className="hosting-editor-desc-row" key={item.key} onClick={() => setDescriptionView(item.key)}>
                     <div>
                       <strong>{item.label}</strong>
@@ -1117,6 +1921,7 @@ export default function HostingListingEditorPage() {
             return (
               <div className="hosting-editor-form">
                 <h2>{item.label}</h2>
+                {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
                 {item.hint && <p>{item.hint}</p>}
                 {item.maxLength && <small className="hosting-editor-desc-count">{value.length}/{item.maxLength} available</small>}
                 {item.isInput ? (
@@ -1177,6 +1982,7 @@ export default function HostingListingEditorPage() {
                   );
                 })}
               </div>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
 
@@ -1222,6 +2028,7 @@ export default function HostingListingEditorPage() {
                     );
                   })}
               </div>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
 
@@ -1284,8 +2091,9 @@ export default function HostingListingEditorPage() {
               <h2>Title</h2>
               <label className="hosting-editor-field">
                 <span>Listing title</span>
-                <input className="hosting-editor-title-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Daisy's Inn" maxLength={50} />
+                <input className="hosting-editor-title-input" value={title} onChange={(event) => { setTitle(event.target.value); setTitleSaveError(""); }} placeholder="e.g. Daisy's Inn" maxLength={50} />
                 <small>{title.length}/50</small>
+                {titleSaveError && <small className="hosting-editor-save-error" role="alert">{titleSaveError}</small>}
               </label>
             </div>
           )}
@@ -1362,8 +2170,9 @@ export default function HostingListingEditorPage() {
                 {orderedOrganizationMembers.map((member) => <button type="button" key={member.organizationMemberID} className={`hosting-editor-cohost-card ${selectedCohost === member.organizationMemberID && cohostView === "detail" ? "is-active" : ""}`} onClick={() => { setSelectedCohost(member.organizationMemberID); setCohostView("detail"); }}><img src={memberImage(member)} alt={memberName(member)} />{member.isPrimaryOwner && <small>Primary Host</small>}<strong>{memberName(member)}</strong><span>{member.isPrimaryOwner ? "Listing owner" : member.roleName || "Co-host"}</span></button>)}
                 <button type="button" className={`hosting-editor-cohost-card hosting-editor-cohost-add-card ${cohostView === "add" ? "is-active" : ""}`} onClick={() => setCohostView("add")}><i><PlusIcon /></i><strong>Add a co-host</strong></button>
               </div><a href="#feedback">Give feedback</a></div>
+              {cohostView === "overview" && <div className="hosting-editor-cohost-detail">{cohostInvitationPanel}</div>}
               {cohostView === "detail" && selectedMember && <div className="hosting-editor-cohost-detail"><img src={memberImage(selectedMember)} alt={memberName(selectedMember)} /><small>{selectedMember.isPrimaryOwner ? "Primary Host" : "Co-host"}</small><h2>{memberName(selectedMember)}</h2><u>{selectedMember.user?.email || "No email available"}{selectedMember.user?.phoneNumber ? ` · ${selectedMember.user.phoneNumber}` : ""}</u><h3>Permissions</h3><div className="hosting-editor-cohost-detail-row"><strong>{selectedMember.isPrimaryOwner ? "Listing owner" : selectedMember.roleName || "Co-host"}</strong><span>Access to the hosting tools assigned to this organization member.</span></div><h3>{selectedMember.isPrimaryOwner ? "Primary Host" : "Activity log"}</h3><div className="hosting-editor-cohost-detail-row"><strong>{selectedMember.isPrimaryOwner ? "Yes" : "Your activity"}</strong><span>View and manage this co-host&apos;s listing access.</span></div></div>}
-              {cohostView === "add" && <div className="hosting-editor-cohost-detail"><h2>Add a co-host</h2><button type="button" className="hosting-editor-cohost-option" onClick={() => { setInviteStep(1); setInviteDialogOpen(true); }}><MailIcon /><strong>Invite someone you know</strong><span>Text or email them an invitation to help.</span></button><button type="button" className="hosting-editor-cohost-option"><SearchIcon /><strong>Find someone to help</strong><span>Hire a high-quality, local host.</span></button></div>}
+              {cohostView === "add" && <div className="hosting-editor-cohost-detail"><h2>Add a co-host</h2><button type="button" className="hosting-editor-cohost-option" onClick={() => { setInviteStep(1); setInviteDialogOpen(true); }}><MailIcon /><strong>Invite someone you know</strong><span>Text or email them an invitation to help.</span></button>{cohostInvitationPanel}</div>}
             </div>
           )}
 
@@ -1455,7 +2264,7 @@ export default function HostingListingEditorPage() {
                 <p>Select a clear photo that helps guests know who they&apos;ll be communicating with.</p>
                 <div className="hosting-editor-photo-dialog-preview"><img src={hostPhotoDraft} alt="Selected profile preview" /></div>
                 <label className="hosting-editor-photo-dialog-upload"> <CameraIcon /> Choose a photo<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) setHostPhotoDraft(URL.createObjectURL(file)); event.target.value = ""; }} /></label>
-                <div className="hosting-editor-photo-dialog-actions"><button type="button" className="hosting-editor-cancel" onClick={() => setHostPhotoDialogOpen(false)}>Cancel</button><button type="button" className="hosting-editor-save" onClick={() => { setHostPhoto(hostPhotoDraft); setHostPhotoDialogOpen(false); }}><CheckIcon /> Save</button></div>
+                <div className="hosting-editor-photo-dialog-actions"><button type="button" className="hosting-editor-cancel" onClick={() => setHostPhotoDialogOpen(false)}>Cancel</button><button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => { setHostPhoto(hostPhotoDraft); setHostPhotoDialogOpen(false); void saveHostMember({ profilePhotoUrl: hostPhotoDraft }, "Host photo saved successfully"); }}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button></div>
               </div>
             </div>
           )}
@@ -1468,17 +2277,18 @@ export default function HostingListingEditorPage() {
                 <h2 id="host-fact-dialog-title">{item.prompt}</h2>
                 <p>This helps guests get to know you before their stay.</p>
                 <label className="hosting-editor-fact-input"><span>{item.label}:</span><input autoFocus value={hostFactDraft} onChange={(event) => setHostFactDraft(event.target.value)} maxLength={80} /><small>{80 - hostFactDraft.length} characters available</small></label>
-                <div className="hosting-editor-photo-dialog-actions"><button type="button" className="hosting-editor-cancel" onClick={() => setHostFactDialog(null)}>Cancel</button><button type="button" className="hosting-editor-save" onClick={() => { setHostFacts((current) => ({ ...current, [item.key]: hostFactDraft })); setHostFactDialog(null); }}><CheckIcon /> Save</button></div>
+                <div className="hosting-editor-photo-dialog-actions"><button type="button" className="hosting-editor-cancel" onClick={() => setHostFactDialog(null)}>Cancel</button><button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => { const field = hostFactField(item.key); setHostFacts((current) => ({ ...current, [item.key]: hostFactDraft })); setHostFactDialog(null); if (field) void saveHostMember({ [field]: hostFactDraft }, `${item.label} saved successfully`); }}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button></div>
               </div>
             </div>;
           })()}
           {inviteDialogOpen && <div className="hosting-editor-photo-dialog-backdrop" role="presentation" onClick={() => setInviteDialogOpen(false)}>
             <div className="hosting-editor-photo-dialog hosting-editor-invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-dialog-title" onClick={(event) => event.stopPropagation()}>
               <button type="button" className="hosting-editor-photo-dialog-close" aria-label="Close invite dialog" onClick={() => setInviteDialogOpen(false)}>×</button>
-              {inviteStep === 1 && <><h2 id="invite-dialog-title">Add your co-host&apos;s info</h2><p>We&apos;ll text or email them the invite.</p><div className="hosting-editor-invite-fields"><label>Country code<select><option>Canada (+1)</option><option>United States (+1)</option><option>United Kingdom (+44)</option></select></label><label>Phone number<input value={invitePhone} onChange={(event) => setInvitePhone(event.target.value)} placeholder="Phone number" /></label></div><div className="hosting-editor-invite-or"><span>or</span></div><input className="hosting-editor-invite-email" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="Email" /></>}
-              {inviteStep === 2 && <><h2 id="invite-dialog-title">Set your co-host&apos;s permissions</h2><p>You can always change this later. <u>Learn how permissions work</u></p><div className="hosting-editor-permission-options">{[["Full access", "Edit calendar, message guests, manage damage requests, listing, and co-hosts"], ["Calendar and messaging access", "View calendar and message guests"], ["Calendar access", "View calendar"]].map(([label, detail]) => <label key={label}><span><strong>{label}</strong><small>{detail}</small></span><input type="radio" name="invite-permission" checked={invitePermission === label} onChange={() => setInvitePermission(label)} /><i /></label>)}</div></>}
-              {inviteStep === 3 && <><h2 id="invite-dialog-title">Review your invite</h2><img className="hosting-editor-invite-listing-photo" src={photoRooms[0].photo} alt="Daisy's Inn" /><div className="hosting-editor-invite-review"><strong>Daisy&apos;s Inn</strong><small>Saskatoon</small><strong>Co-host&apos;s email</strong><small>{inviteEmail || "No email provided"}</small><strong>Permissions</strong><small>{invitePermission}<br />View calendar and message guests</small></div><p className="hosting-editor-invite-terms">By selecting &quot;Send,&quot; you agree to the <u>Co-Host Terms</u>.</p></>}
-              <div className="hosting-editor-photo-dialog-actions"><button type="button" className="hosting-editor-cancel" onClick={() => inviteStep === 1 ? setInviteDialogOpen(false) : setInviteStep((inviteStep - 1) as 1 | 2 | 3)}>{inviteStep === 1 ? "Cancel" : "Back"}</button><button type="button" className="hosting-editor-save" disabled={inviteStep === 1 && !inviteEmail && !invitePhone} onClick={() => inviteStep === 3 ? setInviteDialogOpen(false) : setInviteStep((inviteStep + 1) as 1 | 2 | 3)}>{inviteStep === 3 ? "Send" : "Next"}</button></div>
+              {inviteStep === 1 && <><h2 id="invite-dialog-title">Add your co-host&apos;s info</h2><p>Enter their name and the contact details that should receive the invite.</p><div className="hosting-editor-invite-fields"><label>Country code<select><option>Canada (+1)</option><option>United States (+1)</option><option>United Kingdom (+44)</option></select></label><label>Phone number<input value={invitePhone} onChange={(event) => setInvitePhone(event.target.value)} placeholder="Phone number" /></label></div><input className="hosting-editor-invite-email" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="Email" /><input className="hosting-editor-invite-email hosting-editor-invite-name" value={inviteName} maxLength={150} onChange={(event) => setInviteName(event.target.value)} placeholder="Full name" /></>}
+              {inviteStep === 2 && <><h2 id="invite-dialog-title">Set your co-host&apos;s permissions</h2><p>You can always change this later. <u>Learn how permissions work</u></p><div className="hosting-editor-permission-options">{cohostPermissionOptions.map(([label, detail]) => <label key={label}><span><strong>{label}</strong><small>{detail}</small></span><input type="radio" name="invite-permission" checked={invitePermission === label} onChange={() => setInvitePermission(label)} /><i /></label>)}</div></>}
+              {inviteStep === 3 && <><h2 id="invite-dialog-title">Review your invite</h2><img className="hosting-editor-invite-listing-photo" src={photoRooms[0].photo} alt="Daisy's Inn" /><div className="hosting-editor-invite-review"><strong>Daisy&apos;s Inn</strong><small>Saskatoon</small><strong>Co-host&apos;s name</strong><small>{inviteName}</small><strong>Co-host&apos;s email</strong><small>{inviteEmail}</small><strong>Permissions</strong><small>{invitePermission}<br />View calendar and message guests</small></div><p className="hosting-editor-invite-terms">By selecting &quot;Send," you agree to the <u>Co-Host Terms</u>.</p></>}
+              {inviteError && <small className="hosting-editor-save-error" role="alert">{inviteError}</small>}
+              <div className="hosting-editor-photo-dialog-actions"><button type="button" className="hosting-editor-cancel" disabled={inviteSending} onClick={() => inviteStep === 1 ? setInviteDialogOpen(false) : setInviteStep((inviteStep - 1) as 1 | 2 | 3)}>{inviteStep === 1 ? "Cancel" : "Back"}</button><button type="button" className="hosting-editor-save" disabled={inviteSending || (inviteStep === 1 && (!inviteName.trim() || !inviteEmail.trim() || !invitePhone.trim()))} onClick={() => inviteStep === 3 ? void sendCohostInvite() : setInviteStep((inviteStep + 1) as 1 | 2 | 3)}>{inviteSending ? "Sending..." : inviteStep === 3 ? "Send" : "Next"}</button></div>
             </div>
           </div>}
           </>}
@@ -1494,21 +2304,21 @@ export default function HostingListingEditorPage() {
           {activeSection.kind === "pricing" && pricingView === "smart" && (
             <footer className="hosting-editor-footer is-split">
               <button type="button" className="hosting-editor-cancel" onClick={() => setPricingView("main")}>Cancel</button>
-              <button type="button" className="hosting-editor-save" onClick={() => setPricingView("main")}><CheckIcon /> Save</button>
+              <button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => void savePricing()}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button>
             </footer>
           )}
 
           {activeSection.kind === "availability" && availabilityView !== "main" && (
             <footer className="hosting-editor-footer is-split">
               <button type="button" className="hosting-editor-cancel" onClick={() => setAvailabilityView("main")}>Cancel</button>
-              <button type="button" className="hosting-editor-save" onClick={() => setAvailabilityView("main")}><CheckIcon /> Save</button>
+              <button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => void saveAvailability()}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button>
             </footer>
           )}
 
           {activeSection.kind === "description" && descriptionView && (
             <footer className="hosting-editor-footer is-split">
               <button type="button" className="hosting-editor-cancel" onClick={() => setDescriptionView(null)}>Cancel</button>
-              <button type="button" className="hosting-editor-save" onClick={() => setDescriptionView(null)}><CheckIcon /> Save</button>
+              <button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => void saveDescription()}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button>
             </footer>
           )}
 
@@ -1541,7 +2351,43 @@ export default function HostingListingEditorPage() {
 
           {activeSection.kind !== "photos" && activeSection.kind !== "amenities" && activeSection.kind !== "map" && activeSection.key !== "rules" && activeSection.key !== "safety" && activeSection.key !== "cancellation" && !(activeSection.kind === "sleeping" && sleepingRoom) && !(activeSection.kind === "pricing" && pricingView === "smart") && !(activeSection.kind === "availability" && availabilityView !== "main") && !(activeSection.kind === "description" && descriptionView) && (
             <footer className="hosting-editor-footer">
-              <button type="button" className="hosting-editor-save"><CheckIcon /> Save</button>
+              <button
+                type="button"
+                className="hosting-editor-save"
+                disabled={
+                  (activeSection.key === "title" && (titleSaving || !title.trim())) ||
+                  (activeSection.kind === "property-type" && propertyInfoSaving) ||
+                  (activeSection.kind === "discount" && propertyInfoSaving) ||
+                  (activeSection.kind === "availability" && propertyInfoSaving) ||
+                  (activeSection.kind === "guests" && propertyInfoSaving)
+                }
+                onClick={
+                  activeSection.key === "title"
+                    ? () => void saveTitle()
+                    : activeSection.kind === "property-type"
+                      ? () => void savePropertyDetails()
+                      : activeSection.kind === "discount"
+                        ? () => void saveDiscounts()
+                      : activeSection.kind === "availability"
+                        ? () => void saveAvailability()
+                      : activeSection.kind === "guests"
+                        ? () => void saveGuestCount()
+                      : undefined
+                }
+              >
+                <CheckIcon />
+                {activeSection.key === "title" && titleSaving
+                  ? "Saving..."
+                  : activeSection.kind === "property-type" && propertyInfoSaving
+                    ? "Saving..."
+                    : activeSection.kind === "discount" && propertyInfoSaving
+                      ? "Saving..."
+                    : activeSection.kind === "availability" && propertyInfoSaving
+                      ? "Saving..."
+                    : activeSection.kind === "guests" && propertyInfoSaving
+                      ? "Saving..."
+                    : "Save"}
+              </button>
             </footer>
           )}
         </section>

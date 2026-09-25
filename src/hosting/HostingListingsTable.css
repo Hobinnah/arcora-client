@@ -1,14 +1,16 @@
 .hosting-listings-actions-heading, .hosting-listings-actions-cell { text-align: right; width: 58px; }.hosting-listings-actions-cell { position: relative; }.hosting-listing-menu { display: inline-block; position: relative; }.hosting-listing-menu-trigger { align-items: center; background: transparent; border: 0; border-radius: 50%; color: var(--muted); cursor: pointer; display: inline-flex; font-size: 22px; height: 34px; justify-content: center; line-height: 1; padding: 0 0 7px; width: 34px; }.hosting-listing-menu-trigger:hover, .hosting-listing-menu-trigger[aria-expanded="true"] { background: #eef7f5; color: var(--teal-dark); }.hosting-listing-menu-popover { background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 32px rgba(23,44,43,.16); min-width: 142px; padding: 5px; position: absolute; right: 0; top: calc(100% + 5px); z-index: 20; }.hosting-listing-menu-popover button { background: transparent; border: 0; border-radius: 7px; color: var(--ink); cursor: pointer; font-size: 11px; padding: 10px 11px; text-align: left; width: 100%; }.hosting-listing-menu-popover button:hover { background: #eef7f5; color: var(--teal-dark); }.hosting-visually-hidden { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .hosting-listings-table { border-collapse: collapse; width: 100%; }
-.hosting-listings-table thead th { border-bottom: 1px solid var(--line); color: var(--ink); font-size: 12px; font-weight: 700; padding: 0 0 14px; text-align: left; }
-.hosting-listings-table tbody td { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 18px 12px 18px 0; vertical-align: middle; }
+.hosting-listings-table thead th { border-bottom: 1px solid var(--line); color: var(--ink); font-size: 12px; font-weight: 700; padding: 11px 12px; text-align: left; }
+.hosting-listings-table tbody td { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 14px 12px; vertical-align: middle; }
 .hosting-listings-table tbody tr:last-child td { border-bottom: 0; }
 .hosting-listings-table tbody tr[tabindex] { cursor: pointer; }
+.hosting-listings-table tbody tr[tabindex] { outline: none; transition: background .15s; }
+.hosting-listings-table tbody tr[tabindex]:hover, .hosting-listings-table tbody tr[tabindex]:focus-visible { background: #f4f6f3; }
 .hosting-listings-table tbody tr[tabindex]:hover td { color: var(--ink); }
 .hosting-listing-cell { align-items: center; display: flex; gap: 14px; }
-.hosting-listing-cell img { border-radius: 10px; height: 48px; object-fit: cover; width: 48px; }
-.hosting-listing-cell span { color: var(--ink); font-size: 14px; font-weight: 600; }
-.hosting-listing-status { align-items: center; color: var(--muted); display: inline-flex; font-size: 13px; gap: 7px; }
+.hosting-listing-cell img { border-radius: 7px; height: 52px; object-fit: cover; width: 64px; }
+.hosting-listing-cell span { color: var(--ink); font-size: 14px; font-weight: 700; }
+.hosting-listing-status { align-items: center; background: #eef0ed; border-radius: 999px; color: var(--muted); display: inline-flex; font-size: 12px; font-weight: 700; gap: 7px; padding: 6px 9px; }
 .hosting-listing-status-dot { background: #9aa39f; border-radius: 50%; height: 8px; width: 8px; }
 .hosting-listing-status.is-listed { color: var(--ink); }
 .hosting-listing-status.is-listed .hosting-listing-status-dot { background: #2f9e44; }

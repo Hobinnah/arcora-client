@@ -18,6 +18,7 @@
 .hosting-editor-checkin-subpage h3 { font-size: 19px; margin: 0 0 12px; }
 .hosting-editor-checkin-subpage p { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .hosting-editor-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.hosting-editor-save-toast { background: #1d6f63; border: 1px solid rgba(255,255,255,.28); border-radius: 10px; box-shadow: 0 12px 28px rgba(23,44,43,.18); color: #fff; font-size: 13px; font-weight: 700; left: 50%; padding: 11px 18px; position: fixed; top: 76px; transform: translateX(-50%); z-index: 30; }
 .hosting-editor-layout { display: grid; flex: 1 1 auto; grid-template-columns: minmax(320px, 560px) 1fr; min-height: 0; }
 .hosting-editor-view-button { align-items: center; background: var(--teal); border: 0; border-radius: 999px; bottom: 24px; box-shadow: 0 5px 14px rgba(23, 44, 43, .2); color: #fff; cursor: pointer; display: flex; font-size: 13px; font-weight: 700; gap: 7px; left: 50%; padding: 12px 18px; position: absolute; transform: translateX(-50%); z-index: 15; }.hosting-editor-view-button:hover { background: var(--teal-dark); transform: translateX(-50%) translateY(-1px); }.hosting-editor-view-button svg { height: 15px; width: 15px; }
 .hosting-editor-sidebar { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; padding: 56px 64px; position: relative; }
@@ -91,7 +92,9 @@
 .hosting-editor-card-thumb img { display: block; height: 100%; object-fit: cover; width: 100%; }
 .hosting-editor-card-thumb span { background: #fff; border-radius: 999px; bottom: 8px; font-size: 11px; font-weight: 700; left: 8px; padding: 4px 10px; position: absolute; }
 .hosting-editor-main { display: flex; flex-direction: column; height: 100%; min-height: 0; position: relative; }
-.hosting-editor-main-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 40px 56px; }
+.hosting-editor-main-scroll { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow-y: auto; padding: 40px 56px; }
+.hosting-editor-main-scroll > * { box-sizing: border-box; margin-left: auto; margin-right: auto; max-width: 760px; width: 100%; }
+.hosting-editor-main-scroll > .hosting-editor-photos { max-width: 760px; width: 100%; }
 .hosting-editor-main-header { align-items: flex-start; display: flex; justify-content: space-between; margin-bottom: 28px; }
 .hosting-editor-main-header h2 { font-family: 'DM Sans', sans-serif; font-size: 26px; font-weight: 700; letter-spacing: normal; margin: 0 0 8px; }
 .hosting-editor-main-header p { color: var(--muted); font-size: 15px; margin: 0; max-width: 520px; }
@@ -101,22 +104,50 @@
 .hosting-editor-pill svg { height: 15px; width: 15px; }
 .hosting-editor-icon-button { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); cursor: pointer; display: inline-flex; height: 40px; justify-content: center; width: 40px; }
 .hosting-editor-icon-button:hover { background: #f1f2f1; }
+.hosting-editor-icon-button input { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }
+.hosting-editor-icon-button { position: relative; }
+.hosting-editor-icon-button svg, .hosting-photo-upload-modal-header label svg { cursor: pointer; }
+.hosting-photo-upload-modal.hosting-editor-photo-upload-modal { background: var(--paper, #fbfaf6); max-height: calc(100vh - 32px); }
+.hosting-photo-upload-modal.hosting-editor-photo-upload-modal .hosting-photo-upload-modal-grid { grid-template-columns: 1fr; max-height: calc(100vh - 220px); }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item { align-items: center; aspect-ratio: auto; display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 420px; overflow: visible; padding: 12px; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item img { aspect-ratio: 1 / 1; border-radius: 14px; height: 300px; object-fit: cover; overflow: hidden; width: 300px; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location { color: var(--muted); display: flex; flex-direction: column; font-size: 11px; font-weight: 700; gap: 5px; width: 300px; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select { width: 100%; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-trigger { align-items: center; background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 9px; color: var(--ink); cursor: pointer; display: flex; font-size: 12px; height: auto; justify-content: space-between; min-height: 38px; padding: 8px 10px; position: static; width: 100%; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-trigger svg { color: var(--muted); height: 16px; margin-left: 10px; position: static; width: 16px; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-menu button { align-items: center; background: transparent; border: 0; border-radius: 8px; color: var(--ink); cursor: pointer; display: flex; font-size: 14px; font-weight: 400; height: auto; justify-content: space-between; padding: 10px 12px; position: static; text-align: left; width: 100%; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-menu button:hover { background: #f1f8f5; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-menu button.is-selected { background: rgba(22, 124, 128, .08); }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-menu { bottom: calc(100% + 8px); margin: 0; max-height: 270px; top: auto; }
+.hosting-photo-upload-modal .hosting-editor-photo-upload-item .hosting-editor-photo-location .hosting-select-trigger { font-size: 12px; min-height: 38px; padding: 8px 10px; }
 .hosting-editor-photo-grid { display: grid; gap: 20px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .hosting-editor-photo-tile { background: transparent; border: 0; cursor: pointer; display: flex; flex-direction: column; gap: 8px; padding: 0; text-align: left; }
 .hosting-editor-photo-tile img { aspect-ratio: 1 / 1; border-radius: 12px; display: block; height: auto; object-fit: cover; width: 100%; }
 .hosting-editor-photo-tile strong { font-size: 13px; font-weight: 700; }
 .hosting-editor-photo-tile span { color: var(--muted); font-size: 13px; }
 .hosting-editor-gallery-back { align-items: center; background: transparent; border: 0; color: var(--ink); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 700; gap: 8px; margin-bottom: 18px; padding: 0; }.hosting-editor-gallery-back svg { height: 16px; width: 16px; }.hosting-editor-category-gallery h3 { font-family: 'DM Sans', sans-serif; font-size: 20px; margin: 0 0 22px; }.hosting-editor-gallery-photo { min-width: 0; position: relative; }.hosting-editor-gallery-photo img { aspect-ratio: 1 / 1; border-radius: 12px; display: block; height: auto; object-fit: cover; width: 100%; }.hosting-editor-gallery-photo small { background: rgba(0, 0, 0, .68); border-radius: 999px; bottom: 8px; color: #fff; font-size: 11px; left: 8px; padding: 4px 8px; position: absolute; }
-.hosting-editor-form { max-width: 620px; }
+.hosting-editor-form { box-sizing: border-box; max-width: 760px; width: 100%; }
 .hosting-editor-form h2 { font-family: 'DM Sans', sans-serif; font-size: 24px; font-weight: 700; letter-spacing: normal; margin: 0 0 22px; }
 .hosting-editor-form > p { color: var(--ink); font-size: 15px; line-height: 1.6; margin: 0 0 14px; }
+.hosting-editor-property-overview-card { background: linear-gradient(135deg, rgba(237, 232, 221, 0.95), rgba(255, 255, 255, 0.98) 32%, rgba(210, 227, 221, 0.88)); border: 1px solid rgba(122, 118, 104, 0.24); border-radius: 18px; box-shadow: 0 18px 38px rgba(65, 58, 44, 0.08); box-sizing: border-box; margin: 0 0 22px; padding: 18px; position: relative; width: 100%; }
+.hosting-editor-property-overview-card::before { background: linear-gradient(120deg, rgba(255,255,255,0.32), transparent 42%, rgba(122,118,104,0.02)); content: ''; inset: 0; pointer-events: none; position: absolute; }
+.hosting-editor-property-overview-header { align-items: center; display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; position: relative; z-index: 1; }
+.hosting-editor-property-overview-kicker { color: rgba(17, 81, 84, 0.78); display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; margin-bottom: 6px; text-transform: uppercase; }
+.hosting-editor-property-overview-header strong { display: block; font-size: 20px; line-height: 1.2; }
+.hosting-editor-property-overview-pill { background: rgba(17, 81, 84, 0.1); border: 1px solid rgba(17, 81, 84, 0.18); border-radius: 999px; color: var(--teal-dark); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 6px 10px; text-transform: uppercase; }
+.hosting-editor-property-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hosting-editor-property-field { margin-bottom: 0; }
+.hosting-editor-property-field > span { color: var(--ink); font-size: 11px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 8px; }
+.hosting-editor-property-field input { background: rgba(255, 255, 255, 0.75); border: 1px solid rgba(125, 140, 136, 0.35); border-radius: 12px; box-shadow: inset 0 1px 2px rgba(17, 81, 84, 0.03); font-size: 15px; min-height: 48px; padding: 12px 14px; }
+.hosting-editor-property-field input:focus { border-color: rgba(22, 124, 128, 0.72); box-shadow: 0 0 0 4px rgba(22, 124, 128, 0.10); outline: none; }
 .hosting-editor-field { display: block; margin-bottom: 18px; }
 .hosting-editor-field > span { color: var(--muted); display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
 .hosting-editor-field input { background: #f2f3f1; border: 1px solid var(--line); border-radius: 9px; font-size: 15px; min-height: 43px; padding: 11px 13px; width: 100%; }
 .hosting-editor-field small, .hosting-editor-hint { color: var(--muted); display: block; font-size: 13px; margin-top: 8px; }
-.hosting-editor-title-input { border: 1.5px solid var(--line); border-radius: 14px; box-shadow: 0 2px 6px rgba(23, 44, 43, .05); font-size: 18px; font-weight: 500; min-height: 60px; padding: 16px 18px; transition: border-color .15s, box-shadow .15s; width: 100%; }
+.hosting-editor-title-input { background: var(--paper, #fbfaf6); border: 1.5px solid var(--line); border-radius: 14px; box-shadow: 0 2px 6px rgba(23, 44, 43, .05); font-size: 18px; font-weight: 500; min-height: 60px; padding: 16px 18px; transition: border-color .15s, box-shadow .15s; width: 100%; }
 .hosting-editor-title-input:hover { border-color: #b7c2bd; }
 .hosting-editor-title-input:focus { border-color: var(--teal); box-shadow: 0 0 0 4px rgba(22, 124, 128, .12); outline: none; }
+.hosting-editor-save-error { color: var(--red, #b42318) !important; }
 .hosting-editor-select { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); display: flex; font-size: 15px; min-height: 43px; padding: 11px 13px; }
 .hosting-editor-field-row { display: grid; gap: 14px; grid-template-columns: 2fr 1fr; }
 .hosting-editor-counter-row { align-items: center; border-top: 1px solid var(--line); display: flex; justify-content: space-between; padding: 16px 0; }
@@ -125,9 +156,9 @@
 .hosting-editor-counter button { align-items: center; background: #f1f2f1; border: 0; border-radius: 50%; color: var(--ink); cursor: pointer; display: inline-flex; height: 30px; justify-content: center; width: 30px; }
 .hosting-editor-counter strong { font-size: 14px; min-width: 14px; text-align: center; }
 .hosting-editor-sleeping-list { display: flex; flex-direction: column; gap: 12px; }
-.hosting-editor-sleeping-card { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; gap: 14px; padding: 12px; text-align: left; }
+.hosting-editor-sleeping-card { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; gap: 18px; min-height: 120px; padding: 12px; text-align: left; }
 .hosting-editor-sleeping-card:hover { border-color: #b7c2bd; }
-.hosting-editor-sleeping-card img { border-radius: 9px; height: 48px; object-fit: cover; width: 48px; }
+.hosting-editor-sleeping-card img { border-radius: 10px; height: 96px; object-fit: cover; width: 96px; }
 .hosting-editor-sleeping-card strong { display: block; font-size: 14px; }
 .hosting-editor-sleeping-card span { color: var(--muted); font-size: 13px; }
 .hosting-editor-list { display: flex; flex-direction: column; gap: 4px; }
@@ -198,20 +229,52 @@
 .hosting-editor-time-fields .hosting-select-menu button, .hosting-editor-time-label > .hosting-select .hosting-select-menu button { font-weight: 400; }
 .hosting-editor-time-fields { overflow: visible; }.hosting-select-menu { z-index: 100; }
 .hosting-editor-fact-leading { align-items: center; display: inline-flex; flex: 0 0 auto; height: 22px; justify-content: center; width: 22px; }.hosting-editor-fact-leading > svg { height: 22px; width: 22px; }
-.hosting-editor-fact-input { border: 1px solid #aeb8b4; border-radius: 10px; display: block; padding: 10px 12px 6px; }.hosting-editor-fact-input:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(22, 124, 128, .1); }.hosting-editor-fact-input span { color: var(--muted); display: block; font-size: 11px; }.hosting-editor-fact-input input { border: 0; box-sizing: border-box; color: var(--ink); font: inherit; font-size: 15px; outline: 0; padding: 4px 0; width: 100%; }.hosting-editor-fact-input small { color: var(--muted); display: block; font-size: 11px; text-align: right; }
+.hosting-editor-fact-input { background: var(--paper, #fbfaf6); border: 1px solid #aeb8b4; border-radius: 10px; display: block; padding: 10px 12px 6px; }.hosting-editor-fact-input:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(22, 124, 128, .1); }.hosting-editor-fact-input span { color: var(--muted); display: block; font-size: 11px; }.hosting-editor-fact-input input { background: transparent; border: 0; box-sizing: border-box; color: var(--ink); font: inherit; font-size: 15px; outline: 0; padding: 4px 0; width: 100%; }.hosting-editor-fact-input small { color: var(--muted); display: block; font-size: 11px; text-align: right; }
 .hosting-editor-cohosts-layout { display: grid; gap: 64px; grid-template-columns: minmax(460px, 620px) minmax(360px, 1fr); max-width: 1180px; }.hosting-editor-cohosts-overview h2 { font-family: 'DM Sans', sans-serif; font-size: 24px; margin: 0 0 34px; }.hosting-editor-cohost-cards { display: flex; gap: 12px; }.hosting-editor-cohost-card { background: #fff; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; display: flex; flex-direction: column; height: 158px; padding: 12px; text-align: left; width: 134px; }.hosting-editor-cohost-card.is-active { border: 1.5px solid var(--ink); }.hosting-editor-cohost-card img { border-radius: 50%; height: 48px; object-fit: cover; width: 48px; }.hosting-editor-cohost-card strong { font-size: 12px; margin-top: auto; }.hosting-editor-cohost-card span { color: var(--muted); font-size: 11px; margin-top: 4px; }.hosting-editor-cohost-card small { color: #139447; font-size: 11px; margin-top: auto; }.hosting-editor-cohost-add-card i { align-items: center; background: #f1f2f1; border-radius: 50%; display: inline-flex; height: 48px; justify-content: center; width: 48px; }.hosting-editor-cohost-add-card i svg { height: 22px; width: 22px; }.hosting-editor-cohosts-overview > a { border-top: 1px solid var(--line); color: var(--ink); display: block; font-size: 11px; margin-top: 18px; padding-top: 8px; text-decoration: underline; }.hosting-editor-cohost-detail { border-left: 1px solid var(--line); min-height: 360px; padding-left: 56px; }.hosting-editor-cohost-detail > img { border-radius: 50%; height: 44px; object-fit: cover; width: 44px; }.hosting-editor-cohost-detail > small { color: #139447; display: block; font-size: 11px; margin-top: 8px; }.hosting-editor-cohost-detail h2 { font-family: 'DM Sans', sans-serif; font-size: 20px; margin: 5px 0 6px; }.hosting-editor-cohost-detail > u { color: var(--ink); font-size: 12px; }.hosting-editor-cohost-detail h3 { border-top: 1px solid var(--line); font-size: 16px; margin: 18px 0 0; padding-top: 18px; }.hosting-editor-cohost-detail-row { border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 5px; padding: 14px 0; }.hosting-editor-cohost-detail-row strong { font-size: 12px; }.hosting-editor-cohost-detail-row span { color: var(--muted); font-size: 11px; }.hosting-editor-cohost-option { align-items: flex-start; background: #fff; border: 1px solid var(--line); border-radius: 9px; display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; padding: 18px; text-align: left; width: 100%; }.hosting-editor-cohost-option svg { height: 24px; margin-bottom: 5px; width: 24px; }.hosting-editor-cohost-option strong { font-size: 13px; }.hosting-editor-cohost-option span { color: var(--muted); font-size: 11px; }
 .hosting-editor-cohosts-overview > a { border-top: 0; margin-top: 8px; padding-top: 0; }
+.hosting-editor-cohost-detail h3 { border-top: 0; }
+.hosting-editor-cohost-invitations { margin-top: 26px; }
+.hosting-editor-cohost-detail > .hosting-editor-cohost-invitations:first-child { margin-top: 0; }
+.hosting-editor-cohost-invitations-head { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 14px; }
+.hosting-editor-cohost-invitations-head h3 { border: 0; font-size: 17px; margin: 0 0 4px; padding: 0; }
+.hosting-editor-cohost-invitations-head p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }
+.hosting-editor-cohost-invitations-head > span { align-items: center; background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 50%; display: inline-flex; flex: 0 0 auto; font-size: 12px; font-weight: 800; height: 30px; justify-content: center; width: 30px; }
+.hosting-editor-cohost-invitation-tabs { background: #eef0ed; border-radius: 8px; display: grid; gap: 3px; grid-template-columns: 1fr 1fr; margin-bottom: 14px; padding: 3px; }
+.hosting-editor-cohost-invitation-tabs button { align-items: center; background: transparent; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; display: flex; font-size: 12px; font-weight: 700; gap: 7px; justify-content: center; padding: 9px 12px; }
+.hosting-editor-cohost-invitation-tabs button.is-active { background: var(--paper, #fbfaf6); box-shadow: 0 1px 3px rgba(23,44,43,.12); color: var(--ink); }
+.hosting-editor-cohost-invitation-tabs button span { align-items: center; background: #dfe5e2; border-radius: 999px; display: inline-flex; font-size: 10px; height: 19px; justify-content: center; min-width: 19px; padding: 0 5px; }
+.hosting-editor-cohost-invitation-list { display: grid; gap: 10px; }
+.hosting-editor-cohost-invitation-card { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.hosting-editor-cohost-invitation-card-head { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin-bottom: 11px; }
+.hosting-editor-cohost-invitation-card-head > span { border-radius: 999px; font-size: 10px; font-weight: 800; padding: 5px 8px; }
+.hosting-editor-cohost-invitation-card-head .status-pending, .hosting-editor-cohost-invitation-card-head .status-invited { background: #fff0cc; color: #785700; }
+.hosting-editor-cohost-invitation-card-head .status-accepted { background: #dff3e8; color: #17623d; }
+.hosting-editor-cohost-invitation-card-head .status-declined, .hosting-editor-cohost-invitation-card-head .status-expired { background: #f4e5e2; color: #8b3429; }
+.hosting-editor-cohost-invitation-card-head .status-revoked { background: #ece9df; color: #5f5a4d; }
+.hosting-editor-cohost-invitation-card-head small { color: var(--muted); font-size: 10px; }
+.hosting-editor-cohost-invitation-card > strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.hosting-editor-cohost-invitation-card > span { color: var(--muted); display: block; font-size: 11px; margin-top: 4px; }
+.hosting-editor-cohost-invitation-card footer { align-items: center; border-top: 1px solid var(--line); color: var(--ink); display: flex; font-size: 11px; font-weight: 700; gap: 12px; justify-content: space-between; margin-top: 11px; padding-top: 10px; }
+.hosting-editor-cohost-invitation-card footer button { background: transparent; border: 0; color: #9b3025; cursor: pointer; font-size: 11px; font-weight: 700; padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; }
+.hosting-editor-cohost-invitation-card footer button:disabled { color: var(--muted); cursor: wait; opacity: .65; }
+.hosting-editor-cohost-invitation-card footer button.is-reactivate { color: var(--teal-dark, #0e555b); }
+.hosting-editor-cohost-invitations-state { background: var(--paper, #fbfaf6); border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); font-size: 12px; margin: 0; padding: 18px; text-align: center; }
+.hosting-editor-cohost-invitations-state.is-error { color: #9b3025; }
 .hosting-editor-invite-dialog { padding: 26px 18px 0; }.hosting-editor-invite-dialog h2 { padding: 0 2px; }.hosting-editor-invite-dialog > p { padding: 0 2px; }.hosting-editor-invite-fields { border: 1px solid #aeb8b4; border-radius: 10px; overflow: hidden; }.hosting-editor-invite-fields label { color: var(--muted); display: block; font-size: 11px; padding: 9px 12px 5px; }.hosting-editor-invite-fields label + label { border-top: 1px solid #d5dbd8; }.hosting-editor-invite-fields select, .hosting-editor-invite-fields input { background: transparent; border: 0; box-sizing: border-box; color: var(--ink); display: block; font: inherit; font-size: 14px; outline: 0; padding: 4px 0 7px; width: 100%; }.hosting-editor-invite-or { align-items: center; display: flex; gap: 10px; margin: 25px 0; }.hosting-editor-invite-or::before, .hosting-editor-invite-or::after { background: var(--line); content: ''; flex: 1; height: 1px; }.hosting-editor-invite-or span { font-size: 12px; font-weight: 700; }.hosting-editor-invite-email { border: 1px solid #aeb8b4; border-radius: 10px; box-sizing: border-box; font: inherit; font-size: 14px; padding: 14px 12px; width: 100%; }.hosting-editor-permission-options { display: flex; flex-direction: column; gap: 10px; }.hosting-editor-permission-options label { align-items: center; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; display: flex; gap: 12px; justify-content: space-between; padding: 14px; }.hosting-editor-permission-options label:has(input:checked) { border-color: var(--ink); }.hosting-editor-permission-options span { display: flex; flex-direction: column; gap: 5px; }.hosting-editor-permission-options strong { font-size: 12px; }.hosting-editor-permission-options small { color: var(--muted); font-size: 11px; line-height: 1.35; }.hosting-editor-permission-options input { opacity: 0; position: absolute; }.hosting-editor-permission-options i { border: 1px solid #999; border-radius: 50%; flex: 0 0 auto; height: 18px; position: relative; width: 18px; }.hosting-editor-permission-options input:checked + i { border: 5px solid var(--ink); }.hosting-editor-invite-listing-photo { border-radius: 10px; display: block; height: 180px; object-fit: cover; width: 100%; }.hosting-editor-invite-review { display: grid; gap: 4px; padding: 16px 12px; }.hosting-editor-invite-review strong { font-size: 12px; margin-top: 7px; }.hosting-editor-invite-review small { color: var(--muted); font-size: 11px; }.hosting-editor-invite-terms { border-top: 1px solid var(--line); font-size: 11px !important; margin-top: 5px !important; padding: 14px 2px 0; }.hosting-editor-invite-dialog .hosting-editor-photo-dialog-actions { margin: 20px -18px 0; padding: 14px 18px; }
-.hosting-editor-photo-dialog-backdrop { align-items: center; background: rgba(0, 0, 0, .42); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 20; }
-.hosting-editor-photo-dialog { background: #fff; border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .25); max-width: 440px; padding: 28px; position: relative; width: calc(100% - 40px); }
+.hosting-editor-photo-dialog-backdrop { align-items: center; background: transparent; display: flex; inset: 0; justify-content: center; position: fixed; z-index: 20; }
+.hosting-editor-photo-dialog { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 8px 24px rgba(23, 44, 43, .10); max-width: 440px; padding: 28px; position: relative; width: calc(100% - 40px); }
+.hosting-editor-invite-fields, .hosting-editor-invite-email { background: var(--paper, #fbfaf6); }
+.hosting-editor-invite-fields + .hosting-editor-invite-email { margin-top: 8px; }
+.hosting-editor-invite-name { margin-top: 8px; }
+.hosting-editor-cohost-invitation-card > .hosting-editor-cohost-invitation-identity { color: var(--muted); font-size: 11px; font-weight: 400; margin-top: 4px; }
 .hosting-editor-booking-form { max-width: 650px; }.hosting-editor-booking-form h2 { font-family: 'DM Sans', sans-serif; font-size: 24px; margin: 0 0 34px; }.hosting-editor-booking-primary { border: 1.5px solid var(--ink); border-radius: 10px; overflow: hidden; }.hosting-editor-booking-primary-head { align-items: flex-start; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 18px; }.hosting-editor-booking-primary-head strong { font-size: 13px; }.hosting-editor-booking-primary-head p { color: var(--muted); font-size: 12px; margin: 5px 0 0; }.hosting-editor-booking-symbol { font-size: 27px; line-height: 1; }.hosting-editor-booking-option, .hosting-editor-booking-message { align-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); display: flex; justify-content: space-between; padding: 16px 18px; text-align: left; width: 100%; }.hosting-editor-booking-option span, .hosting-editor-booking-message span { display: flex; flex-direction: column; gap: 5px; }.hosting-editor-booking-option strong, .hosting-editor-booking-message strong { font-size: 12px; font-weight: 500; }.hosting-editor-booking-option small, .hosting-editor-booking-message small { color: var(--muted); font-size: 11px; line-height: 1.35; }.hosting-editor-booking-message { cursor: pointer; }.hosting-editor-booking-message:hover { background: #f7f8f7; }.hosting-editor-booking-message > svg { flex: 0 0 auto; height: 16px; width: 16px; }.hosting-editor-booking-message-editor { padding: 14px 18px; }.hosting-editor-booking-message-editor textarea { border: 1px solid var(--line); border-radius: 8px; box-sizing: border-box; font: inherit; font-size: 12px; line-height: 1.5; min-height: 100px; padding: 10px; resize: vertical; width: 100%; }.hosting-editor-booking-message-editor small { color: var(--muted); display: block; font-size: 11px; margin-top: 5px; text-align: right; }.hosting-editor-booking-approval { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); cursor: pointer; display: flex; justify-content: space-between; margin-top: 12px; padding: 18px; text-align: left; width: 100%; }.hosting-editor-booking-approval:hover { background: #f7f8f7; }.hosting-editor-booking-approval span { display: flex; flex-direction: column; gap: 5px; }.hosting-editor-booking-approval strong { font-size: 13px; }.hosting-editor-booking-approval small { color: var(--muted); font-size: 11px; }.hosting-editor-booking-approval svg { height: 24px; width: 24px; }
 .hosting-editor-invite-dialog > p.hosting-editor-invite-terms { background: #f7f8f7; border: 0; border-radius: 10px; color: var(--muted); font-size: 12px !important; line-height: 1.5; margin: 18px 0 0 !important; padding: 14px 16px; }
 .hosting-editor-invite-terms u { color: var(--ink); font-weight: 600; text-underline-offset: 2px; }
 .hosting-editor-photo-dialog h2 { font-family: 'DM Sans', sans-serif; font-size: 20px; margin: 0 0 8px; }.hosting-editor-photo-dialog p { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0 0 18px; }.hosting-editor-photo-dialog-close { background: transparent; border: 0; color: var(--ink); cursor: pointer; font-size: 24px; line-height: 1; padding: 4px; position: absolute; right: 18px; top: 18px; }
 .hosting-editor-photo-dialog-preview { align-items: center; background: #f4f5f3; border-radius: 14px; display: flex; height: 180px; justify-content: center; margin-bottom: 16px; overflow: hidden; }.hosting-editor-photo-dialog-preview img { border-radius: 50%; height: 150px; object-fit: cover; width: 150px; }.hosting-editor-photo-dialog-upload { align-items: center; border: 1px dashed #aeb8b4; border-radius: 10px; color: var(--ink); cursor: pointer; display: flex; font-size: 13px; font-weight: 700; gap: 8px; justify-content: center; padding: 13px; }.hosting-editor-photo-dialog-upload input { display: none; }.hosting-editor-photo-dialog-actions { border-top: 1px solid var(--line); display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; padding-top: 18px; }.hosting-editor-photo-dialog-actions .hosting-editor-cancel, .hosting-editor-photo-dialog-actions .hosting-editor-save { font-size: 13px; padding: 10px 16px; }
-.hosting-editor-room-photo { border-radius: 14px; margin-bottom: 28px; overflow: hidden; position: relative; width: 200px; }
+.hosting-editor-room-photo { border-radius: 14px; margin-bottom: 28px; overflow: hidden; position: relative; width: 300px; }
 .hosting-editor-room-photo img { aspect-ratio: 1 / 1; display: block; height: 100%; object-fit: cover; width: 100%; }
-.hosting-editor-room-photo-edit { align-items: center; background: var(--ink); border-radius: 50%; bottom: 10px; color: #fff; cursor: pointer; display: inline-flex; height: 34px; justify-content: center; position: absolute; right: 10px; width: 34px; }
+.hosting-editor-room-photo-edit { align-items: center; background: var(--ink); border-radius: 50%; bottom: 12px; color: #fff; cursor: pointer; display: inline-flex; height: 40px; justify-content: center; position: absolute; right: 12px; width: 40px; }
 .hosting-editor-room-photo-edit:hover { background: #000; }
 .hosting-editor-room-photo-edit svg { height: 15px; width: 15px; }
 .hosting-editor-room-photo-edit input { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }
@@ -226,9 +289,12 @@
 .hosting-editor-bed-label { flex: 1 1 auto; font-size: 15px; }
 .hosting-editor-cancel { background: #fff; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); cursor: pointer; font-size: 14px; font-weight: 700; padding: 12px 22px; }
 .hosting-editor-cancel:hover { background: #f1f2f1; }
-.hosting-editor-price-box { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; gap: 6px; justify-content: flex-start; margin-bottom: 16px; padding: 18px 20px; transition: border-color .15s; width: 100%; }
+.hosting-editor-price-box { align-items: center; background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; gap: 6px; justify-content: flex-start; margin-bottom: 12px; padding: 18px 20px; transition: border-color .15s; width: 100%; }
 .hosting-editor-price-box:hover { border-color: #b7c2bd; }
 .hosting-editor-price-box span { font-size: 20px; font-weight: 700; }
+.hosting-editor-security-deposit-summary { align-items: center; background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 12px; display: flex; justify-content: space-between; margin-bottom: 16px; padding: 16px 20px; }
+.hosting-editor-security-deposit-summary span { color: var(--muted); font-size: 14px; }
+.hosting-editor-security-deposit-summary strong { font-size: 16px; }
 .hosting-editor-price-detail { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
 .hosting-editor-price-field { display: block; padding: 14px 20px; }
 .hosting-editor-price-field + .hosting-editor-price-field { border-top: 1px solid var(--line); }
@@ -242,11 +308,11 @@
 .hosting-editor-discount-card-head span { font-weight: inherit; }
 .hosting-editor-discount-card-body { align-items: flex-end; display: flex; justify-content: space-between; }
 .hosting-editor-discount-value { align-items: center; display: flex; gap: 2px; }
-.hosting-editor-discount-value input { border: 0; font-family: inherit; font-size: 22px; font-weight: inherit; padding: 0; width: 36px; }
+.hosting-editor-discount-value input { background: var(--paper, #fbfaf6); border: 0; border-radius: 6px; font-family: inherit; font-size: 22px; font-weight: inherit; padding: 2px 4px; width: 46px; }
 .hosting-editor-discount-value input:focus { outline: none; }
 .hosting-editor-discount-value span { font-size: 22px; font-weight: inherit; }
 .hosting-editor-discount-card-body > small { color: var(--muted); font-size: 12px; }
-.hosting-editor-avail-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: block; margin-bottom: 14px; padding: 14px 20px; text-align: left; width: 100%; }
+.hosting-editor-avail-card { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: block; margin-bottom: 14px; padding: 14px 20px; text-align: left; width: 100%; }
 .hosting-editor-avail-card:hover { border-color: #b7c2bd; }
 .hosting-editor-avail-card.is-static { cursor: default; }
 .hosting-editor-avail-card.is-static:hover { border-color: var(--line); }
@@ -255,7 +321,7 @@
 .hosting-editor-avail-card > strong.is-regular { font-size: 14px; font-weight: 400; }
 .hosting-editor-avail-card-wrap { margin-bottom: 14px; position: relative; }
 .hosting-editor-avail-card-wrap .hosting-editor-avail-card { margin-bottom: 0; }
-.hosting-editor-advance-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 40px rgba(23, 44, 43, .16); margin-top: 8px; padding: 18px 20px; position: absolute; width: 100%; z-index: 5; }
+.hosting-editor-advance-panel { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 40px rgba(23, 44, 43, .16); margin-top: 8px; padding: 18px 20px; position: absolute; width: 100%; z-index: 5; }
 .hosting-editor-advance-panel > strong { display: block; font-size: 14px; margin-bottom: 4px; }
 .hosting-editor-advance-panel > p { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
 .hosting-editor-advance-list { list-style: none; margin: 0 0 12px; max-height: 190px; overflow-y: auto; padding: 0; }
@@ -267,8 +333,9 @@
 .hosting-editor-advance-save { width: 100%; justify-content: center; }
 .hosting-editor-avail-big { align-items: center; display: flex; justify-content: center; min-height: 160px; }
 .hosting-editor-avail-big input { border: 0; border-bottom: 1px solid var(--ink); font-family: inherit; font-size: 36px; font-weight: 500; padding: 0; text-align: center; width: 80px; }
+.hosting-editor-avail-big input { background: var(--paper, #fbfaf6); border-radius: 6px; padding: 4px 8px; }
 .hosting-editor-avail-big input:focus { outline: none; }
-.hosting-editor-avail-customize { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); cursor: pointer; display: flex; font-size: 14px; font-weight: 600; justify-content: space-between; padding: 16px 20px; width: 100%; }
+.hosting-editor-avail-customize { align-items: center; background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 12px; color: var(--ink); cursor: pointer; display: flex; font-size: 14px; font-weight: 600; justify-content: space-between; padding: 16px 20px; width: 100%; }
 .hosting-editor-avail-customize:hover { border-color: #b7c2bd; }
 .hosting-editor-avail-customize svg { color: var(--muted); height: 14px; width: 14px; }
 .hosting-editor-guests { text-align: center; }
@@ -287,7 +354,7 @@
 .hosting-editor-desc-row span { -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--muted); display: -webkit-box; font-size: 13px; overflow: hidden; }
 .hosting-editor-desc-row svg { color: var(--muted); flex: 0 0 auto; height: 16px; margin-top: 4px; width: 16px; }
 .hosting-editor-desc-count { color: var(--muted); display: block; font-size: 12px; margin-bottom: 10px; }
-.hosting-editor-desc-textarea { border: 1px solid var(--line); border-radius: 10px; font-family: inherit; font-size: 13px; line-height: 1.6; min-height: 160px; padding: 10px; resize: vertical; transition: border-color .15s; width: 100%; }
+.hosting-editor-desc-textarea { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 10px; font-family: inherit; font-size: 13px; line-height: 1.6; min-height: 160px; padding: 10px; resize: vertical; transition: border-color .15s; width: 100%; }
 .hosting-editor-desc-textarea:focus { border-color: var(--teal); outline: none; }
 .hosting-editor-amenity-preview { display: flex; flex-direction: column; gap: 8px; }
 .hosting-editor-amenity-preview-row { align-items: center; display: flex; gap: 10px; }
@@ -322,6 +389,7 @@
 .hosting-editor-toggle-row { align-items: center; border: 1px solid var(--line); border-radius: 12px; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 16px; padding: 18px 20px; }
 .hosting-editor-toggle-row strong { display: block; font-size: 14px; margin-bottom: 4px; }
 .hosting-editor-toggle-row span { color: var(--muted); font-size: 13px; }
+.hosting-editor-toggle-row.is-read-only { background: var(--paper, #fbfaf6); }
 .hosting-editor-switch { background: #e4e6e2; border: 0; border-radius: 999px; cursor: pointer; flex: 0 0 auto; height: 28px; padding: 3px; position: relative; transition: background .2s; width: 48px; }
 .hosting-editor-switch.is-on { background: var(--ink); }
 .hosting-editor-switch span { align-items: center; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); color: var(--ink); display: flex; height: 22px; justify-content: center; left: 3px; position: absolute; top: 3px; transition: left .2s; width: 22px; }

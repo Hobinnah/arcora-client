@@ -28,6 +28,7 @@ export type Listing = {
     bathrooms: number;
     squareFeet: number;
     baseMonthlyRentAmount: number;
+    BaseMonthlyRentAmountMax?: number;
     securityDepositAmount: number;
     yearBuilt: number;
     status: string;
@@ -38,6 +39,8 @@ export type Listing = {
     availableTo: string;
     minimumLeaseMonths: number;
     maximumLeaseMonths: number;
+    advanceNotice?: string;
+    allowSameDay?: boolean;
     quarterlyDiscountRate: number;
     semiAnnualDiscountRate: number;
     yearlyDiscountRate: number;

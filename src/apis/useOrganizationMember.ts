@@ -12,6 +12,118 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type CohostAccess = 'Full access' | 'Calendar and message access' | 'Calendar access';
+
+export type InviteCohostRequest = {
+  organizationID: string;
+  email: string;
+  cohostName: string;
+  phoneNumber: string;
+  cohostAccess: CohostAccess;
+};
+
+export type CohostInvitationDetails = {
+  organizationName: string;
+  cohostAccess: CohostAccess;
+  email: string;
+  phoneNumber: string;
+  expiresAtUtc: string;
+};
+
+export type InviteCohostResponse = {
+  cohostInvitationID: string;
+  email: string;
+  cohostName?: string;
+  phoneNumber: string;
+  cohostAccess: CohostAccess;
+  token: string;
+  expiresAtUtc: string;
+  status: string;
+};
+
+export type CohostInvitation = {
+  cohostInvitationID: string;
+  organizationID: string;
+  email: string;
+  cohostName?: string;
+  phoneNumber: string;
+  cohostAccess: CohostAccess;
+  status: string;
+  expiresAtUtc: string;
+  acceptedAtUtc?: string | null;
+  declinedAtUtc?: string | null;
+  capturedDateUtc: string;
+  updatedDateUtc: string;
+};
+
+export const inviteCohost = async (payload: InviteCohostRequest): Promise<InviteCohostResponse> => {
+  try {
+    const response = await axios.post<InviteCohostResponse>(`${BASE_URL}api/OrganizationMember/InviteCohost`, payload);
+    return response.data;
+  } catch (error) {
+    handleApiError(error, 'invite cohost');
+    throw error;
+  }
+};
+
+export const getCohostInvitationsByOrganization = async (organizationID: string): Promise<CohostInvitation[]> => {
+  try {
+    const response = await axios.get<CohostInvitation[]>(`${BASE_URL}api/OrganizationMember/GetCohostInvitationsByOrganization`, { params: { organizationID } });
+    const data = response.data as CohostInvitation[] | { data?: CohostInvitation[]; records?: CohostInvitation[] };
+    return Array.isArray(data) ? data : data.data ?? data.records ?? [];
+  } catch (error) {
+    handleApiError(error, 'get cohost invitations by organization');
+    throw error;
+  }
+};
+
+export const getAllCohostInvitationsByOrganization = async (organizationID: string): Promise<CohostInvitation[]> => {
+  try {
+    const response = await axios.get<CohostInvitation[]>(`${BASE_URL}api/OrganizationMember/GetAllCohostInvitationsByOrganization`, { params: { organizationID } });
+    const data = response.data as CohostInvitation[] | { data?: CohostInvitation[]; records?: CohostInvitation[] };
+    return Array.isArray(data) ? data : data.data ?? data.records ?? [];
+  } catch (error) {
+    handleApiError(error, 'get all cohost invitations by organization');
+    throw error;
+  }
+};
+
+export const revokeCohostInvitation = async (cohostInvitationID: string): Promise<void> => {
+  try {
+    await axios.post(`${BASE_URL}api/OrganizationMember/RevokeCohostInvitation`, undefined, { params: { cohostInvitationID } });
+  } catch (error) {
+    handleApiError(error, 'revoke cohost invitation');
+    throw error;
+  }
+};
+
+export const reactivateRevokedCohost = async (cohostInvitationID: string): Promise<void> => {
+  try {
+    await axios.post(`${BASE_URL}api/OrganizationMember/ReactivateRevokedCohost`, undefined, { params: { cohostInvitationID } });
+  } catch (error) {
+    handleApiError(error, 'reactivate revoked cohost');
+    throw error;
+  }
+};
+
+export const getCohostInviteDetails = async (token: string): Promise<CohostInvitationDetails> => {
+  try {
+    const response = await axios.get<CohostInvitationDetails>(`${BASE_URL}api/OrganizationMember/InviteDetails`, { params: { token } });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const respondToCohostInvitation = async (token: string, response: 'ACCEPT' | 'DECLINE'): Promise<void> => {
+  try {
+    await axios.post(`${BASE_URL}api/OrganizationMember/RespondInvitation`, undefined, { params: { response, token } });
+  } catch (error) {
+    handleApiError(error, 'respond to cohost invitation');
+    throw error;
+  }
+};
+
 export type OrganizationMembersListParams = {
   pageSize?: number;
   pageNumber?: number;

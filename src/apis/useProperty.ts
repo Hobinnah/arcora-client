@@ -98,12 +98,13 @@ export const createProperty = async (Property?: Property): Promise<Property> => 
   }
 };
 
-export const updateProperty = async (property?: Property): Promise<Property> => {
+export const updateProperty = async (property: Property): Promise<Property> => {
   try {
-    const id = ((property as any)?.propertyID ?? '').toString();
+    const id = property.propertyID?.toString() ?? '';
+    if (!id) throw new Error('Cannot update property without a propertyID.');
     const url = `${BASE_URL}api/property/updateProperty/${id}`;
-    const response = await axios.put(url, property);
-    return response.data as Property;
+    const response = await axios.put<Property>(url, property, { timeout: 15000 });
+    return response.data ?? property;
   } catch (error) {
     handleApiError(error, 'update property');
     throw error;

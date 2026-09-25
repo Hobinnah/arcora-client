@@ -1,0 +1,26 @@
+.cohost-invite-page { background: var(--paper, #fbfaf6); color: var(--ink, #172c2b); min-height: 100vh; }
+.cohost-invite-header { align-items: center; border-bottom: 1px solid var(--line, #dfe5e2); display: flex; height: 72px; padding: 0 5vw; }
+.cohost-invite-shell { display: grid; min-height: calc(100vh - 72px); padding: 48px 20px; place-items: center; }
+.cohost-invite-card, .cohost-invite-state { background: var(--paper, #fbfaf6); border: 1px solid var(--line, #dfe5e2); border-radius: 12px; box-shadow: 0 12px 32px rgba(23,44,43,.08); max-width: 590px; padding: 42px; width: 100%; }
+.cohost-invite-card-mark, .cohost-invite-state-icon { align-items: center; background: #e5f2ed; border-radius: 50%; color: var(--teal-dark, #0e555b); display: inline-flex; height: 48px; justify-content: center; width: 48px; }
+.cohost-invite-card-mark svg, .cohost-invite-state-icon svg { height: 23px; width: 23px; }
+.cohost-invite-eyebrow { color: var(--teal-dark, #0e555b); font-size: 12px; font-weight: 800; letter-spacing: .08em; margin: 22px 0 7px; text-transform: uppercase; }
+.cohost-invite-card h1, .cohost-invite-state h1 { font-family: 'DM Sans', sans-serif; font-size: 31px; letter-spacing: 0; margin: 0 0 12px; }
+.cohost-invite-intro, .cohost-invite-state > p:not(.cohost-invite-eyebrow) { color: var(--muted, #657572); font-size: 15px; line-height: 1.55; }
+.cohost-invite-card dl { border-bottom: 1px solid var(--line, #dfe5e2); border-top: 1px solid var(--line, #dfe5e2); margin: 28px 0; padding: 10px 0; }
+.cohost-invite-card dl div { align-items: center; display: flex; justify-content: space-between; padding: 11px 0; }
+.cohost-invite-card dt { align-items: center; color: var(--muted, #657572); display: flex; font-size: 13px; gap: 7px; }
+.cohost-invite-card dt svg { height: 15px; width: 15px; }
+.cohost-invite-card dd { font-size: 14px; font-weight: 700; margin: 0; text-align: right; }
+.cohost-invite-warning { background: #fff2e5; border: 1px solid #edc99e; border-radius: 8px; color: #75430a; font-size: 13px; line-height: 1.5; margin-bottom: 20px; padding: 12px 14px; }
+.cohost-invite-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.cohost-invite-actions button, .cohost-invite-state button { border: 1px solid var(--line, #dfe5e2); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; padding: 12px 18px; }
+.cohost-invite-actions .is-primary, .cohost-invite-state button { background: var(--teal, #167c80); border-color: var(--teal, #167c80); color: #fff; }
+.cohost-invite-actions .is-decline { background: transparent; color: var(--ink, #172c2b); }
+.cohost-invite-actions button:disabled { cursor: not-allowed; opacity: .45; }
+.cohost-invite-state { text-align: center; }
+.cohost-invite-state > a { color: var(--ink, #172c2b); display: block; font-size: 13px; margin-top: 18px; }
+.cohost-invite-state > i { animation: cohost-spin 1s linear infinite; border: 3px solid var(--line, #dfe5e2); border-radius: 50%; border-top-color: var(--teal, #167c80); display: inline-block; height: 34px; margin-bottom: 18px; width: 34px; }
+.cohost-invite-state.is-error .cohost-invite-state-icon { background: #fff0ee; color: #a83224; font-size: 22px; font-weight: 800; }
+@keyframes cohost-spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) { .cohost-invite-shell { align-items: start; padding: 24px 14px; } .cohost-invite-card, .cohost-invite-state { padding: 28px 20px; } .cohost-invite-card h1, .cohost-invite-state h1 { font-size: 26px; } .cohost-invite-card dl div { align-items: flex-start; flex-direction: column; gap: 5px; } .cohost-invite-card dd { text-align: left; } .cohost-invite-actions { flex-direction: column-reverse; } .cohost-invite-actions button { width: 100%; } }
