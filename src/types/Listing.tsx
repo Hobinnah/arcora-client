@@ -24,6 +24,7 @@ export type Listing = {
     reviews: number;
     tag: string;
     isFurnished: boolean;
+    isPetFriendly: boolean;
     bedrooms: number;
     bathrooms: number;
     squareFeet: number;

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import faceImage from "../assets/face.jpg";
 import {
   ArrowLeftIcon,
@@ -14,7 +15,6 @@ import {
   ImageIcon,
   KeyIcon,
   MailIcon,
-  MessageSquareIcon,
   PadlockIcon,
   PencilIcon,
   PlusIcon,
@@ -35,12 +35,18 @@ import { createAmenityCatalog } from "../apis/useAmenityCatalog";
 import { updateProperty } from "../apis/useProperty";
 import { updateRentalUnit } from "../apis/useRentalUnit";
 import { uploadListingPhoto } from "../apis/useListingPhoto";
+import { createListingPolicy, updateListingPolicy } from "../apis/useListingPolicy";
+import { fetchListingRulesByListingID, createListingRule, updateListingRule } from "../apis/useListingRule";
+import { createListingAccessInstruction, updateListingAccessInstruction } from "../apis/useListingAccessInstruction";
 import { fetchOrganizationMembers, fetchOrganizationMembersByOrganization, getAllCohostInvitationsByOrganization, getCohostInvitationsByOrganization, getOrganizationMember, inviteCohost, reactivateRevokedCohost, revokeCohostInvitation, updateOrganizationMember, type CohostAccess, type CohostInvitation } from "../apis/useOrganizationMember";
 import type { OrganizationMember } from "../types/OrganizationMember";
 import type { Listing } from "../types/Listing";
 import type { ListingPhoto } from "../types/ListingPhoto";
 import type { ListingType } from "../types/ListingType";
 import type { ListingAmenity } from "../types/ListingAmenity";
+import type { ListingPolicy } from "../types/ListingPolicy";
+import type { ListingRule } from "../types/ListingRule";
+import type { ListingAccessInstruction } from "../types/ListingAccessInstruction";
 import type { AmenityCatalog } from "../types/AmenityCatalog";
 import HostingHeader from "./HostingHeader";
 import "../marketplace/MarketplaceHome.css";
@@ -207,6 +213,23 @@ function GuestFigures() {
   );
 }
 
+// In-memory (module-level) cache so revisiting the same listing within this browser session
+// doesn't refetch it - persists across mounts/unmounts, cleared automatically after any save.
+const listingEditorCache = new Map<string, { listing: Listing; rulesForListing: ListingRule[] }>();
+const invalidateListingEditorCache = (listingID?: string) => {
+  if (listingID) listingEditorCache.delete(listingID);
+};
+const getCachedListing = async (listingID: string): Promise<Listing> => {
+  const cached = listingEditorCache.get(listingID);
+  if (cached) return cached.listing;
+  return getListing(listingID);
+};
+const getCachedListingRules = async (listingID: string): Promise<ListingRule[]> => {
+  const cached = listingEditorCache.get(listingID);
+  if (cached) return cached.rulesForListing;
+  return fetchListingRulesByListingID(listingID);
+};
+
 const sections: Section[] = [
   { key: "photos", label: "Photo tour", summary: "1 bedroom · 1 bed · 1 bath", kind: "photos", thumbnail: photoRooms[0].photo },
   { key: "title", label: "Title", summary: "Daisy's Inn", kind: "text" },
@@ -222,7 +245,7 @@ const sections: Section[] = [
   { key: "location", label: "Location", kind: "map" },
   { key: "host", label: "About the host", kind: "host" },
   { key: "cohosts", label: "Co-hosts", kind: "list" },
-  { key: "booking", label: "Booking settings", summary: "Guests send reservation requests that you approve.", kind: "text" },
+  { key: "booking", label: "Application settings", summary: "Review and manage rental applications.", kind: "text" },
   { key: "rules", label: "House rules", kind: "list" },
   { key: "safety", label: "Guest safety", kind: "list" },
   { key: "cancellation", label: "Cancellation policy", summary: "Flexible for short-term stays", summary2: "Firm Long Term for long-term stays", kind: "text" },
@@ -236,6 +259,17 @@ const arrivalCards = [
   { key: "arrival-requirements", label: "Guest requirements", summary: "Add details", icon: <UsersIcon /> },
 ];
 const timeOptions = ["12:00 AM", "1:00 AM", "2:00 AM", "3:00 AM", "4:00 AM", "5:00 AM", "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM", "11:00 PM"];
+
+const SAFETY_CONSIDERATION_ITEMS = [
+  "Not a good fit for children 2 – 12",
+  "Not a good fit for infants under 2",
+  "Pool or hot tub doesn’t have a gate or lock",
+  "Nearby water, like a lake or river",
+  "Climbing or play structure(s) on the property",
+];
+// ListingRule.ruleType is free text, not a fixed backend enum, so derive stable keys for the dynamic safety items.
+const toSafetyRuleType = (prefix: string, label: string) =>
+  `${prefix}_${label.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
 
 const listContent: Record<string, { icon: ReactElement; label: string; sub?: string; image?: string }[]> = {
   cohosts: [
@@ -386,6 +420,8 @@ function CatalogIcon({ name }: { name: string }) {
 export default function HostingListingEditorPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
   const capturedBy = currentUser?.name?.trim() || [currentUser?.user?.firstName, currentUser?.user?.lastName].filter(Boolean).join(" ").trim() || "Unknown user";
@@ -403,8 +439,9 @@ export default function HostingListingEditorPage() {
   const [reactivatingInvitationID, setReactivatingInvitationID] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [activeKey, setActiveKey] = useState("photos");
-  const [editorTab, setEditorTab] = useState<"space" | "arrival">("space");
+  // Section/tab selection is initialized from and kept in sync with the URL so a reload reselects the same card.
+  const [activeKey, setActiveKey] = useState(() => searchParams.get("section") || "photos");
+  const [editorTab, setEditorTab] = useState<"space" | "arrival">(() => (searchParams.get("tab") === "arrival" ? "arrival" : "space"));
   const [checkinDetail, setCheckinDetail] = useState<"lock" | "instructions" | null>(null);
   const [requireProfilePhoto, setRequireProfilePhoto] = useState(true);
   const [houseManual, setHouseManual] = useState("Welcome to Daisy’s Inn!\n\nDoor Access:\nIf the door doesn’t open after entering the smart lock code, no worries — try these quick steps:\n\n1. Gently pull the door knob towards you once, leave it, then re-enter the code.\n2. If it still doesn’t open, please call or message me.\n3. If it’s at night and I haven’t responded, kindly press the doorbell at the main house entrance — I’ll be right with you!\n\nTo lock the door, pull the door handle once toward you, leave it, then press the Weiser button at the top of the smart lock pad.\n\nSecurity Light:\nThe external security light is sensor-activated and automatically turns on when it gets dark. Please make sure the switch is turned ON when you enter the suite.");
@@ -412,6 +449,7 @@ export default function HostingListingEditorPage() {
   const [doorCodeDraft, setDoorCodeDraft] = useState("1973");
   const [checkoutInstructions, setCheckoutInstructions] = useState("");
   const [guestRequirementDetails, setGuestRequirementDetails] = useState("");
+  const [checkInInstructions, setCheckInInstructions] = useState("");
   const [photoCategory, setPhotoCategory] = useState<string | null>(null);
   const [photoUploadOpen, setPhotoUploadOpen] = useState(false);
   const [pendingPhotoUploads, setPendingPhotoUploads] = useState<PendingEditorPhoto[]>([]);
@@ -486,6 +524,8 @@ export default function HostingListingEditorPage() {
   const [inviteSending, setInviteSending] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [houseRulesDetail, setHouseRulesDetail] = useState<"times" | "additional" | null>(null);
+  const [listingRules, setListingRules] = useState<ListingRule[]>([]);
+  const [listingAccessInstructions, setListingAccessInstructions] = useState<ListingAccessInstruction[]>([]);
   const [quietHours, setQuietHours] = useState(false);
   const [commercialPhotography, setCommercialPhotography] = useState(false);
   const [houseRuleText, setHouseRuleText] = useState("Walls: Please take extra care when bringing luggage into the property. Kindly avoid letting luggage bump or scrape against the walls.\n\nSmoking: Smoking or vaping is not allowed anywhere on the premises. We appreciate your cooperation in keeping the space fresh and comfortable for everyone.\n\nDrugs: Drugs or drug use is not allowed. NO SMOKING OR DRUG USE IN OR ANYWHERE ON THE PROPERTY OR ITS VICINITY.\n\nQuiet Hours: Is from 10:00 PM to 7:00 AM\n\nFurniture: Please don't move the furniture from their positions. All forms of eating should be done using the dining set.\n\nSofa [Chair]: Kindly avoid eating or doing anything that might accidentally stain the sofa. Please keep it clean.\n\nSecurity: Always lock doors when leaving the property.\n\nWaste Disposal: Please separate recyclables and place garbage in designated bins.\n\nLaundry: It has come to our attention that some guests bring large quantities of clothes to wash. Please note, we aren't a laundry mart.");
@@ -494,7 +534,7 @@ export default function HostingListingEditorPage() {
   const [checkoutTime, setCheckoutTime] = useState("11:00 AM");
   const [quietStart, setQuietStart] = useState("10:00 PM");
   const [quietEnd, setQuietEnd] = useState("7:00 AM");
-  const [safetyDetail, setSafetyDetail] = useState<"considerations" | "devices" | "property" | null>(null);
+  const [safetyDetail, setSafetyDetail] = useState<"considerations" | "devices" | null>(null);
   const [safetyChoices, setSafetyChoices] = useState<Record<string, "yes" | "no">>({});
   const [cancellationDetail, setCancellationDetail] = useState<"lastMinute" | "longTerm" | null>(null);
   const [shortTermPolicy, setShortTermPolicy] = useState("Flexible");
@@ -503,29 +543,38 @@ export default function HostingListingEditorPage() {
   const [taxName, setTaxName] = useState("");
   const [taxType, setTaxType] = useState("");
   const [taxRate, setTaxRate] = useState("");
-  const [instantBook, setInstantBook] = useState(false);
-  const [trackRecord, setTrackRecord] = useState(false);
-  const [preBookingMessage, setPreBookingMessage] = useState("Hi there! Kindly introduce yourself by stating your full name. I’d love to hear a bit about you and your expected check-in time whenever you get a chance. Looking forward to welcoming you!");
-  const [bookingMessageOpen, setBookingMessageOpen] = useState(false);
+  const [acceptingApplications, setAcceptingApplications] = useState(true);
+  const [minimumCreditScore, setMinimumCreditScore] = useState(0);
+  const [applicationInstructions, setApplicationInstructions] = useState("");
+  const [applicationDeadline, setApplicationDeadline] = useState("");
+  const [allowsPets, setAllowsPets] = useState(false);
+  const [allowsSmoking, setAllowsSmoking] = useState(false);
+  const [allowsChildren, setAllowsChildren] = useState(true);
+  const [furnished, setFurnished] = useState(false);
+  const [parkingIncluded, setParkingIncluded] = useState(false);
+  const [utilitiesIncluded, setUtilitiesIncluded] = useState(false);
   const [saveToast, setSaveToast] = useState("");
-  const instantBookRef = useRef<HTMLDivElement>(null);
-  const approvalRef = useRef<HTMLButtonElement>(null);
   const showSaveToast = (message: string) => {
     setSaveToast(message);
+    invalidateListingEditorCache(id);
     window.setTimeout(() => setSaveToast(""), 3200);
   };
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     void Promise.all([
-      getListing(id),
-      fetchListingTypes({ pageSize: 100, pageNumber: 0 }),
-      fetchAmenityCatalogs({ pageSize: 500, pageNumber: 0 }),
+      getCachedListing(id),
+      // Cached so revisiting this page doesn't refetch this rarely-changing reference data every time.
+      queryClient.ensureQueryData({ queryKey: ["reference", "listingTypes"], queryFn: () => fetchListingTypes({ pageSize: 100, pageNumber: 0 }), staleTime: 5 * 60 * 1000 }),
+      queryClient.ensureQueryData({ queryKey: ["reference", "amenityCatalogs"], queryFn: () => fetchAmenityCatalogs({ pageSize: 500, pageNumber: 0 }), staleTime: 5 * 60 * 1000 }),
+      getCachedListingRules(id),
     ])
-      .then(([loadedListing, listingTypeResult, amenityCatalogResult]) => {
+      .then(([loadedListing, listingTypeResult, amenityCatalogResult, rulesForListing]) => {
         if (cancelled) return;
+        listingEditorCache.set(id, { listing: loadedListing, rulesForListing });
         setListingTypeOptions(listingTypeResult.data);
         setAmenityCatalogRecords(amenityCatalogResult.data);
+        setListingRules(rulesForListing);
         const rentalUnit = loadedListing.rentalUnit;
         const property = rentalUnit?.property;
         const address = property?.address;
@@ -542,16 +591,21 @@ export default function HostingListingEditorPage() {
         const houseManualInstruction = findAccessInstruction("HOUSE_MANUAL");
         const checkoutInstruction = findAccessInstruction("CHECKOUT_INSTRUCTION");
         const guestRequirementInstruction = findAccessInstruction("GUEST_REQUIREMENT");
+        const checkInInstruction = findAccessInstruction("CHECK_IN_INSTRUCTION");
         const policy = loadedListing.listingPolicies?.[0];
         const location = [address?.line1, address?.city, address?.provinceCode, address?.postalCode, address?.countryCode].filter(Boolean).join(", ");
         // Map house-rule records onto their matching UI fields using ruleType as the key.
-        const findRule = (ruleType: string) => loadedListing.listingRules?.find((rule) => rule.ruleType === ruleType);
+        const findRule = (ruleType: string) => rulesForListing.find((rule) => rule.ruleType === ruleType);
         const quietStartRule = findRule("QUIET_HOURS_START");
         const quietEndRule = findRule("QUIET_HOURS_END");
         const checkInRule = findRule("CHECK_IN");
+        const checkInEndRule = findRule("CHECK_IN_END");
         const checkOutRule = findRule("CHECK_OUT");
+        const numberOfGuestsRule = findRule("NUMBER_OF_GUESTS");
+        const commercialPhotographyRule = findRule("COMMERCIAL_PHOTOGRAPHY");
         const additionalRule = findRule("ADDITIONAL");
         setListing(loadedListing);
+        setListingAccessInstructions(loadedListing.listingAccessInstructions ?? []);
         setHostPhoto(loadedListing.organization?.brandLogoUrl || faceImage);
         setTitle(loadedListing.title || rentalUnit?.name || "");
         setPlaceType(property?.propertyType || "Secondary unit");
@@ -605,7 +659,7 @@ export default function HostingListingEditorPage() {
           advanceNotice: loadedListing.advanceNotice || "3 days",
           sameDayTime: loadedListing.advanceNotice === "Same day" ? "Yes" : "No",
         });
-        setGuestsCount(rentalUnit?.maximumOccupants ?? policy?.maximumOccupants ?? 0);
+        setGuestsCount(Math.max(rentalUnit?.maximumOccupants ?? 0, policy?.maximumOccupants ?? 0));
         setAddedAmenities(amenities);
         setLocationFeatures(address ? [location] : []);
         const loadedDoorCode = loadedListing.checkInDoorCode || accessInstruction?.secretReference || "";
@@ -614,15 +668,29 @@ export default function HostingListingEditorPage() {
         setHouseManual(houseManualInstruction?.instructions || "");
         setCheckoutInstructions(checkoutInstruction?.instructions || "");
         setGuestRequirementDetails(guestRequirementInstruction?.instructions || "");
+        setCheckInInstructions(checkInInstruction?.instructions || "");
         setRequireProfilePhoto(policy?.requiresBackgroundCheck ?? true);
-        // Property info toggles: prefer the listing policy, fall back to the listing's own flags.
-        const listingWithFlags = loadedListing as Listing & { isPetFriendly?: boolean };
-        setSafetyChoices((current) => ({
-          ...current,
-          "Smoking allowed": policy ? (policy.allowsSmoking ? "yes" : "no") : current["Smoking allowed"],
-          "Pets allowed": policy ? (policy.allowsPets ? "yes" : "no") : (listingWithFlags.isPetFriendly ? "yes" : "no"),
-          "Parking available": policy ? (policy.parkingIncluded ? "yes" : "no") : current["Parking available"],
-        }));
+        setAcceptingApplications(loadedListing.acceptingApplications ?? true);
+        setMinimumCreditScore(policy?.minimumCreditScore ?? 0);
+        setApplicationInstructions(policy?.applicationInstructions || "");
+        setApplicationDeadline(loadedListing.applicationDeadline?.slice(0, 10) || "");
+        setAllowsPets(Boolean(policy?.allowsPets || loadedListing.isPetFriendly));
+        setAllowsSmoking(Boolean(policy?.allowsSmoking));
+        setAllowsChildren(policy?.allowsChildren ?? true);
+        setFurnished(Boolean(policy?.furnished || loadedListing.isFurnished));
+        setParkingIncluded(Boolean(policy?.parkingIncluded));
+        setUtilitiesIncluded(Boolean(policy?.utilitiesIncluded));
+        setSafetyChoices((current) => {
+          const next = { ...current };
+          SAFETY_CONSIDERATION_ITEMS.forEach((item) => {
+            const rule = findRule(toSafetyRuleType("SAFETY_CONSIDERATION", item));
+            if (rule) next[item] = rule.isAllowed ? "yes" : "no";
+          });
+          rulesForListing.filter((rule) => rule.ruleType.startsWith("SAFETY_DEVICE_")).forEach((rule) => {
+            next[rule.ruleDescription] = rule.isAllowed ? "yes" : "no";
+          });
+          return next;
+        });
         setRoomPhotos({
           living: photos.find((photo) => photo.location === "LivingRoom")?.url || photoRooms[0].photo,
           bedroom: photos.find((photo) => photo.location === "Bedroom")?.url || photoRooms[1].photo,
@@ -631,7 +699,10 @@ export default function HostingListingEditorPage() {
         if (quietStartRule?.ruleTitle) setQuietStart(quietStartRule.ruleTitle);
         if (quietEndRule?.ruleTitle) setQuietEnd(quietEndRule.ruleTitle);
         if (checkInRule?.ruleTitle) setCheckInStart(checkInRule.ruleTitle);
+        if (checkInEndRule?.ruleTitle) setCheckInEnd(checkInEndRule.ruleTitle);
         if (checkOutRule?.ruleTitle) setCheckoutTime(checkOutRule.ruleTitle);
+        if (numberOfGuestsRule?.ruleTitle) setGuestsCount(Math.max(1, Number.parseInt(numberOfGuestsRule.ruleTitle, 10) || 1));
+        setCommercialPhotography(Boolean(commercialPhotographyRule?.isAllowed));
         if (additionalRule?.ruleTitle) setHouseRuleText(additionalRule.ruleTitle);
       })
       .catch((error: unknown) => {
@@ -641,7 +712,15 @@ export default function HostingListingEditorPage() {
         if (!cancelled) setIsLoading(false);
       });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, queryClient]);
+  useEffect(() => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("section", activeKey);
+      next.set("tab", editorTab);
+      return next;
+    }, { replace: true });
+  }, [activeKey, editorTab, setSearchParams]);
   useEffect(() => {
     const organizationID = listing?.organizationID;
     if (!organizationID) return;
@@ -706,9 +785,6 @@ export default function HostingListingEditorPage() {
       });
     return () => { cancelled = true; };
   }, [listing?.organizationID]);
-  useEffect(() => {
-    (instantBook ? instantBookRef.current : approvalRef.current)?.focus();
-  }, [instantBook]);
   const editorSections = useMemo(() => sections.map((section) => {
     if (!listing) return section;
     if (section.key === "title") return { ...section, summary: title || "Add a title" };
@@ -899,6 +975,77 @@ export default function HostingListingEditorPage() {
       setPropertyInfoSaving(false);
     }
   };
+  const saveApplicationSettings = async () => {
+    if (!listing || propertyInfoSaving) return;
+    const currentPolicy = listing.listingPolicies?.[0];
+    const deadline = applicationDeadline || "";
+    const synchronizedOccupants = Math.max(listing.rentalUnit?.maximumOccupants ?? 0, currentPolicy?.maximumOccupants ?? 0, guestsCount);
+    const listingChanged = listing.acceptingApplications !== acceptingApplications
+      || (listing.applicationDeadline?.slice(0, 10) || "") !== deadline
+      || listing.isFurnished !== furnished
+      || listing.isPetFriendly !== allowsPets;
+    const policyChanged = !currentPolicy
+      || currentPolicy.minimumCreditScore !== minimumCreditScore
+      || currentPolicy.requiresBackgroundCheck !== requireProfilePhoto
+      || currentPolicy.applicationInstructions !== applicationInstructions
+      || currentPolicy.furnished !== furnished
+      || currentPolicy.allowsPets !== allowsPets
+      || currentPolicy.allowsSmoking !== allowsSmoking
+      || currentPolicy.allowsChildren !== allowsChildren
+      || currentPolicy.parkingIncluded !== parkingIncluded
+      || currentPolicy.utilitiesIncluded !== utilitiesIncluded
+      || currentPolicy.maximumOccupants !== synchronizedOccupants;
+    if (!listingChanged && !policyChanged) {
+      showSaveToast("No application setting changes to save");
+      return;
+    }
+
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const listingPayload = { ...listing, acceptingApplications, applicationDeadline: deadline, isFurnished: furnished, isPetFriendly: allowsPets };
+      const policyPayload = {
+        listingPolicyID: currentPolicy?.listingPolicyID || null,
+        listingID: listing.listingID,
+        allowsPets,
+        allowsSmoking,
+        allowsChildren,
+        maximumOccupants: synchronizedOccupants,
+        furnished,
+        parkingIncluded,
+        utilitiesIncluded,
+        minimumCreditScore,
+        requiresBackgroundCheck: requireProfilePhoto,
+        applicationInstructions,
+        capturedDate: currentPolicy?.capturedDate || new Date().toISOString().slice(0, 10),
+        capturedBy: currentPolicy?.capturedBy || capturedBy,
+      } as ListingPolicy;
+      const [updatedListing, updatedPolicy] = await Promise.all([
+        listingChanged ? updateListing(listingPayload) : Promise.resolve(listing),
+        policyChanged
+          ? currentPolicy?.listingPolicyID
+            ? updateListingPolicy(policyPayload)
+            : createListingPolicy(policyPayload)
+          : Promise.resolve(currentPolicy),
+      ]);
+      setListing((current) => current ? {
+        ...current,
+        ...updatedListing,
+        acceptingApplications,
+        applicationDeadline: deadline,
+        isFurnished: furnished,
+        isPetFriendly: allowsPets,
+        listingPolicies: updatedPolicy
+          ? [updatedPolicy, ...(current.listingPolicies ?? []).filter((policy) => policy.listingPolicyID !== updatedPolicy.listingPolicyID)]
+          : current.listingPolicies,
+      } : current);
+      showSaveToast("Application settings saved successfully");
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the application settings. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
   const saveAvailability = async () => {
     if (!listing || propertyInfoSaving) return;
     setAdvanceNoticeOpen(false);
@@ -946,6 +1093,7 @@ export default function HostingListingEditorPage() {
     try {
       const maximumOccupants = Math.max(1, guestsCount);
       const rentalUnit = listing.rentalUnit;
+      const currentPolicy = listing.listingPolicies?.[0];
       const rentalUnitPayload = {
         ...rentalUnit,
         rentalUnitID: rentalUnit.rentalUnitID,
@@ -953,20 +1101,250 @@ export default function HostingListingEditorPage() {
         unitTypeID: rentalUnit.unitTypeID,
         maximumOccupants,
       };
-      if (rentalUnit.maximumOccupants === maximumOccupants) {
+      const policyPayload = {
+        listingPolicyID: currentPolicy?.listingPolicyID || null,
+        listingID: listing.listingID,
+        allowsPets,
+        allowsSmoking,
+        allowsChildren,
+        maximumOccupants,
+        furnished,
+        parkingIncluded,
+        utilitiesIncluded,
+        minimumCreditScore: currentPolicy?.minimumCreditScore ?? minimumCreditScore,
+        requiresBackgroundCheck: currentPolicy?.requiresBackgroundCheck ?? requireProfilePhoto,
+        applicationInstructions: currentPolicy?.applicationInstructions ?? applicationInstructions,
+        capturedDate: currentPolicy?.capturedDate || new Date().toISOString().slice(0, 10),
+        capturedBy: currentPolicy?.capturedBy || capturedBy,
+      } as ListingPolicy;
+      const rentalUnitChanged = rentalUnit.maximumOccupants !== maximumOccupants;
+      const policyChanged = !currentPolicy || currentPolicy.maximumOccupants !== maximumOccupants;
+      if (!rentalUnitChanged && !policyChanged) {
         showSaveToast("No guest capacity changes to save");
         return;
       }
-      if (import.meta.env.DEV) console.info("[ListingEditor] Updating guest capacity", rentalUnitPayload);
-      const updatedRentalUnit = await updateRentalUnit(rentalUnitPayload);
+      const [updatedRentalUnit, updatedPolicy] = await Promise.all([
+        rentalUnitChanged ? updateRentalUnit(rentalUnitPayload) : Promise.resolve(rentalUnit),
+        policyChanged
+          ? currentPolicy?.listingPolicyID
+            ? updateListingPolicy(policyPayload)
+            : createListingPolicy(policyPayload)
+          : Promise.resolve(currentPolicy),
+      ]);
       setListing((current) => current ? {
         ...current,
         rentalUnit: { ...current.rentalUnit, ...rentalUnitPayload, ...updatedRentalUnit, maximumOccupants },
+        listingPolicies: updatedPolicy
+          ? [updatedPolicy, ...(current.listingPolicies ?? []).filter((policy) => policy.listingPolicyID !== updatedPolicy.listingPolicyID)]
+          : current.listingPolicies,
       } : current);
       setGuestsCount(maximumOccupants);
       showSaveToast("Guest capacity saved successfully");
     } catch (error) {
       setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the guest capacity. Please try again.");
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveHouseRules = async (): Promise<boolean> => {
+    if (!listing || propertyInfoSaving) return false;
+    // Each house-rule row is keyed by ruleType so saving updates the existing row instead of duplicating it.
+    // Backend ruleType set: SMOKING, QUIET_HOURS_END, CHECK_IN, QUIET_HOURS_START, NUMBER_OF_GUESTS,
+    // ADDITIONAL, PETS, CHECK_OUT, PARTIES - plus CHECK_IN_END and COMMERCIAL_PHOTOGRAPHY used by this UI.
+    const ruleSpecs: Array<{ ruleType: string; ruleTitle: string; isAllowed: boolean }> = [
+      { ruleType: "QUIET_HOURS_START", ruleTitle: quietStart, isAllowed: quietHours },
+      { ruleType: "QUIET_HOURS_END", ruleTitle: quietEnd, isAllowed: quietHours },
+      { ruleType: "CHECK_IN", ruleTitle: checkInStart, isAllowed: true },
+      { ruleType: "CHECK_IN_END", ruleTitle: checkInEnd, isAllowed: true },
+      { ruleType: "CHECK_OUT", ruleTitle: checkoutTime, isAllowed: true },
+      { ruleType: "NUMBER_OF_GUESTS", ruleTitle: String(guestsCount), isAllowed: true },
+      { ruleType: "COMMERCIAL_PHOTOGRAPHY", ruleTitle: "Commercial photography and filming allowed", isAllowed: commercialPhotography },
+      { ruleType: "ADDITIONAL", ruleTitle: houseRuleText, isAllowed: true },
+    ];
+    const changedSpecs = ruleSpecs.filter((spec) => {
+      const existing = listingRules.find((rule) => rule.ruleType === spec.ruleType);
+      return !existing || existing.ruleTitle !== spec.ruleTitle || existing.isAllowed !== spec.isAllowed;
+    });
+    if (changedSpecs.length === 0) {
+      showSaveToast("No house rule changes to save");
+      return true;
+    }
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const updatedRules = await Promise.all(changedSpecs.map((spec) => {
+        const existing = listingRules.find((rule) => rule.ruleType === spec.ruleType);
+        const payload = {
+          listingRuleID: existing?.listingRuleID || null,
+          listingID: listing.listingID,
+          ruleType: spec.ruleType,
+          ruleTitle: spec.ruleTitle,
+          ruleDescription: existing?.ruleDescription || "",
+          isAllowed: spec.isAllowed,
+          effectiveFrom: existing?.effectiveFrom || new Date().toISOString().slice(0, 10),
+          effectiveTo: existing?.effectiveTo || new Date(new Date().setFullYear(new Date().getFullYear() + 50)).toISOString().slice(0, 10),
+          capturedDate: existing?.capturedDate || new Date().toISOString().slice(0, 10),
+          capturedBy: existing?.capturedBy || capturedBy,
+        } as ListingRule;
+        return existing?.listingRuleID ? updateListingRule(payload) : createListingRule(payload);
+      }));
+      setListingRules((current) => {
+        const next = [...current];
+        updatedRules.forEach((updatedRule) => {
+          const index = next.findIndex((rule) => rule.ruleType === updatedRule.ruleType);
+          if (index >= 0) next[index] = updatedRule; else next.push(updatedRule);
+        });
+        return next;
+      });
+      showSaveToast("House rules saved successfully");
+      return true;
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the house rules. Please try again.");
+      return false;
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveSafetyDetails = async (): Promise<boolean> => {
+    if (!listing || propertyInfoSaving) return false;
+    // Considerations use fixed labels; devices are the listing's installed safety amenities - both keyed by a derived ruleType.
+    // ruleTitle holds the toggle value ("true"/"false") and ruleDescription holds the item's label.
+    const specs = [
+      ...SAFETY_CONSIDERATION_ITEMS.map((item) => {
+        const isAllowed = (safetyChoices[item] || "yes") === "yes";
+        return { ruleType: toSafetyRuleType("SAFETY_CONSIDERATION", item), ruleTitle: String(isAllowed), ruleDescription: item, isAllowed };
+      }),
+      ...safetyAmenities.map((item) => {
+        const isAllowed = (safetyChoices[item] || "yes") === "yes";
+        return { ruleType: toSafetyRuleType("SAFETY_DEVICE", item), ruleTitle: String(isAllowed), ruleDescription: item, isAllowed };
+      }),
+    ];
+    const changedSpecs = specs.filter((spec) => {
+      const existing = listingRules.find((rule) => rule.ruleType === spec.ruleType);
+      return !existing || existing.ruleTitle !== spec.ruleTitle || existing.ruleDescription !== spec.ruleDescription || existing.isAllowed !== spec.isAllowed;
+    });
+    if (changedSpecs.length === 0) {
+      showSaveToast("No guest safety changes to save");
+      return true;
+    }
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const updatedRules = await Promise.all(changedSpecs.map((spec) => {
+        const existing = listingRules.find((rule) => rule.ruleType === spec.ruleType);
+        const payload = {
+          listingRuleID: existing?.listingRuleID || null,
+          listingID: listing.listingID,
+          ruleType: spec.ruleType,
+          ruleTitle: spec.ruleTitle,
+          ruleDescription: spec.ruleDescription,
+          isAllowed: spec.isAllowed,
+          effectiveFrom: existing?.effectiveFrom || new Date().toISOString().slice(0, 10),
+          effectiveTo: existing?.effectiveTo || new Date(new Date().setFullYear(new Date().getFullYear() + 50)).toISOString().slice(0, 10),
+          capturedDate: existing?.capturedDate || new Date().toISOString().slice(0, 10),
+          capturedBy: existing?.capturedBy || capturedBy,
+        } as ListingRule;
+        return existing?.listingRuleID ? updateListingRule(payload) : createListingRule(payload);
+      }));
+      setListingRules((current) => {
+        const next = [...current];
+        updatedRules.forEach((updatedRule) => {
+          const index = next.findIndex((rule) => rule.ruleType === updatedRule.ruleType);
+          if (index >= 0) next[index] = updatedRule; else next.push(updatedRule);
+        });
+        return next;
+      });
+      showSaveToast("Guest safety details saved successfully");
+      return true;
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the guest safety details. Please try again.");
+      return false;
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveArrivalGuide = async (): Promise<boolean> => {
+    if (!listing || propertyInfoSaving) return false;
+    // Each instruction is keyed by instructionType so saving updates the existing active row instead of duplicating it.
+    const specs = [
+      { instructionType: "HOUSE_MANUAL", instructions: houseManual },
+      { instructionType: "CHECKOUT_INSTRUCTION", instructions: checkoutInstructions },
+      { instructionType: "GUEST_REQUIREMENT", instructions: guestRequirementDetails },
+      { instructionType: "CHECK_IN_INSTRUCTION", instructions: checkInInstructions },
+    ];
+    const findExisting = (instructionType: string) =>
+      listingAccessInstructions.find((item) => item.instructionType === instructionType && item.isActive)
+      ?? listingAccessInstructions.find((item) => item.instructionType === instructionType);
+    const changedSpecs = specs.filter((spec) => {
+      const existing = findExisting(spec.instructionType);
+      return !existing || existing.instructions !== spec.instructions;
+    });
+    const doorCodeChanged = listing.checkInDoorCode !== doorCodeDraft;
+    const wifiChanged = listing.wIFINetwork !== wifiNetwork || listing.wIFIPassword !== wifiPassword;
+    if (changedSpecs.length === 0 && !doorCodeChanged && !wifiChanged) {
+      showSaveToast("No arrival guide changes to save");
+      return true;
+    }
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const listingPayload = { ...listing, checkInDoorCode: doorCodeDraft, wIFINetwork: wifiNetwork, wIFIPassword: wifiPassword };
+      const [updatedListing, ...updatedInstructions] = await Promise.all([
+        (doorCodeChanged || wifiChanged) ? updateListing(listingPayload) : Promise.resolve(listing),
+        ...changedSpecs.map((spec) => {
+          const existing = findExisting(spec.instructionType);
+          const payload = {
+            listingAccessInstructionID: existing?.listingAccessInstructionID || null,
+            listingID: listing.listingID,
+            leaseID: existing?.leaseID || null,
+            instructionType: spec.instructionType,
+            instructions: spec.instructions,
+            secretReference: existing?.secretReference || "",
+            availableFrom: existing?.availableFrom || new Date().toISOString().slice(0, 10),
+            availableUntil: existing?.availableUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 50)).toISOString().slice(0, 10),
+            isActive: true,
+            capturedDate: existing?.capturedDate || new Date().toISOString().slice(0, 10),
+            capturedBy: existing?.capturedBy || capturedBy,
+          } as ListingAccessInstruction;
+          return existing?.listingAccessInstructionID ? updateListingAccessInstruction(payload) : createListingAccessInstruction(payload);
+        }),
+      ]);
+      setListing((current) => current ? { ...current, ...updatedListing, checkInDoorCode: doorCodeDraft, wIFINetwork: wifiNetwork, wIFIPassword: wifiPassword } : current);
+      setDoorCode(doorCodeDraft);
+      setListingAccessInstructions((current) => {
+        const next = [...current];
+        updatedInstructions.forEach((updated) => {
+          const index = next.findIndex((item) => item.instructionType === updated.instructionType);
+          if (index >= 0) next[index] = updated; else next.push(updated);
+        });
+        return next;
+      });
+      showSaveToast("Arrival guide saved successfully");
+      return true;
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the arrival guide. Please try again.");
+      return false;
+    } finally {
+      setPropertyInfoSaving(false);
+    }
+  };
+  const saveCancellationPolicy = async (): Promise<boolean> => {
+    if (!listing || propertyInfoSaving) return false;
+    if (listing.shortTermCancellationPolicy === shortTermPolicy && listing.longTermCancellationPolicy === longTermPolicy) {
+      showSaveToast("No cancellation policy changes to save");
+      return true;
+    }
+    setPropertyInfoSaveError("");
+    setPropertyInfoSaving(true);
+    try {
+      const listingPayload = { ...listing, shortTermCancellationPolicy: shortTermPolicy, longTermCancellationPolicy: longTermPolicy };
+      const updatedListing = await updateListing(listingPayload);
+      setListing((current) => current ? { ...current, ...updatedListing, shortTermCancellationPolicy: shortTermPolicy, longTermCancellationPolicy: longTermPolicy } : current);
+      showSaveToast("Cancellation policy saved successfully");
+      return true;
+    } catch (error) {
+      setPropertyInfoSaveError(error instanceof Error ? error.message : "We could not save the cancellation policy. Please try again.");
+      return false;
     } finally {
       setPropertyInfoSaving(false);
     }
@@ -1037,7 +1415,7 @@ export default function HostingListingEditorPage() {
       const normalizedBeds = Number.parseInt(String(bedCount).trim(), 10) || 0;
       const normalizedYearBuilt = Number.parseInt(yearBuilt.trim(), 10) || property.yearBuilt || listing.yearBuilt || 0;
       const normalizedSquareFeet = Number.parseFloat(propertySize.trim()) || rentalUnit.squareFeet || listing.squareFeet || 0;
-      const isPetFriendly = safetyChoices["Pets allowed"] === "yes";
+      const isPetFriendly = allowsPets;
       const furnishedLabel = listing.isFurnished ? "Furnished" : "Unfurnished";
       const petLabel = isPetFriendly ? "Pet-friendly" : "No pets";
       const generatedListingTitle = `${normalizedPropertyName} - ${normalizedUnitName}`.slice(0, 50);
@@ -1109,7 +1487,7 @@ export default function HostingListingEditorPage() {
         || listingPayload.bathrooms !== listing.bathrooms
         || listingPayload.squareFeet !== listing.squareFeet
         || listingPayload.yearBuilt !== listing.yearBuilt
-        || listingPayload.isPetFriendly !== (listing as Listing & { isPetFriendly?: boolean }).isPetFriendly;
+        || listingPayload.isPetFriendly !== listing.isPetFriendly;
       if (!propertyChanged && !rentalUnitChanged && !listingChanged) {
         showSaveToast("No property changes to save");
         return;
@@ -1491,6 +1869,8 @@ export default function HostingListingEditorPage() {
                   </div>
                 ) : section.key === "cancellation" ? (
                   <><small>{shortTermPolicy} for short-term stays</small><small>{longTermPolicy} for long-term stays</small></>
+                ) : section.key === "booking" ? (
+                  <><small>{acceptingApplications ? "Accepting rental applications" : "Applications paused"}</small><small>{minimumCreditScore > 0 ? `${minimumCreditScore} minimum credit score` : "No minimum credit score"}</small></>
                 ) : section.key === "arrival-manual" ? (
                   <><small>{houseManual.split("\n")[0]}</small><small>Door Access: If the door doesn’t open after entering the...</small></>
                 ) : (
@@ -1508,13 +1888,14 @@ export default function HostingListingEditorPage() {
               <div className={`hosting-editor-arrival-detail ${activeArrivalCard.key === "arrival-checkout" ? "hosting-editor-checkout-detail" : ""}`}>
                 <div className="hosting-editor-arrival-detail-icon">{activeArrivalCard.icon}</div>
                 {activeArrivalCard.key !== "arrival-manual" && activeArrivalCard.key !== "arrival-taxes" && <h3>{activeArrivalCard.summary}</h3>}
-                {activeArrivalCard.key === "arrival-checkin" && (checkinDetail ? <div className="hosting-editor-checkin-subpage"><h3>{checkinDetail === "lock" ? "Add smart lock details" : "Add check-in instructions"}</h3>{checkinDetail === "lock" ? <label className="hosting-editor-door-code-field"><span>Door code</span><input inputMode="numeric" maxLength={8} value={doorCodeDraft} onChange={(event) => setDoorCodeDraft(event.target.value.replace(/\D/g, ""))} placeholder="Enter door code" /></label> : <><p>This info will be shared with guests 24–48 hours before check-in.</p><textarea className="hosting-editor-arrival-textarea" placeholder="Add check-in instructions" /></>}</div> : <><div className="hosting-editor-lock-connect"><KeyIcon /><div><strong>Connect your lock for smooth check-ins</strong><p>Guests automatically get door codes based on the last four digits of their phone number. Codes are only active during the trip.</p><button type="button">Connect</button></div></div><button type="button" className="hosting-editor-arrival-callout" onClick={() => { setDoorCodeDraft(doorCode); setCheckinDetail("lock"); }}><KeyIcon /><span><strong>Smart lock</strong><small>Door code: {doorCode}</small></span><PencilIcon /></button><h3 className="hosting-editor-arrival-subtitle">Check-in instructions</h3><p>Help guests have a smooth arrival. Share tips for how to get inside.</p><button type="button" className="hosting-editor-add-instructions" onClick={() => setCheckinDetail("instructions")}><PlusIcon /> Add instructions</button></>) }
+                {activeArrivalCard.key === "arrival-checkin" && (checkinDetail ? <div className="hosting-editor-checkin-subpage"><h3>{checkinDetail === "lock" ? "Add smart lock details" : "Add check-in instructions"}</h3>{checkinDetail === "lock" ? <label className="hosting-editor-door-code-field"><span>Door code</span><input inputMode="numeric" maxLength={8} value={doorCodeDraft} onChange={(event) => setDoorCodeDraft(event.target.value.replace(/\D/g, ""))} placeholder="Enter door code" /></label> : <><p>This info will be shared with guests 24–48 hours before check-in.</p><textarea className="hosting-editor-arrival-textarea" placeholder="Add check-in instructions" value={checkInInstructions} onChange={(event) => setCheckInInstructions(event.target.value)} /></>}</div> : <><div className="hosting-editor-lock-connect"><KeyIcon /><div><strong>Connect your lock for smooth check-ins</strong><p>Guests automatically get door codes based on the last four digits of their phone number. Codes are only active during the trip.</p><button type="button">Connect</button></div></div><button type="button" className="hosting-editor-arrival-callout" onClick={() => { setDoorCodeDraft(doorCode); setCheckinDetail("lock"); }}><KeyIcon /><span><strong>Smart lock</strong><small>Door code: {doorCode}</small></span><PencilIcon /></button><h3 className="hosting-editor-arrival-subtitle">Check-in instructions</h3><p>Help guests have a smooth arrival. Share tips for how to get inside.</p><button type="button" className="hosting-editor-add-instructions" onClick={() => setCheckinDetail("instructions")}><PlusIcon /> Add instructions</button></>) }
                 {activeArrivalCard.key === "arrival-wifi" && <><label className="hosting-editor-field"><span>Network name</span><input value={wifiNetwork} onChange={(event) => setWifiNetwork(event.target.value)} /></label><label className="hosting-editor-field"><span>Password</span><input value={wifiPassword} onChange={(event) => setWifiPassword(event.target.value)} /></label></>}
                 {activeArrivalCard.key === "arrival-checkout" && <><p>Tell guests what to do before they leave.</p><textarea className="hosting-editor-arrival-textarea" placeholder="Add checkout instructions" value={checkoutInstructions} onChange={(event) => setCheckoutInstructions(event.target.value)} /></>}
                 {activeArrivalCard.key === "arrival-requirements" && <div className="hosting-editor-requirements-page"><h3>Require a profile photo <button type="button" className={`hosting-editor-switch ${requireProfilePhoto ? "is-on" : ""}`} aria-label="Require a profile photo" aria-pressed={requireProfilePhoto} onClick={() => setRequireProfilePhoto((current) => !current)}><i /></button></h3><p>When turned on, guests who book your listing need a profile photo. You&apos;ll only see it after their booking is confirmed. <u>Learn more</u></p>{guestRequirementDetails && <p>{guestRequirementDetails}</p>}<div className="hosting-editor-requirements-list"><strong>All Arcora guests are required to:</strong><span>• Provide a confirmed email address and phone number</span><span>• Provide payment information</span><span>• Agree to your house rules</span><button type="button">Learn more <ChevIcon /></button></div></div>}
                 {activeArrivalCard.key === "arrival-taxes" && <>{taxDetailOpen ? <div className="hosting-editor-tax-detail"><h3>Add a tax</h3><p>You can add one or more taxes to apply to your listing. <u>Learn more</u></p><label className="hosting-editor-tax-field is-required"><span>Tax name</span><CustomSelect value={taxName || "Select"} options={["Goods and Services Tax (Saskatchewan)", "Saskatchewan Provincial Sales Tax", "City tax"]} onChange={setTaxName} ariaLabel="Tax name" /></label><label className="hosting-editor-tax-field"><span>Tax type</span><CustomSelect value={taxType || "Select"} options={["Percentage", "Fixed amount"]} onChange={setTaxType} ariaLabel="Tax type" /></label><label className="hosting-editor-tax-field"><span>Tax rate</span><input value={taxRate} onChange={(event) => setTaxRate(event.target.value)} placeholder="Enter tax rate" /></label><label className="hosting-editor-tax-field"><span>Partial-stay exemption</span><input placeholder="Optional" /></label><label className="hosting-editor-tax-field"><span>Full-stay exemption</span><input placeholder="Optional" /></label><label className="hosting-editor-tax-field"><span>Accommodations tax registration number</span><input placeholder="Tax registration number" /></label><label className="hosting-editor-tax-terms"><input type="checkbox" /> <span>I confirm the tax information is correct and will remit any tax collected.</span></label></div> : <div className="hosting-editor-tax-overview"><p>Arcora automatically submits some taxes, and you can add other taxes you need to submit.</p><section><strong>Taxes Arcora submits</strong><small>We&apos;ll collect these taxes from guests on your behalf and submit payment to the designated tax authority. <u>Learn more</u></small><span><CheckIcon /> Goods and Services Tax (Saskatchewan)</span><span><CheckIcon /> Saskatchewan Provincial Sales Tax</span></section><section><strong>Add taxes you&apos;ll submit</strong><small>We&apos;ll collect these taxes from guests on your behalf and pass the funds on to you. You must submit payment to the correct tax authority. <u>Learn more</u></small><button type="button" onClick={() => setTaxDetailOpen(true)}>Add a tax</button></section></div>}</>}
                 {activeArrivalCard.key === "arrival-manual" && <><small className="hosting-editor-shared-note"><ClockIcon /> Shared 24–48 hours before check-in</small><label className="hosting-editor-field"><span>House manual</span><textarea className="hosting-editor-arrival-textarea hosting-editor-manual-textarea" value={houseManual} onChange={(event) => setHouseManual(event.target.value)} /></label></>}
               </div>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
           {editorTab === "space" && <>
@@ -2099,15 +2480,24 @@ export default function HostingListingEditorPage() {
           )}
 
           {activeSection.kind === "text" && activeSection.key === "booking" && (
-            <div className="hosting-editor-booking-form">
-              <h2>Booking settings</h2>
-              <div ref={instantBookRef} className={`hosting-editor-booking-primary ${instantBook ? "is-on" : ""}`} role="button" tabIndex={0} onClick={() => setInstantBook(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setInstantBook(true); }}>
-                <div className="hosting-editor-booking-primary-head"><div><strong>Use Instant Book</strong><p>Let guests book automatically, which can help you get more bookings.</p></div><span className="hosting-editor-booking-symbol">ϟ</span></div>
-                <div className="hosting-editor-booking-option"><span><strong>Require a good track record</strong><small>Only allow guests who have stayed on Arcora without issues. <u>Learn more</u></small></span><button type="button" className={`hosting-editor-switch ${trackRecord ? "is-on" : ""}`} aria-label="Require a good track record" aria-pressed={trackRecord} onClick={(event) => { event.stopPropagation(); setTrackRecord((current) => !current); }}><i /></button></div>
-                <button type="button" className="hosting-editor-booking-message" onClick={() => setBookingMessageOpen((current) => !current)}><span><strong>Pre-booking message</strong><small>{preBookingMessage}</small></span><ChevIcon /></button>
-                {bookingMessageOpen && <div className="hosting-editor-booking-message-editor"><textarea value={preBookingMessage} onChange={(event) => setPreBookingMessage(event.target.value)} maxLength={500} /><small>{preBookingMessage.length}/500 characters</small></div>}
-              </div>
-              <button ref={approvalRef} type="button" className={`hosting-editor-booking-approval ${!instantBook ? "is-active" : ""}`} onClick={() => setInstantBook(false)}><span><strong>Approve all bookings</strong><small>Always review reservation requests.</small></span><MessageSquareIcon /></button>
+            <div className="hosting-editor-application-form">
+              <div className="hosting-editor-main-header"><div><h2>Application settings</h2><p>Control whether renters can apply and what screening information they need.</p></div><span className={`hosting-editor-application-status ${acceptingApplications ? "is-open" : ""}`}>{acceptingApplications ? "Open" : "Paused"}</span></div>
+              <section className="hosting-editor-application-section">
+                <div className="hosting-editor-application-row"><div><strong>Accept applications</strong><span>Allow renters to submit applications for this listing.</span></div><button type="button" className={`hosting-editor-switch ${acceptingApplications ? "is-on" : ""}`} role="switch" aria-checked={acceptingApplications} onClick={() => setAcceptingApplications((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Require a background check</strong><span>Applicants must complete identity and background screening.</span></div><button type="button" className={`hosting-editor-switch ${requireProfilePhoto ? "is-on" : ""}`} role="switch" aria-checked={requireProfilePhoto} onClick={() => setRequireProfilePhoto((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Allows pets</strong><span>Applicants may bring pets into the unit.</span></div><button type="button" className={`hosting-editor-switch ${allowsPets ? "is-on" : ""}`} role="switch" aria-checked={allowsPets} onClick={() => setAllowsPets((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Allows smoking</strong><span>Applicants may smoke on the property.</span></div><button type="button" className={`hosting-editor-switch ${allowsSmoking ? "is-on" : ""}`} role="switch" aria-checked={allowsSmoking} onClick={() => setAllowsSmoking((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Allows children</strong><span>Applicants may have children living in the unit.</span></div><button type="button" className={`hosting-editor-switch ${allowsChildren ? "is-on" : ""}`} role="switch" aria-checked={allowsChildren} onClick={() => setAllowsChildren((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Furnished</strong><span>The unit is offered furnished.</span></div><button type="button" className={`hosting-editor-switch ${furnished ? "is-on" : ""}`} role="switch" aria-checked={furnished} onClick={() => setFurnished((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Parking included</strong><span>Parking is included with the rental.</span></div><button type="button" className={`hosting-editor-switch ${parkingIncluded ? "is-on" : ""}`} role="switch" aria-checked={parkingIncluded} onClick={() => setParkingIncluded((current) => !current)}><i /></button></div>
+                <div className="hosting-editor-application-row"><div><strong>Utilities included</strong><span>Utilities are included with the rental.</span></div><button type="button" className={`hosting-editor-switch ${utilitiesIncluded ? "is-on" : ""}`} role="switch" aria-checked={utilitiesIncluded} onClick={() => setUtilitiesIncluded((current) => !current)}><i /></button></div>
+              </section>
+              <section className="hosting-editor-application-section hosting-editor-application-fields">
+                <label><span>Minimum credit score</span><input type="number" min="0" max="900" value={minimumCreditScore || ""} placeholder="No minimum" onChange={(event) => setMinimumCreditScore(Math.min(900, Math.max(0, Number(event.target.value) || 0)))} /></label>
+                <label><span>Application deadline</span><input type="date" value={applicationDeadline} onChange={(event) => setApplicationDeadline(event.target.value)} /></label>
+                <label className="is-wide"><span>Application instructions</span><textarea value={applicationInstructions} maxLength={1000} rows={6} placeholder="Share screening requirements, required documents, or next steps." onChange={(event) => setApplicationInstructions(event.target.value)} /><small>{applicationInstructions.length}/1000</small></label>
+              </section>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
 
@@ -2127,19 +2517,20 @@ export default function HostingListingEditorPage() {
               <div className="hosting-editor-rule-counter"><span>Number of guests</span><div><button type="button" onClick={() => setGuestsCount((count) => Math.max(1, count - 1))} aria-label="Decrease guests">−</button><strong>{guestsCount}</strong><button type="button" onClick={() => setGuestsCount((count) => count + 1)} aria-label="Increase guests">+</button></div></div>
               <button type="button" className="hosting-editor-rule-detail-row" onClick={() => setHouseRulesDetail("times")}><span><strong>Check-in and checkout times</strong><small>Arrive between {checkInStart} - {checkInEnd}<br />Leave before {checkoutTime}</small></span><ChevIcon /></button>
               <button type="button" className="hosting-editor-rule-detail-row additional" onClick={() => setHouseRulesDetail("additional")}><span><strong>Additional rules</strong><small>{houseRuleText}</small></span><ChevIcon /></button>
+              {propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}
             </div>
           )}
 
           {activeSection.kind === "list" && activeSection.key === "rules" && houseRulesDetail === "times" && (
-            <div className="hosting-editor-house-rules-detail"><h2>Check-in and checkout times</h2><div className="hosting-editor-time-label">Check-in window<div className="hosting-editor-time-fields"><label>Start time<CustomSelect value={checkInStart} options={timeOptions} onChange={setCheckInStart} ariaLabel="Start time" /></label><label>End time<CustomSelect value={checkInEnd} options={timeOptions} onChange={setCheckInEnd} ariaLabel="End time" /></label></div></div><div className="hosting-editor-time-label">Checkout<CustomSelect value={checkoutTime} options={timeOptions} onChange={setCheckoutTime} ariaLabel="Checkout time" /></div></div>
+            <div className="hosting-editor-house-rules-detail"><h2>Check-in and checkout times</h2><div className="hosting-editor-time-label">Check-in window<div className="hosting-editor-time-fields"><label>Start time<CustomSelect value={checkInStart} options={timeOptions} onChange={setCheckInStart} ariaLabel="Start time" /></label><label>End time<CustomSelect value={checkInEnd} options={timeOptions} onChange={setCheckInEnd} ariaLabel="End time" /></label></div></div><div className="hosting-editor-time-label">Checkout<CustomSelect value={checkoutTime} options={timeOptions} onChange={setCheckoutTime} ariaLabel="Checkout time" /></div>{propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}</div>
           )}
 
           {activeSection.kind === "list" && activeSection.key === "rules" && houseRulesDetail === "additional" && (
-            <div className="hosting-editor-house-rules-detail"><h2>Additional rules</h2><textarea className="hosting-editor-house-rules-textarea" value={houseRuleText} onChange={(event) => setHouseRuleText(event.target.value)} /><small>{houseRuleText.length}/5000 characters</small></div>
+            <div className="hosting-editor-house-rules-detail"><h2>Additional rules</h2><textarea className="hosting-editor-house-rules-textarea" value={houseRuleText} onChange={(event) => setHouseRuleText(event.target.value)} /><small>{houseRuleText.length}/5000 characters</small>{propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}</div>
           )}
 
           {activeSection.key === "safety" && (
-            <div className="hosting-editor-safety-layout"><div className="hosting-editor-safety-overview"><h2>Guest safety</h2><p>The safety details you share will appear on your listing, along with information like your House Rules.</p><button type="button" className={safetyDetail === "considerations" ? "is-active" : ""} onClick={() => setSafetyDetail("considerations")}><span><strong>Safety considerations</strong><small>Add details</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "devices" ? "is-active" : ""} onClick={() => setSafetyDetail("devices")}><span><strong>Safety devices</strong><small>{safetyAmenities.length > 0 ? safetyAmenities.slice(0, 3).join(" · ") : "Add details"}</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "property" ? "is-active" : ""} onClick={() => setSafetyDetail("property")}><span><strong>Property info</strong><small>Add details</small></span><ChevIcon /></button></div>{safetyDetail && <div className="hosting-editor-safety-detail"><h2>{safetyDetail === "considerations" ? "Safety considerations" : safetyDetail === "devices" ? "Safety devices" : "Property info"}</h2>{(safetyDetail === "considerations" ? ["Not a good fit for children 2 – 12", "Not a good fit for infants under 2", "Pool or hot tub doesn’t have a gate or lock", "Nearby water, like a lake or river", "Climbing or play structure(s) on the property"] : safetyDetail === "devices" ? safetyAmenities : ["Smoking allowed", "Pets allowed", "Parking available"]).map((item) => { const choice = safetyChoices[item] || "yes"; return <div className="hosting-editor-safety-option" key={item}><span><strong>{item}</strong><small>Guests should know about this feature or consideration before booking.</small></span><div><button type="button" className={choice === "no" ? "is-selected" : ""} aria-label={`Not ${item}`} onClick={() => setSafetyChoice(item, "no")}>×</button><button type="button" className={choice === "yes" ? "is-selected" : ""} aria-label={`Yes ${item}`} onClick={() => setSafetyChoice(item, "yes")}>✓</button></div></div>; })}</div>}</div>
+            <div className="hosting-editor-safety-layout"><div className="hosting-editor-safety-overview"><h2>Guest safety</h2><p>The safety details you share will appear on your listing, along with information like your House Rules.</p><button type="button" className={safetyDetail === "considerations" ? "is-active" : ""} onClick={() => setSafetyDetail("considerations")}><span><strong>Safety considerations</strong><small>Add details</small></span><ChevIcon /></button><button type="button" className={safetyDetail === "devices" ? "is-active" : ""} onClick={() => setSafetyDetail("devices")}><span><strong>Safety devices</strong><small>{safetyAmenities.length > 0 ? safetyAmenities.slice(0, 3).join(" · ") : "Add details"}</small></span><ChevIcon /></button></div>{safetyDetail && <div className="hosting-editor-safety-detail"><h2>{safetyDetail === "considerations" ? "Safety considerations" : "Safety devices"}</h2>{(safetyDetail === "considerations" ? SAFETY_CONSIDERATION_ITEMS : safetyAmenities).map((item) => { const choice = safetyChoices[item] || "yes"; return <div className="hosting-editor-safety-option" key={item}><span><strong>{item}</strong><small>Guests should know about this feature or consideration before booking.</small></span><div><button type="button" className={choice === "no" ? "is-selected" : ""} aria-label={`Not ${item}`} onClick={() => setSafetyChoice(item, "no")}>×</button><button type="button" className={choice === "yes" ? "is-selected" : ""} aria-label={`Yes ${item}`} onClick={() => setSafetyChoice(item, "yes")}>✓</button></div></div>; })}{propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}</div>}</div>
           )}
 
           {activeSection.key === "cancellation" && !cancellationDetail && (
@@ -2147,7 +2538,7 @@ export default function HostingListingEditorPage() {
           )}
 
           {activeSection.key === "cancellation" && cancellationDetail && (
-            <div className="hosting-editor-cancellation-detail"><h2>{cancellationDetail === "lastMinute" ? "Last-minute bookings" : "Long-term stays"}</h2><small>{cancellationDetail === "lastMinute" ? "0 – 14 days before arrival" : "For 35 nights or more"}</small><div className="hosting-editor-policy-options">{(cancellationDetail === "lastMinute" ? [["Flexible", "Full refund at least 1 day before check-in", "Partial refund within 1 day of check-in"], ["Moderate", "Full refund at least 5 days before check-in", "Partial refund within 5 days of check-in"], ["Limited", "Full refund at least 14 days before check-in", "Partial refund 7–14 days before check-in"]] : [["Firm Long Term", "Full refund up to 30 days before check-in", "After that, the first 30 days of the stay are non-refundable"], ["Strict Long Term", "Full refund if canceled within 48 hours of booking and at least 28 days before check-in", "After that, the first 30 days of the stay are non-refundable"]]).map(([name, line1, line2]) => <button type="button" key={name} className={(cancellationDetail === "lastMinute" ? shortTermPolicy : longTermPolicy) === name ? "is-selected" : ""} onClick={() => cancellationDetail === "lastMinute" ? setShortTermPolicy(name) : setLongTermPolicy(name)}><strong>{name}</strong><small>• {line1}<br />• {line2}</small></button>)}</div></div>
+            <div className="hosting-editor-cancellation-detail"><h2>{cancellationDetail === "lastMinute" ? "Last-minute bookings" : "Long-term stays"}</h2><small>{cancellationDetail === "lastMinute" ? "0 – 14 days before arrival" : "For 35 nights or more"}</small><div className="hosting-editor-policy-options">{(cancellationDetail === "lastMinute" ? [["Flexible", "Full refund at least 1 day before check-in", "Partial refund within 1 day of check-in"], ["Moderate", "Full refund at least 5 days before check-in", "Partial refund within 5 days of check-in"], ["Limited", "Full refund at least 14 days before check-in", "Partial refund 7–14 days before check-in"]] : [["Firm Long Term", "Full refund up to 30 days before check-in", "After that, the first 30 days of the stay are non-refundable"], ["Strict Long Term", "Full refund if canceled within 48 hours of booking and at least 28 days before check-in", "After that, the first 30 days of the stay are non-refundable"]]).map(([name, line1, line2]) => <button type="button" key={name} className={(cancellationDetail === "lastMinute" ? shortTermPolicy : longTermPolicy) === name ? "is-selected" : ""} onClick={() => cancellationDetail === "lastMinute" ? setShortTermPolicy(name) : setLongTermPolicy(name)}><strong>{name}</strong><small>• {line1}<br />• {line2}</small></button>)}</div>{propertyInfoSaveError && <small className="hosting-editor-save-error" role="alert">{propertyInfoSaveError}</small>}</div>
           )}
 
           {activeSection.kind === "list" && activeSection.key !== "cohosts" && activeSection.key !== "rules" && activeSection.key !== "safety" && (
@@ -2329,15 +2720,15 @@ export default function HostingListingEditorPage() {
           )}
 
           {activeSection.key === "rules" && houseRulesDetail && (
-            <footer className="hosting-editor-footer is-split"><button type="button" className="hosting-editor-cancel" onClick={() => setHouseRulesDetail(null)}>Cancel</button><button type="button" className="hosting-editor-save" onClick={() => setHouseRulesDetail(null)}><CheckIcon /> Save</button></footer>
+            <footer className="hosting-editor-footer is-split"><button type="button" className="hosting-editor-cancel" onClick={() => setHouseRulesDetail(null)}>Cancel</button><button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => { void saveHouseRules().then((success) => { if (success) setHouseRulesDetail(null); }); }}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button></footer>
           )}
 
           {activeSection.key === "safety" && safetyDetail && (
-            <footer className="hosting-editor-footer is-split"><button type="button" className="hosting-editor-cancel" onClick={() => setSafetyDetail(null)}>Cancel</button><button type="button" className="hosting-editor-save" onClick={() => setSafetyDetail(null)}><CheckIcon /> Save</button></footer>
+            <footer className="hosting-editor-footer is-split"><button type="button" className="hosting-editor-cancel" onClick={() => setSafetyDetail(null)}>Cancel</button><button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => { void saveSafetyDetails().then((success) => { if (success) setSafetyDetail(null); }); }}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button></footer>
           )}
 
           {activeSection.key === "cancellation" && cancellationDetail && (
-            <footer className="hosting-editor-footer is-split"><button type="button" className="hosting-editor-cancel" onClick={() => setCancellationDetail(null)}>Cancel</button><button type="button" className="hosting-editor-save" onClick={() => setCancellationDetail(null)}><CheckIcon /> Save</button></footer>
+            <footer className="hosting-editor-footer is-split"><button type="button" className="hosting-editor-cancel" onClick={() => setCancellationDetail(null)}>Cancel</button><button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => { void saveCancellationPolicy().then((success) => { if (success) setCancellationDetail(null); }); }}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button></footer>
           )}
 
           {activeSection.kind === "map" && locationDetail && (
@@ -2347,9 +2738,9 @@ export default function HostingListingEditorPage() {
             </footer>
           )}
 
-          {editorTab === "arrival" && <footer className="hosting-editor-footer"><button type="button" className="hosting-editor-save" onClick={() => { if (checkinDetail === "lock") setDoorCode(doorCodeDraft); if (taxDetailOpen) setTaxDetailOpen(false); setCheckinDetail(null); }}><CheckIcon /> Save</button></footer>}
+          {editorTab === "arrival" && <footer className="hosting-editor-footer"><button type="button" className="hosting-editor-save" disabled={propertyInfoSaving} onClick={() => { void saveArrivalGuide().then((success) => { if (!success) return; if (taxDetailOpen) setTaxDetailOpen(false); setCheckinDetail(null); }); }}><CheckIcon /> {propertyInfoSaving ? "Saving..." : "Save"}</button></footer>}
 
-          {activeSection.kind !== "photos" && activeSection.kind !== "amenities" && activeSection.kind !== "map" && activeSection.key !== "rules" && activeSection.key !== "safety" && activeSection.key !== "cancellation" && !(activeSection.kind === "sleeping" && sleepingRoom) && !(activeSection.kind === "pricing" && pricingView === "smart") && !(activeSection.kind === "availability" && availabilityView !== "main") && !(activeSection.kind === "description" && descriptionView) && (
+          {activeSection.kind !== "photos" && activeSection.kind !== "amenities" && activeSection.kind !== "map" && (activeSection.key !== "rules" || !houseRulesDetail) && activeSection.key !== "safety" && activeSection.key !== "cancellation" && !(activeSection.kind === "sleeping" && sleepingRoom) && !(activeSection.kind === "pricing" && pricingView === "smart") && !(activeSection.kind === "availability" && availabilityView !== "main") && !(activeSection.kind === "description" && descriptionView) && (
             <footer className="hosting-editor-footer">
               <button
                 type="button"
@@ -2359,7 +2750,9 @@ export default function HostingListingEditorPage() {
                   (activeSection.kind === "property-type" && propertyInfoSaving) ||
                   (activeSection.kind === "discount" && propertyInfoSaving) ||
                   (activeSection.kind === "availability" && propertyInfoSaving) ||
-                  (activeSection.kind === "guests" && propertyInfoSaving)
+                  (activeSection.kind === "guests" && propertyInfoSaving) ||
+                  (activeSection.key === "booking" && propertyInfoSaving) ||
+                  (activeSection.key === "rules" && propertyInfoSaving)
                 }
                 onClick={
                   activeSection.key === "title"
@@ -2372,6 +2765,10 @@ export default function HostingListingEditorPage() {
                         ? () => void saveAvailability()
                       : activeSection.kind === "guests"
                         ? () => void saveGuestCount()
+                      : activeSection.key === "booking"
+                        ? () => void saveApplicationSettings()
+                      : activeSection.key === "rules"
+                        ? () => void saveHouseRules()
                       : undefined
                 }
               >
@@ -2385,6 +2782,10 @@ export default function HostingListingEditorPage() {
                     : activeSection.kind === "availability" && propertyInfoSaving
                       ? "Saving..."
                     : activeSection.kind === "guests" && propertyInfoSaving
+                      ? "Saving..."
+                    : activeSection.key === "booking" && propertyInfoSaving
+                      ? "Saving..."
+                    : activeSection.key === "rules" && propertyInfoSaving
                       ? "Saving..."
                     : "Save"}
               </button>

@@ -75,6 +75,18 @@ export const getListingRule = async (id?: string): Promise<ListingRule> => {
   }
 };
 
+export const fetchListingRulesByListingID = async (listingID: string): Promise<ListingRule[]> => {
+  try {
+    const url = `${BASE_URL}api/listingrule/GetListingRulesByListingID/${listingID}`;
+    const response = await axios.get(url);
+    const data = response.data;
+    // Response is a plain array, but tolerate a { data: [...] } wrapper too.
+    return (Array.isArray(data) ? data : data?.data) ?? [];
+  } catch (error) {
+    return handleApiError(error, 'fetch listingRules by listingID');
+  }
+};
+
 export const createListingRule = async (ListingRule?: ListingRule): Promise<ListingRule> => {
   try {
     const url = `${BASE_URL}api/listingrule/createListingRule`;
