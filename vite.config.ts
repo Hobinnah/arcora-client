@@ -18,6 +18,11 @@ export default defineConfig(({ mode }) => {
           secure: false, // Set to false for self-signed certificates in development
           rewrite: (path) => path.replace(/^\/api/, '/api')
         },
+        // Azurite blob storage has no CORS headers; proxying keeps blob images same-origin in dev (e.g. PDF logo embedding).
+        '/devstoreaccount1': {
+          target: env.VITE_AZURITE_BLOB_URL || 'http://127.0.0.1:10000',
+          changeOrigin: true
+        },
         '/hubs': {
           target: apiTarget,
           changeOrigin: true,

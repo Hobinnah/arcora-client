@@ -12,6 +12,110 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type LeaseSigningRequestSigner = {
+  name: string;
+  email: string;
+  role?: string;
+  userId?: number;
+  tenantId?: string;
+  organizationMemberId?: string;
+  signatureOrder?: number;
+};
+
+export type CreateLeaseSigningRequestInput = {
+  leaseContractTemplateId?: string;
+  signatories: LeaseSigningRequestSigner[];
+  sequential: boolean;
+  subject: string;
+  message: string;
+  returnUrl?: string;
+  webhookCallbackUrl?: string | null;
+  capturedBy: string;
+  forceRegeneratePdf: boolean;
+};
+
+export type LeaseSigningRequestResponse = {
+  signingRequestId: string;
+  status: string;
+  leaseId: string;
+};
+
+export const createLeaseSigningRequest = async (
+  leaseID: string,
+  payload: CreateLeaseSigningRequestInput,
+): Promise<LeaseSigningRequestResponse> => {
+  try {
+    const response = await axios.post(
+      `${BASE_URL}api/leases/${encodeURIComponent(leaseID)}/signing-requests`,
+      payload,
+    );
+    if (response.status !== 202) {
+      throw new Error(`The lease signing request was not queued (HTTP ${response.status}).`);
+    }
+    if (!response.data?.signingRequestId) {
+      throw new Error("The lease signing request was accepted without a request ID.");
+    }
+    return response.data as LeaseSigningRequestResponse;
+  } catch (error) {
+    handleApiError(error, "start lease signing request");
+    throw error;
+  }
+};
+
+export type LeaseSigningStatusSignatory = {
+  leaseSignatoryId?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  status?: string;
+  signatureOrder?: number;
+  providerSignerId?: string;
+  viewedAt?: string | null;
+  signedAt?: string | null;
+  declinedAt?: string | null;
+};
+
+export type LeaseSigningStatus = {
+  signingRequestId: string;
+  leaseId: string;
+  leaseDocumentId?: string;
+  status: string;
+  providerRequestId?: string | null;
+  providerDocumentId?: string | null;
+  providerStatus?: string | null;
+  documentUrl?: string | null;
+  sentForSignatureAt?: string | null;
+  fullySignedAt?: string | null;
+  refreshedFromProvider?: boolean;
+  signatories: LeaseSigningStatusSignatory[];
+};
+
+export const getLeaseSigningStatus = async (
+  leaseID: string,
+  signingRequestID: string,
+  refreshFromProvider = true,
+): Promise<LeaseSigningStatus> => {
+  try {
+    const response = await axios.get(
+      `${BASE_URL}api/leases/${encodeURIComponent(leaseID)}/signing-requests/${encodeURIComponent(signingRequestID)}`,
+      { params: { refreshFromProvider } },
+    );
+    const data = (response.data ?? {}) as Partial<LeaseSigningStatus>;
+    return {
+      ...data,
+      signingRequestId: data.signingRequestId ?? signingRequestID,
+      leaseId: data.leaseId ?? leaseID,
+      status: data.status ?? "",
+      signatories: Array.isArray(data.signatories) ? data.signatories : [],
+    };
+  } catch (error) {
+    // Let callers distinguish "no such lease/request" from other failures.
+    if (axios.isAxiosError(error) && error.response?.status === 404) throw error;
+    handleApiError(error, "load lease signing status");
+    throw error;
+  }
+};
+
 export type LeasesListParams = {
   pageSize?: number;
   pageNumber?: number;
@@ -165,4 +269,3 @@ export const fireLeaseAction = async (id?: string, status?: string): Promise<Lea
     throw error;
   }
 };
-
