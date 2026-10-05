@@ -1,0 +1,124 @@
+ARCORA HOST DEPOSITS: BACKEND HANDOFF
+=====================================
+
+Purpose
+-------
+Implement and verify the backend support needed by the host security-deposits page at /hosting/deposits.
+
+Availability caveat
+-------------------
+This workspace contains the React client, not the backend implementation. The local development API's OpenAPI document returned HTTP 200 on 2026-10-01 and lists the generic CRUD routes and the deposit workflow routes below. OpenAPI registration confirms the routes are discoverable, but does NOT prove their runtime behavior, authorization, persistence, notification delivery, or payment-provider side effects. The workflow routes currently document request DTOs and error responses; successful response bodies are not described in the spec.
+
+Current frontend behavior
+-------------------------
+HostDepositsPage.tsx fetches deposits for the signed-in user through GET /api/SecurityDeposit/Get and derives its displayed held, return-due, and review-needed totals from those records. The current OpenAPI spec also registers a host-specific listing and workflow endpoints for transactions, evidence, notices, and returns. These workflow endpoints are not yet wired into the page; verify their runtime behavior and successful response contracts before integrating them.
+
+Client-declared generic routes
+------------------------------
+The client has wrappers for these routes:
+
+Security deposits (src/apis/useSecurityDeposit.ts):
+- GET    /api/SecurityDeposit/Get?PageSize=...&PageNumber=...&UserID=...&Search=...
+- GET    /api/securitydeposit/getSecurityDepositById/{id}
+- POST   /api/securitydeposit/createSecurityDeposit
+- PUT    /api/securitydeposit/updateSecurityDeposit/{id}
+- DELETE /api/securitydeposit/deleteSecurityDeposit/{id}
+- POST   /api/securitydeposit/updateSecurityDepositStatus/{id}/{status}
+
+Security deposit transactions (src/apis/useSecurityDepositTransaction.ts):
+- GET    /api/securitydeposittransaction/get?pageSize=...&pageNumber=...
+- GET    /api/securitydeposittransaction/getSecurityDepositTransactionById/{id}
+- POST   /api/securitydeposittransaction/createSecurityDepositTransaction
+- PUT    /api/securitydeposittransaction/updateSecurityDepositTransaction/{id}
+- DELETE /api/securitydeposittransaction/deleteSecurityDepositTransaction/{id}
+
+Related generic client wrappers also exist for attachment, payment, and refund CRUD. The attachment wrapper only creates/updates attachment metadata; it does not upload file bytes. The payment/refund CRUD wrappers do not establish that an actual processor refund is initiated.
+
+Additional routes observed in local OpenAPI (not wired to this page):
+- POST   /api/FileStorage/Upload (multipart file plus StorageCategory)
+- GET    /api/hosting/securitydeposits?pageSize=...&pageNumber=...&status=...
+- GET    /api/securitydeposit/{securityDepositID}/transactions?pageSize=...&pageNumber=...
+- POST   /api/hosting/securitydeposits/{securityDepositID}/evidence (multipart form field File)
+- POST   /api/securitydeposit/{securityDepositID}/settlement-notice (SecurityDepositSettlementNoticeRequestDto)
+- POST   /api/securitydeposit/{securityDepositID}/return (SecurityDepositReturnRequestDto)
+- GET/POST/PUT/DELETE /api/Attachment/* CRUD routes
+- GET/POST/PUT/DELETE /api/Refund/* CRUD routes
+- POST   /api/Refund/UpdateRefundStatus/{id}/{status}
+
+The host-specific list accepts pageSize, pageNumber, and status; it does not list an organizationID or UserID parameter. The per-deposit transaction route filters by securityDepositID. The settlement request requires currency and deductions; each deduction requires a description and may include amount and evidenceAttachmentIDs. The return request requires currency and idempotencyKey and accepts amount. The evidence route accepts a multipart field named File. The spec lists success status codes for the workflow POST routes but no successful response schemas. Verify response bodies, authorization, evidence association, notice delivery, idempotency, and whether return invokes/reconciles a real processor refund in backend implementation/tests.
+
+Required backend work for this page
+-----------------------------------
+1. Verify host-scoped deposit listing and summary
+
+The page currently passes the signed-in user's numeric UserID to GET /api/SecurityDeposit/Get. The new GET /api/hosting/securitydeposits route is registered and accepts pageSize, pageNumber, and status, but the OpenAPI parameters do not show an organization selector. Confirm the route scopes results to the authenticated host server-side, returns the needed tenant/lease display data and summary fields, and paginates consistently. Do not treat client-supplied UserID or organizationID as authorization.
+
+If UserID is not the correct ownership filter, add a validated organization-scoped filter or a host-specific route such as:
+GET /api/hosting/securitydeposits?pageSize=...&pageNumber=...&organizationID=...&status=...
+
+Return paginated deposits with securityDepositID, leaseID, tenantID, organizationID, requiredAmount, receivedAmount, appliedAmount, returnedAmount, currency, status, dueDate, heldAt, closedAt, and the minimum tenant/lease display data required by the page. Compute or return held, returns-due, and review-needed summaries from persisted data, not client constants. Never trust an organizationID supplied by the client without checking the authenticated user's membership and permissions.
+
+2. Transactions by deposit
+
+GET /api/securitydeposit/{securityDepositID}/transactions?pageSize=...&pageNumber=... is now registered. Verify authorization through the deposit's organization and confirm its successful response schema and pagination behavior before wiring it into the page.
+
+Authorize access through the deposit's organization. Return transaction type, amount, currency, description, occurredAt, and safe linked refund/payment references.
+
+3. Evidence upload and association
+
+The page currently stores evidence as text only. POST /api/hosting/securitydeposits/{securityDepositID}/evidence is now registered and accepts multipart field File. Verify authorization, size/type validation, storage behavior, response shape, and whether it associates the file with the deposit/deduction. Do not treat an arbitrary client URL or storage reference as verified evidence.
+
+4. Settlement notice
+
+POST /api/securitydeposit/{securityDepositID}/settlement-notice is now registered with SecurityDepositSettlementNoticeRequestDto. The DTO requires currency and deductions; each deduction requires description and can include amount and evidenceAttachmentIDs. Verify that it authorizes the host, validates/calculates settlement server-side, sends and persists the tenant notice, is idempotent, and returns a documented success body.
+
+Suggested request:
+{
+  "deductions": [
+    {
+      "description": "Repair description",
+      "amount": 125.00,
+      "evidenceAttachmentIDs": ["attachment-uuid"]
+    }
+  ],
+  "currency": "CAD"
+}
+
+Validate that deductions are positive, supported by evidence according to policy, and do not exceed the amount legally available to settle. Calculate the return amount on the server; do not trust client totals. Send the notice to the tenant using the authoritative lease contact and persist notice status, timestamp, recipient, deduction details, and audit metadata. Make retries idempotent and return the persisted notice/settlement state.
+
+5. Deposit return / refund
+
+POST /api/securitydeposit/{securityDepositID}/return is now registered with SecurityDepositReturnRequestDto. The DTO requires currency and idempotencyKey and accepts amount. Verify the amount calculation, server-side authorization, idempotency, real payment-provider refund execution/reconciliation, deposit/transaction persistence, and successful response contract.
+
+Suggested request:
+{
+  "amount": 1725.00,
+  "currency": "CAD",
+  "idempotencyKey": "client-generated-unique-key"
+}
+
+Resolve the original payment/refund route server-side. If funds were collected through a payment processor, execute the real processor refund and reconcile its result; do not only create a Refund row or mark the deposit returned. Persist a linked refund and SecurityDepositTransaction, update returnedAmount and status consistently, prevent duplicate refunds on retries, reject over-returns, and return the updated deposit plus transaction/refund result. Support partial returns where allowed. Define behavior for deposits not collected through the processor.
+
+6. Status transitions and audit trail
+
+Define valid deposit states and allowed transitions (for example held -> review/return due -> partially returned/returned/closed). Enforce transitions server-side. Every deduction, notice, refund, and status transition must be attributable to an authorized user and timestamped. Generic update-status routes must not bypass settlement, refund, or audit rules.
+
+7. Security, concurrency, and errors
+
+- Authenticate every route and authorize against the deposit's organization/lease.
+- Validate currency, decimal precision, amounts, attachment ownership, and state transitions.
+- Use database transactions for related deposit, transaction, refund, and notice records where possible.
+- Use idempotency for externally visible notice/refund operations.
+- Prevent concurrent settlements from returning more than the held balance.
+- Return structured validation and processor errors without leaking payment credentials or sensitive banking data.
+
+Acceptance checks
+-----------------
+- A host sees only deposits for organizations they can manage; another organization's deposit cannot be read or changed by guessing an ID.
+- List totals and deposit rows reflect persisted values after refresh.
+- Transactions can be fetched for one authorized deposit only.
+- Evidence references resolve to files owned by the deposit and cannot be forged with arbitrary URLs.
+- A settlement notice is actually sent once and its persisted state is returned on retry.
+- A return executes/reconciles the real refund when applicable, creates one transaction, and updates returnedAmount/status exactly once under retries and concurrent requests.
+- Failed processor operations do not mark a deposit as returned.
+- Status transition and audit tests cover held, review-needed, partial return, full return, duplicate request, over-return, and unauthorized organization cases.

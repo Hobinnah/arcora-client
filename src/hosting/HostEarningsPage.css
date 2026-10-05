@@ -1,4 +1,24 @@
-.host-earnings-page { margin: 0 auto; max-width: 1080px; }
+.host-earnings-page { margin: 0 auto; }
+.host-earnings-hero .trust-ops-action { color: #fff !important; }
+.host-earnings-hero .trust-ops-action { font-weight: 400; }
+.host-earnings-hero .trust-ops-action:hover { color: #fff !important; }
+.host-earnings-modal-overlay { align-items: center; background: rgba(23, 44, 43, .42); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 100; }
+.host-earnings-payout-modal { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 70px rgba(23,44,43,.24); color: var(--ink); max-width: 620px; padding: 26px; width: 100%; }
+.host-earnings-modal-head { align-items: flex-start; display: flex; justify-content: space-between; gap: 20px; }
+.host-earnings-modal-head h2 { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 600; margin: 8px 0 0; }
+.host-earnings-modal-head > button { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 26px; line-height: 1; padding: 0; }
+.host-earnings-modal-note { background: #e7f2f0; border-radius: 8px; color: var(--teal-dark, #0e555b); font-size: 12px; line-height: 1.5; margin: 20px 0; padding: 12px 14px; }
+.host-earnings-payout-modal form { display: flex; flex-direction: column; gap: 16px; }
+.host-earnings-payout-modal label { color: var(--ink); display: flex; flex-direction: column; font-size: 12px; font-weight: 700; gap: 7px; }
+.host-earnings-payout-modal input, .host-earnings-payout-modal select { background: var(--paper, #fbfaf6); border: 1px solid var(--line); border-radius: 8px; box-sizing: border-box; color: var(--ink); font: inherit; font-size: 14px; min-height: 42px; padding: 10px 12px; width: 100%; }
+.host-earnings-modal-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.host-earnings-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+.host-earnings-modal-actions button { border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; padding: 10px 16px; }
+.host-earnings-modal-actions button:first-child { background: transparent; color: var(--ink); }
+.host-earnings-modal-actions button:last-child { background: var(--teal, #167c80); border-color: var(--teal, #167c80); color: #fff; }
+@media (max-width: 620px) { .host-earnings-payout-modal { padding: 20px; }.host-earnings-modal-grid { grid-template-columns: 1fr; } }
+.host-earnings-header-context { background: transparent; margin-left: 0; min-height: 0; overflow: visible; width: 100%; }
+.host-earnings-content { margin: 0 auto; max-width: 1280px; padding-left: max(24px, calc((100vw - 1280px) / 2)); padding-right: max(24px, calc((100vw - 1280px) / 2)); }
 .host-earnings-head { margin-bottom: 26px; }
 .host-earnings-identity { align-items: center; background: linear-gradient(115deg, #e3f2ef, #f8f5ed); border: 1px solid #c9e4de; border-radius: 10px; display: flex; gap: 17px; margin-bottom: 22px; padding: 19px 22px; }
 .host-earnings-avatar { align-items: center; background: var(--teal, #167c80); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 5px rgba(22,124,128,.1), 0 8px 20px rgba(14,85,91,.18); color: #fff; display: flex; flex: 0 0 65px; font-size: 20px; font-weight: 800; height: 65px; justify-content: center; overflow: hidden; width: 65px; }.host-earnings-avatar img { height: 100%; object-fit: cover; width: 100%; }

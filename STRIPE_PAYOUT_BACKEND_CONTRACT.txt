@@ -1,0 +1,167 @@
+ARCORA STRIPE PAYOUT BACKEND CONTRACT
+=====================================
+
+Purpose
+-------
+Implement Stripe Connect onboarding for host payout accounts. Arcora must not collect or store full bank account numbers, routing numbers, or void cheque banking details. Stripe-hosted onboarding must collect sensitive information.
+
+1. Start Stripe onboarding
+--------------------------
+
+POST /api/OrgPayoutAccount/OnboardingLink
+
+Request:
+{
+  "organizationID": "guid",
+  "returnUrl": "https://app.arcora.com/hosting/earnings?payout=complete",
+  "refreshUrl": "https://app.arcora.com/hosting/earnings?payout=refresh"
+}
+
+Backend behavior:
+- Authenticate the current user.
+- Verify the user can manage the organization.
+- Find or create the organization's Stripe Connected Account.
+- Enforce one Stripe Connected Account per organization.
+- Create a Stripe Account Link with type=account_onboarding.
+- Return the onboarding URL and expiration time.
+
+Response:
+{
+  "organizationID": "guid",
+  "stripeAccountID": "acct_123",
+  "onboardingUrl": "https://connect.stripe.com/...",
+  "expiresAt": "2026-09-26T20:00:00Z"
+}
+
+2. Get payout account status
+----------------------------
+
+GET /api/OrgPayoutAccount/GetOrganizationPayoutAccountStatus/{organizationID}
+
+Response:
+{
+  "organizationID": "guid",
+  "isConnected": true,
+  "provider": "Stripe",
+  "stripeAccountID": "acct_123",
+  "verificationStatus": "VERIFIED",
+  "maskedAccount": ".... 4821",
+  "bankName": "Example Bank",
+  "accountType": "checking",
+  "isDefault": true,
+  "chargesEnabled": true,
+  "payoutsEnabled": true,
+  "detailsSubmitted": true,
+  "requirementsCurrentlyDue": [],
+  "requirementsEventuallyDue": []
+}
+
+Return HTTP 404 when the organization has no active payout account.
+Never return full bank or routing numbers.
+
+3. Refresh onboarding status
+----------------------------
+
+POST /api/OrgPayoutAccount/RefreshStatus/{organizationID}
+
+The frontend calls this after Stripe redirects the host back to Arcora.
+
+Backend behavior:
+- Retrieve the organization's Stripe Connected Account.
+- Synchronize its status and safe metadata locally.
+- Return the payout account status DTO from section 2.
+
+Example response:
+{
+  "organizationID": "guid",
+  "isConnected": true,
+  "verificationStatus": "PENDING",
+  "payoutsEnabled": false,
+  "detailsSubmitted": true,
+  "requirementsCurrentlyDue": ["external_account"]
+}
+
+4. Repeated onboarding requests
+-------------------------------
+
+OnboardingLink must be safe to call repeatedly.
+- Reuse the existing Stripe Connected Account when one exists.
+- Do not create duplicate Stripe accounts for one organization.
+- Generate a new Account Link when the previous link is expired.
+
+Recommended idempotency key:
+organizationID -> one Stripe Connected Account
+
+5. Stripe webhook
+------------------
+
+POST /api/webhooks/stripe
+
+Handle these events:
+- account.updated
+- account.external_account.created
+- account.external_account.updated
+- payout.created
+- payout.paid
+- payout.failed
+- balance.available
+
+Webhook requirements:
+- Verify the Stripe signature.
+- Process each Stripe event ID idempotently.
+- Locate the organization by stripeAccountID.
+- Update OrgPayoutAccount status and safe metadata.
+- Never store full bank account or routing numbers.
+
+Safe metadata may include:
+- stripeAccountID
+- provider
+- verificationStatus
+- bankName
+- accountLast4
+- accountType
+- chargesEnabled
+- payoutsEnabled
+- detailsSubmitted
+- lastStripeSyncAt
+- requirementsCurrentlyDue
+- requirementsEventuallyDue
+
+6. Database changes
+-------------------
+
+Add or confirm these fields on OrgPayoutAccount:
+- stripeAccountID
+- chargesEnabled
+- payoutsEnabled
+- detailsSubmitted
+- requirementsCurrentlyDue (JSON array)
+- requirementsEventuallyDue (JSON array)
+- lastStripeSyncAt
+
+7. Frontend flow
+-----------------
+
+1. Host clicks Set up payout account.
+2. Frontend calls POST /api/OrgPayoutAccount/OnboardingLink.
+3. Frontend redirects to onboardingUrl.
+4. Stripe returns the host to /hosting/earnings?payout=complete.
+5. Frontend calls POST /api/OrgPayoutAccount/RefreshStatus/{organizationID}.
+6. Frontend displays the updated payout status.
+
+The frontend modal should be a confirmation modal, not a bank-details form:
+"You'll complete payout setup securely with Stripe. Arcora does not store full banking details."
+
+Buttons:
+- Continue to Stripe
+- Cancel
+
+8. Existing frontend context
+----------------------------
+
+The frontend currently has:
+- GET /api/OrgPayoutAccount/GetOrganizationPayoutAccountStatus/{organizationID}
+- POST/PUT OrgPayoutAccount CRUD endpoints
+- Host earnings page and payout setup modal
+
+The current modal can save safe metadata through CreateOrgPayoutAccount, but it cannot create or link a Stripe account until OnboardingLink and RefreshStatus are implemented by the backend.

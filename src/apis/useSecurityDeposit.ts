@@ -16,6 +16,7 @@ export type SecurityDepositsListParams = {
   pageSize?: number;
   pageNumber?: number;
   searchQuery?: string;
+  userID?: number;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
@@ -25,6 +26,7 @@ export const getSecurityDeposits = ({
   pageSize = 5,
   pageNumber = 0,
   searchQuery,
+  userID,
   statusFilter,
   sortBy,
   sortDirection
@@ -34,10 +36,12 @@ export const getSecurityDeposits = ({
     queryKey: [
       'fetchSecurityDeposits',
       { pageSize, pageNumber, searchQuery,
+        userID,
         statusFilter,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchSecurityDeposits({ pageSize, pageNumber, searchQuery,
+      userID,
       statusFilter,
       sortBy, sortDirection }),
   });
@@ -49,6 +53,7 @@ export const fetchSecurityDeposits = async ({
   pageSize,
   pageNumber,
   searchQuery,
+  userID,
   statusFilter,
   sortBy,
   sortDirection
@@ -58,6 +63,7 @@ export const fetchSecurityDeposits = async ({
 
     // Optional server-side filtering & sorting
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
+    if (userID !== undefined) { url += `&UserID=${userID}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }

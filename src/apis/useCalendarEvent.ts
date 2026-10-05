@@ -16,6 +16,7 @@ export type CalendarEventsListParams = {
   pageSize?: number;
   pageNumber?: number;
   searchQuery?: string;
+  userID?: number;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   statusFilter?: string; // mapped to &status=
@@ -26,6 +27,7 @@ export const getCalendarEvents = ({
   pageSize = 5,
   pageNumber = 0,
   searchQuery,
+  userID,
   statusFilter,
   eventType,
   sortBy,
@@ -36,11 +38,13 @@ export const getCalendarEvents = ({
     queryKey: [
       'fetchCalendarEvents',
       { pageSize, pageNumber, searchQuery,
+        userID,
         statusFilter,
         eventType,
         sortBy, sortDirection }
     ],
     queryFn: () => fetchCalendarEvents({ pageSize, pageNumber, searchQuery,
+      userID,
       statusFilter,
       eventType,
       sortBy, sortDirection }),
@@ -53,6 +57,7 @@ export const fetchCalendarEvents = async ({
   pageSize,
   pageNumber,
   searchQuery,
+  userID,
   statusFilter,
   eventType,
   sortBy,
@@ -63,6 +68,7 @@ export const fetchCalendarEvents = async ({
 
     // Optional server-side filtering & sorting
     if (searchQuery) { url += `&search=${encodeURIComponent(searchQuery)}`; }
+    if (userID !== undefined) { url += `&UserID=${userID}`; }
     if (statusFilter) { url += `&status=${encodeURIComponent(statusFilter)}`; }
     if (eventType) { url += `&eventType=${encodeURIComponent(eventType)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }

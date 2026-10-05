@@ -23,6 +23,38 @@ export type PayoutsListParams = {
   organizationID?: string;
   from?: string;
   to?: string;
+  period?: EarningsPeriod;
+};
+
+export type EarningsPeriod = 'This month' | 'Last 3 months' | 'Year to date';
+export type EarningsSummary = {
+  organizationID: string;
+  period: EarningsPeriod;
+  periodStart: string;
+  periodEnd: string;
+  rentCollected: number;
+  serviceFees: number;
+  pastDue: number;
+  netEarnings: number;
+};
+export type ListingEarningsBreakdown = {
+  listingID: string;
+  listingName: string;
+  rentCollected: number;
+  serviceFees: number;
+  netEarnings: number;
+};
+export type EarningsTransaction = {
+  transactionDate: string;
+  transactionType: string;
+  status: string;
+  amount: number;
+  currency: string;
+  description: string;
+  referenceNumber: string;
+  payoutID: number | null;
+  paymentID: number | null;
+  invoiceMasterID: number | null;
 };
 
 export const getPayouts = ({
@@ -34,6 +66,7 @@ export const getPayouts = ({
   organizationID,
   from,
   to,
+  period,
   sortBy,
   sortDirection
 }: PayoutsListParams = {}) => {
@@ -46,6 +79,7 @@ export const getPayouts = ({
         requestedAt,
         organizationID,
         from,
+        period,
         to,
         sortBy, sortDirection }
     ],
@@ -54,6 +88,7 @@ export const getPayouts = ({
       requestedAt,
       organizationID,
       from,
+      period,
       to,
       sortBy, sortDirection }),
   });
@@ -70,6 +105,7 @@ export const fetchPayouts = async ({
   organizationID,
   from,
   to,
+  period,
   sortBy,
   sortDirection
 }: Required<Pick<PayoutsListParams, 'pageSize' | 'pageNumber'>> & Omit<PayoutsListParams, 'pageSize' | 'pageNumber'>): Promise<{ data: Array<Payout>; totalCount: number }> => {
@@ -83,6 +119,7 @@ export const fetchPayouts = async ({
     if (organizationID) { url += `&organizationID=${encodeURIComponent(organizationID)}`; }
     if (from) { url += `&from=${encodeURIComponent(from)}`; }
     if (to) { url += `&to=${encodeURIComponent(to)}`; }
+    if (period) { url += `&period=${encodeURIComponent(period)}`; }
     if (sortBy) { url += `&sortBy=${encodeURIComponent(sortBy)}`; }
     if (sortDirection) { url += `&sortDirection=${sortDirection}`; }
 
@@ -91,6 +128,42 @@ export const fetchPayouts = async ({
     return { data: data.data ?? [], totalCount: data.totalCount ?? 0 };
   } catch (error) {
     return handleApiError(error, 'fetch payouts');
+  }
+};
+
+export const getEarningsSummary = async (organizationID: string, period?: EarningsPeriod): Promise<EarningsSummary> => {
+  try {
+    const params = period ? `?period=${encodeURIComponent(period)}` : '';
+    const response = await axios.get(`${BASE_URL}api/payout/getEarningsSummary/${organizationID}${params}`);
+    return response.data as EarningsSummary;
+  } catch (error) {
+    handleApiError(error, 'get earnings summary');
+    throw error;
+  }
+};
+
+export const getListingBreakdown = async (organizationID: string, period?: EarningsPeriod): Promise<ListingEarningsBreakdown[]> => {
+  try {
+    const params = period ? `?period=${encodeURIComponent(period)}` : '';
+    const response = await axios.get(`${BASE_URL}api/payout/getListingBreakdown/${organizationID}${params}`);
+    return (Array.isArray(response.data) ? response.data : response.data?.data) ?? [];
+  } catch (error) {
+    handleApiError(error, 'get listing earnings breakdown');
+    throw error;
+  }
+};
+
+export const exportEarningsStatement = async (organizationID: string, period?: EarningsPeriod, format: 'json' | 'csv' = 'json'): Promise<EarningsTransaction[] | Blob> => {
+  try {
+    const params = new URLSearchParams({ format });
+    if (period) params.set('period', period);
+    const response = await axios.get(`${BASE_URL}api/payout/exportStatement/${organizationID}?${params.toString()}`, {
+      responseType: format === 'csv' ? 'blob' : 'json',
+    });
+    return format === 'csv' ? response.data as Blob : ((Array.isArray(response.data) ? response.data : response.data?.data) ?? []) as EarningsTransaction[];
+  } catch (error) {
+    handleApiError(error, 'export earnings statement');
+    throw error;
   }
 };
 

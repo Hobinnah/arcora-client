@@ -48,13 +48,14 @@ import type { ListingPolicy } from "../types/ListingPolicy";
 import type { ListingRule } from "../types/ListingRule";
 import type { ListingAccessInstruction } from "../types/ListingAccessInstruction";
 import type { AmenityCatalog } from "../types/AmenityCatalog";
+import LeaseAgreementEditor from "./LeaseAgreementEditor";
 import HostingHeader from "./HostingHeader";
 import "../marketplace/MarketplaceHome.css";
 import "./HostingPage.css";
 import "./HostingListingEditorPage.css";
 import "./HostingCreateListingPage.css";
 
-type SectionKind = "photos" | "text" | "property-type" | "sleeping" | "list" | "map" | "host" | "link" | "pricing" | "discount" | "availability" | "guests" | "description" | "amenities";
+type SectionKind = "photos" | "text" | "property-type" | "sleeping" | "list" | "map" | "host" | "link" | "pricing" | "discount" | "availability" | "guests" | "description" | "amenities" | "lease-agreement";
 
 type Section = {
   key: string;
@@ -246,6 +247,7 @@ const sections: Section[] = [
   { key: "host", label: "About the host", kind: "host" },
   { key: "cohosts", label: "Co-hosts", kind: "list" },
   { key: "booking", label: "Application settings", summary: "Review and manage rental applications.", kind: "text" },
+  { key: "lease-agreement", label: "Lease Agreement", summary: "Manage organization lease templates.", kind: "lease-agreement" },
   { key: "rules", label: "House rules", kind: "list" },
   { key: "safety", label: "Guest safety", kind: "list" },
   { key: "cancellation", label: "Cancellation policy", summary: "Flexible for short-term stays", summary2: "Firm Long Term for long-term stays", kind: "text" },
@@ -1899,6 +1901,9 @@ export default function HostingListingEditorPage() {
             </div>
           )}
           {editorTab === "space" && <>
+          {activeSection.kind === "lease-agreement" && (
+            <LeaseAgreementEditor organizationID={listing.organizationID} organizationName={listing.organization?.displayName || listing.organization?.legalName || "Organization"} brandLogoUrl={listing.organization?.brandLogoUrl || ""} listingID={listing.listingID} updatedBy={currentUser?.user?.email || capturedBy} />
+          )}
           {activeSection.kind === "photos" && (
             <div className="hosting-editor-photos">
               <div className="hosting-editor-main-header">

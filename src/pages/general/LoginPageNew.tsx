@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuthRedirect } from '../../hooks/useAuthRedirect';
+import type { AuthResponse } from '../../types/AuthResponse';
 import { useLocation, useNavigate } from 'react-router-dom';
 import TwoFactorAuth from '../../components/TwoFactorAuth';
 import { MenuIcon } from '../../components/Icons';
@@ -59,6 +60,22 @@ export default function LoginPage() {
   const auth = useContext(AuthContext);
   const { redirectToUserDashboard } = useAuthRedirect();
 
+  const redirectAfterLogin = useCallback((profile: AuthResponse | null | undefined, rememberMe: boolean) => {
+    if (postLoginRedirect) {
+      localStorage.removeItem('arcora:pending-invite');
+      navigate(postLoginRedirect, { replace: true });
+      return;
+    }
+    const roles = [...(profile?.roles ?? []), ...(profile?.user?.roles ?? [])];
+    const isTenant = Boolean(profile?.tenant?.tenantID)
+      || roles.some((role) => role.trim().toLowerCase() === 'tenant');
+    if (isTenant) {
+      navigate('/applications', { replace: true });
+      return;
+    }
+    redirectToUserDashboard(roles, rememberMe);
+  }, [navigate, postLoginRedirect, redirectToUserDashboard]);
+
   const onSubmitHandler = useCallback(async (data: FormFields) => {
     try {
       if (!auth?.handleLogin) throw new Error('Authentication service unavailable.');
@@ -72,18 +89,17 @@ export default function LoginPage() {
         setShow2FA(true);
         return;
       }
-      if (response?.isLoginSuccessful && response.roles) { if (postLoginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(postLoginRedirect); } else redirectToUserDashboard(response.roles, data.rememberMe); }
+      if (response?.isLoginSuccessful) redirectAfterLogin(response, data.rememberMe);
       else throw new Error('Login failed. Please check your credentials.');
     } catch (error) { setError('root', { type: 'manual', message: error instanceof Error ? error.message : 'An error occurred.' }); }
-  }, [auth, redirectToUserDashboard, setError, postLoginRedirect, navigate]);
+  }, [auth, redirectAfterLogin, setError]);
 
   const handle2FASuccess = useCallback(async (finalToken: string) => {
     try {
       if (finalToken === LOGIN_SUCCESS_NO_TOKEN_SENTINEL) {
         setShow2FA(false);
         if (twoFactorPurpose === 'signup') { setShowAccountSetup(true); return; }
-        const roles = auth?.currentUser?.roles || [];
-        if (postLoginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(postLoginRedirect); } else redirectToUserDashboard(roles, pendingRememberMe);
+        redirectAfterLogin(auth?.currentUser, pendingRememberMe);
         return;
       }
 
@@ -91,11 +107,10 @@ export default function LoginPage() {
         await auth.complete2FA(finalToken);
         setShow2FA(false);
         if (twoFactorPurpose === 'signup') { setShowAccountSetup(true); return; }
-        const roles = auth?.currentUser?.roles || [];
-        if (postLoginRedirect) { localStorage.removeItem('arcora:pending-invite'); navigate(postLoginRedirect); } else redirectToUserDashboard(roles, pendingRememberMe);
+        redirectAfterLogin(auth?.currentUser, pendingRememberMe);
       }
     } catch { setError('root', { type: 'manual', message: 'Authentication failed. Please try again.' }); setShow2FA(false); setTwoFactorData(null); }
-  }, [auth, twoFactorData, twoFactorPurpose, postLoginRedirect, pendingRememberMe, navigate, redirectToUserDashboard, setError]);
+  }, [auth, twoFactorData, twoFactorPurpose, pendingRememberMe, redirectAfterLogin, setError]);
 
   const handleVerifyCode = useCallback(async ({ emailAddress, token, otpCode }: { emailAddress: string; token: string; otpCode: string }) => {
     const result = await verifyLoginCode(emailAddress, token, otpCode);

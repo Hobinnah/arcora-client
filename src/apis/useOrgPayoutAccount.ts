@@ -12,6 +12,68 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type PayoutAccountStatus = {
+  organizationID: string;
+  isConnected: boolean;
+  provider: string;
+  verificationStatus: string;
+  maskedAccount: string;
+  bankName: string;
+  accountType: string;
+  isDefault: boolean;
+  stripeAccountID?: string;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  detailsSubmitted?: boolean;
+  requirementsCurrentlyDue?: string[];
+  requirementsEventuallyDue?: string[];
+};
+
+export type PayoutOnboardingLinkResponse = {
+  organizationID: string;
+  stripeAccountID: string;
+  onboardingUrl: string;
+  expiresAt: string;
+};
+
+const getPayoutReturnUrl = (state: 'complete' | 'refresh') => `${window.location.origin}/hosting/earnings?payout=${state}`;
+
+export const createPayoutOnboardingLink = async (organizationID: string): Promise<PayoutOnboardingLinkResponse> => {
+  try {
+    const response = await axios.post(`${BASE_URL}api/orgpayoutaccount/onboardinglink`, {
+      organizationID,
+      returnUrl: getPayoutReturnUrl('complete'),
+      refreshUrl: getPayoutReturnUrl('refresh'),
+    });
+    return response.data as PayoutOnboardingLinkResponse;
+  } catch (error) {
+    handleApiError(error, 'create payout onboarding link');
+    throw error;
+  }
+};
+
+export const refreshPayoutAccountStatus = async (organizationID: string): Promise<PayoutAccountStatus | null> => {
+  try {
+    const response = await axios.post(`${BASE_URL}api/orgpayoutaccount/refreshstatus/${organizationID}`);
+    return response.data as PayoutAccountStatus;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    handleApiError(error, 'refresh payout account status');
+    throw error;
+  }
+};
+
+export const getOrganizationPayoutAccountStatus = async (organizationID: string): Promise<PayoutAccountStatus | null> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/orgpayoutaccount/getOrganizationPayoutAccountStatus/${organizationID}`);
+    return response.data as PayoutAccountStatus;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    handleApiError(error, 'get organization payout account status');
+    throw error;
+  }
+};
+
 export type OrgPayoutAccountsListParams = {
   pageSize?: number;
   pageNumber?: number;

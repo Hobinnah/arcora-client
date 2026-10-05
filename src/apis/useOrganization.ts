@@ -117,6 +117,32 @@ export const updateOrganization = async (organization?: Organization): Promise<O
   }
 };
 
+export const uploadOrganizationBrandLogo = async (organizationID: string, file: File, updatedBy?: string): Promise<string> => {
+  try {
+    const formData = new FormData();
+    formData.append("File", file);
+    if (updatedBy?.trim()) formData.append("UpdatedBy", updatedBy.trim());
+    const response = await axios.post(
+      `${BASE_URL}api/Organization/UploadBrandLogo/${encodeURIComponent(organizationID)}`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" }, timeout: 30000 },
+    );
+    const data = response.data?.data ?? response.data;
+    const responseUrl = typeof data === "string"
+      ? data
+      : data?.brandLogoUrl ?? data?.BrandLogoUrl ?? data?.logoUrl ?? data?.LogoUrl ?? data?.url ?? data?.Url;
+    if (typeof responseUrl === "string" && responseUrl.trim()) return responseUrl.trim();
+
+    const organization = await getOrganization(organizationID);
+    const logoUrl = (organization as Organization & { BrandLogoUrl?: string }).brandLogoUrl
+      || (organization as Organization & { BrandLogoUrl?: string }).BrandLogoUrl;
+    if (logoUrl?.trim()) return logoUrl.trim();
+    throw new Error("Logo upload succeeded, but the API did not return a brand logo URL.");
+  } catch (error) {
+    return handleApiError(error, "upload organization brand logo");
+  }
+};
+
 export const deleteOrganization = async (id: string): Promise<void> => {
   try {
     const url = `${BASE_URL}api/organization/deleteOrganization/${id}`;

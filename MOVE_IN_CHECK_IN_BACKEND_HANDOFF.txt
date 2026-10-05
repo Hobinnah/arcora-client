@@ -1,0 +1,401 @@
+ARCORA: TENANT MOVE-IN CHECK-IN BACKEND HANDOFF
+============================================================
+
+Audience: The AI/developer implementing the Arcora backend.
+Objective: Implement a durable, authorized move-in check-in workflow using
+the existing Inspection, InspectionItem, Attachment, and Lease domains.
+Deliver implementation, migrations, API documentation, and integration tests.
+Do not merely scaffold endpoints or return success without saving evidence.
+
+1. CURRENT CLIENT STATE AND VERIFIED CONTRACTS
+------------------------------------------------------------
+The tenant screen is:
+  /tenant/leases/{leaseID}/check-in
+  src/marketplace/TenantLeaseLifecyclePage.tsx
+
+It currently:
+  - Requires the tenant to confirm arrival.
+  - Offers READY, NEEDS_ATTENTION, or NOT_SURE as occupancy choices.
+  - Collects general notes.
+  - Accepts multiple issue photos, up to 10 files and 10 MiB per file.
+  - Offers an optional location caption for each photo.
+  - Saves submission data/photo blobs in IndexedDB and a completion
+    timestamp in localStorage. These are temporary client-only mechanisms.
+  - Loads real lease and listing details using:
+      GET /api/lease/getLeaseById/{leaseID}
+      GET /api/listing/getListingById/{listingID}
+  - Displays the listing's cover photo from listingPhotos using
+    isCoverPhoto, falling back to the first photo by displayOrder.
+
+Existing client API helpers reference:
+  POST /api/inspection/createInspection
+  GET  /api/inspection/getInspectionById/{inspectionID}
+  POST /api/inspectionitem/createInspectionItem
+  GET  /api/inspectionitem/getInspectionItemById/{inspectionItemID}
+  POST /api/attachment/createAttachment
+  GET  /api/attachment/getAttachmentById/{attachmentID}
+
+These are verified client references, NOT confirmation of backend
+authorization, database constraints, file upload support, or transactional
+behavior. Inspect the backend before modifying it.
+
+Do not use the listing-photo upload endpoint for tenant issue evidence.
+Listing photos are public-facing marketing media with a different owner,
+purpose, and permission model.
+
+2. STORAGE AND DOMAIN OWNERSHIP
+------------------------------------------------------------
+Use the existing relational database for check-in metadata.
+Use private object storage for photos.
+Use Attachment rows for photo metadata and storage references.
+Do not store image binaries/base64 in relational rows or public listing media.
+Do not trust browser storage as the authoritative completion record.
+
+Represent a tenant move-in check-in as an Inspection with inspectionType
+MOVE_IN, or the backend's existing equivalent. Document any enum mapping.
+Reuse InspectionItem for structured issues. Do not create one item per
+photo: one issue may have multiple photos.
+
+Current Inspection fields:
+  inspectionID, propertyID, rentalUnitID, leaseID, leaseRenewalID,
+  inspectionType, status, scheduledFor, startedAt, completedAt,
+  overallCondition, notes, capturedDate, capturedBy, updatedDate, updatedBy.
+
+Current InspectionItem fields:
+  inspectionItemID, inspectionID, area, itemName, condition, notes,
+  requiresRepair, estimatedRepairCost, capturedDate, capturedBy.
+
+Current Attachment fields:
+  attachmentID, entityType, entityID, fileName, mimeType, fileSizeBytes,
+  storageProvider, storageReference, attachmentType, description,
+  capturedDate, capturedBy.
+
+Lease already exposes actualMoveInAt. Reuse it for actual arrival where
+appropriate; never overwrite startDate with the check-in timestamp.
+
+3. MODEL CHANGES AND MIGRATIONS
+------------------------------------------------------------
+Inspection additions, unless equivalent strongly typed fields exist:
+  occupancyReadiness:
+    Nullable enum: READY | NEEDS_ATTENTION | NOT_SURE.
+    Required for new submitted MOVE_IN records, not for drafts or other
+    inspection types. It is independent from overallCondition: a home
+    can be ready for occupancy while having cosmetic damage.
+  arrivalConfirmedAt:
+    Nullable UTC timestamp, set by the server when arrival is confirmed.
+    Required for a submitted MOVE_IN record.
+  submittedAt:
+    Nullable UTC timestamp, set by the server on final submission.
+    Do not reuse completedAt if it means completion of landlord inspection.
+  submittedByUserID:
+    Nullable foreign key matching the backend's user-ID type.
+    Derived from authenticated identity, never accepted from tenant input.
+    Reuse an existing equivalent stable identity reference if present.
+  concurrency token:
+    Use the repository's existing row-version/ETag mechanism, or add one
+    to prevent lost updates and conflicting submissions.
+
+Inspect existing status semantics before extending them:
+  Current client inspection form knows:
+    SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED.
+  This workflow needs to distinguish editable draft, tenant submission,
+  and landlord review. Add DRAFT and SUBMITTED if necessary, with explicit
+  transition rules. Do not label tenant submission landlord completion.
+  Update all consumers of changed status enums, including existing forms.
+  COMPLETED must retain its existing meaning for ordinary inspections.
+
+InspectionItem:
+  No additional required fields are needed for basic issue reporting.
+  inspectionID, area, and itemName must be present for a structured issue.
+  Tenant reports must allow repair need to be unassessed:
+    Prefer nullable requiresRepair (null = unknown), unless the backend
+    already has an equivalent assessment enum.
+  Preserve historical true/false values during migration.
+  estimatedRepairCost must be nullable when not assessed.
+  Tenants must not set landlord repair estimates or liability assessments.
+  Add/update item audit fields only if needed by the existing audit model.
+
+Attachment:
+  Reuse entityType/entityID to link to Inspection or InspectionItem.
+  Add upload lifecycle metadata only if no existing equivalent exists:
+    pending/ready/failed state, pending upload owner, expiry, checksum.
+  Only ready, authorized attachments may be finalized into a submission.
+  Do not expose storageReference to tenant-facing responses.
+
+Migration requirements:
+  - Do not fabricate submission dates/users for historical inspections.
+  - New fields remain nullable on legacy records.
+  - Enforce new requirements on new MOVE_IN submissions.
+  - propertyID, rentalUnitID, and leaseID must be derived/validated against
+    the same lease relationship; organization scope must match.
+  - leaseRenewalID and scheduling fields must not be required for a
+    tenant's unscheduled move-in check-in.
+  - Enforce one canonical move-in check-in per lease, including under
+    concurrent requests. Do not impose that uniqueness on all inspections.
+
+4. API CONTRACT
+------------------------------------------------------------
+Implement these lease-scoped endpoints, following existing backend route
+and error conventions. If equivalent endpoints exist, extend/reuse them
+and provide the exact mapping rather than implementing duplicate flows.
+The contracts below are requested; they are NOT currently wired in the
+client and must not be reported as already implemented.
+
+A. GET /api/leases/{leaseID}/check-in
+Return 200 with:
+  {
+    "leaseID": "<guid>",
+    "eligibility": {
+      "canSubmit": true,
+      "reasonCode": null,
+      "message": null,
+      "moveInDate": "2026-09-01",
+      "timeZone": "<property IANA time zone>"
+    },
+    "inspection": null
+  }
+
+When present, inspection contains:
+  inspectionID, inspectionType, status, occupancyReadiness,
+  arrivalConfirmedAt, submittedAt, notes, version, items, attachments.
+  Each item includes inspectionItemID, area, itemName, condition, notes,
+  requiresRepair, and its authorized attachment metadata.
+  Attachment metadata includes attachmentID, fileName, mimeType,
+  fileSizeBytes, description, and an authorized short-lived download URL
+  plus its expiresAt, or a backend-proxied download URL.
+
+An eligible lease with no check-in returns inspection: null.
+An inaccessible or nonexistent lease follows the repository's established
+403/404 policy without exposing another tenant's records.
+An already submitted record is readable and must not become a new draft.
+Eligibility is computed by the server, not the browser's clock.
+
+B. POST /api/leases/{leaseID}/check-in/draft
+Create or return the canonical editable MOVE_IN draft.
+Return 201 for creation, 200 for the existing draft.
+Return the inspectionID and version.
+Do not create duplicates on retries or concurrent requests.
+An existing submission returns its record or a documented 409; it must
+never be reset to draft.
+
+C. POST /api/leases/{leaseID}/check-in/photos
+Authenticated multipart/form-data upload:
+  inspectionID: ID of the lease's editable check-in draft
+  file: one image file
+  description: optional photo/location caption, max 1000 characters
+  clientPhotoID: client-generated unique ID for upload retry deduplication
+
+The client calls this for each selected photo, with bounded concurrency.
+Return 201 with attachmentID and authorized preview metadata only after
+the upload is durable and validated. Return the existing attachment on a
+retry with the same clientPhotoID and identical content; reject reuse of
+the ID for different content.
+
+Persist uploads as draft-owned evidence until final submission.
+General photo captions do not require InspectionItem creation.
+Never create an item using a made-up area/itemName to satisfy constraints.
+
+D. DELETE /api/leases/{leaseID}/check-in/photos/{attachmentID}
+Remove only evidence owned by this editable draft.
+Return 204; define idempotent behavior for an already removed attachment.
+Do not allow tenant deletion after submission.
+Coordinate blob deletion with DB state using a durable cleanup mechanism.
+
+E. POST /api/leases/{leaseID}/check-in/submit
+Require an Idempotency-Key header.
+Request:
+  {
+    "inspectionID": "<guid>",
+    "version": "<opaque concurrency token>",
+    "arrivalConfirmed": true,
+    "occupancyReadiness": "NEEDS_ATTENTION",
+    "notes": "Kitchen tap leaks; the home is otherwise usable.",
+    "photos": [
+      {
+        "attachmentID": "<guid>",
+        "description": "Kitchen sink"
+      }
+    ],
+    "items": [
+      {
+        "clientItemID": "<client-generated unique ID>",
+        "area": "Kitchen",
+        "itemName": "Leaking tap",
+        "condition": "Leaking",
+        "notes": "Water drips while the tap is closed.",
+        "attachmentIDs": ["<guid>"]
+      }
+    ]
+  }
+
+items is optional and can be an empty array. The current client does not
+collect required structured item fields yet. General notes and photos
+must work without inventing incomplete InspectionItems.
+
+photos is the final set of evidence attachment IDs and captions.
+An attachment may belong to one issue, or remain general inspection
+evidence. It must not be assigned to multiple issues.
+All item attachmentIDs must be included in photos and owned by this draft.
+Ignore/reject privileged fields: user IDs, organization IDs, submission
+timestamps, repair estimates, landlord assessment, or storage references.
+
+Server behavior:
+  - Revalidate tenant authorization, eligibility, version, and attachments.
+  - arrivalConfirmed must be true.
+  - Require one valid readiness value. NEEDS_ATTENTION and NOT_SURE must
+    be accepted: readiness is not a submission-blocking certification.
+  - Notes/photos remain optional; do not require a photo to report damage.
+  - In one DB transaction, save inspection state, structured items,
+    attachment associations/captions, server submission timestamps,
+    authenticated submitter identity, and applicable Lease.actualMoveInAt.
+  - Write notification/follow-up events into an outbox in the transaction.
+  - Return 201 with the full saved record on initial submission; return
+    the same result for a retry of the same idempotent request.
+  - The same key with different request content returns 409.
+  - A second conflicting submission returns 409 rather than overwriting.
+  - If a response is lost, GET must reveal the successful submission.
+  - Do not report success while photo uploads/DB writes are incomplete.
+  - Do not pretend blob storage and SQL share a distributed transaction;
+    finalize durable uploads transactionally and clean unused draft blobs
+    using the upload lifecycle/cleanup job.
+
+F. Authorized landlord read and review
+Expose the submitted record through existing organization inspection
+endpoints or a lease-scoped equivalent.
+Only authorized members with appropriate property/inspection permissions
+may read photos or record review/follow-up.
+Landlord review must not rewrite tenant-authored notes/photos. Record
+review decisions separately with reviewer identity and UTC timestamp.
+If review fields or a child review/audit entity already exist, reuse them.
+Otherwise introduce a minimal review model for comments/status/timestamps.
+Tenant and landlord must read the same canonical submitted record.
+
+5. ELIGIBILITY, AUTHORIZATION, AND VALIDATION
+------------------------------------------------------------
+Enforce authorization on EVERY endpoint, including photo downloads.
+Tenant must have an authorized relationship to the lease.
+Derive user/organization identity from authentication and lease ownership.
+Do not authorize using submitted tenantID/capturedBy/entityID alone.
+Prevent cross-lease and cross-organization attachment linking.
+Generic CRUD routes must not bypass submission immutability or permissions.
+
+Default move-in eligibility:
+  - Lease is ACTIVE.
+  - Property-local calendar date is on or after the lease start date.
+  - No move-in submission already exists.
+  - No conflicting lifecycle state such as cancellation/termination.
+Use existing authoritative lifecycle rules if stricter. Document them.
+Return explicit reason codes/messages, e.g. LEASE_NOT_ACTIVE,
+MOVE_IN_NOT_STARTED, or ALREADY_SUBMITTED.
+Do not use UTC midnight to compare a property-local move-in date.
+
+Apply current client/domain text limits:
+  general notes: 1000 characters
+  item area: 100 characters
+  itemName: 100 characters
+  item condition: 50 characters
+  item notes: 1000 characters
+Reject overlength input with field errors; do not silently truncate.
+
+Photo policy:
+  - Maximum 10 active photos per check-in, 10 MiB per file.
+  - Enforce counts atomically across concurrent uploads.
+  - Validate actual file bytes, decoded image format, and dimensions;
+    MIME type and extension alone are insufficient.
+  - Use an explicit supported-format allowlist. Start with JPEG, PNG,
+    and WebP; document whether HEIC is supported/converted.
+  - Reject SVG and unsupported formats explicitly.
+  - Bound decoded pixel dimensions/resource usage to prevent image bombs.
+  - Generate private object keys server-side; never use filenames as paths.
+  - Preserve original evidence bytes; derived thumbnails are separate.
+  - Scan/quarantine evidence according to existing storage security policy.
+  - Avoid public URLs, sensitive-data logging, and credentials in responses.
+  - Follow existing retention/privacy policy; do not invent automatic
+    deletion dates for submitted evidence. Clean abandoned draft uploads
+    after a documented, configurable expiry.
+
+Errors:
+  Use repository-standard machine-readable errors with field validation
+  details and correlation IDs.
+  Handle 401, 403/404, 409, 413, 415, and validation failures explicitly.
+  Storage outages/timeouts return failure, not an empty successful record.
+  Do not catch failures and return success-shaped defaults.
+
+6. NOTIFICATIONS AND FOLLOW-UP
+------------------------------------------------------------
+Notify the authorized landlord when check-in is submitted.
+Use a transactional outbox/repository-equivalent durable queue so a
+notification failure does not lose an otherwise valid check-in.
+Deduplicate notifications by submission ID.
+NEEDS_ATTENTION flags the record for follow-up. Notes/photos on a READY
+record remain visible and may still describe cosmetic issues.
+Do not automatically convert every photo into a maintenance request,
+repair liability, deposit deduction, or admission of damage.
+Urgent hazards should receive clear escalation/contact guidance; a
+check-in submission is not an emergency service.
+
+7. CLIENT INTEGRATION CONTRACT TO RETURN
+------------------------------------------------------------
+After implementing, provide:
+  - Exact routes, methods, auth requirements, request/response examples.
+  - OpenAPI schemas, enum values, nullable fields, and error formats.
+  - Migration names and compatibility notes for existing inspections.
+  - Upload limits, supported image formats, URL expiry, and cleanup rules.
+  - Definition of draft/submitted/completed and allowed transitions.
+  - Exact eligibility rules and time-zone behavior.
+  - How the client retrieves an existing submission and landlord review.
+  - Integration-test results.
+
+The client will then:
+  - Load authoritative check-in/eligibility from GET.
+  - Create/reuse draft before uploading evidence.
+  - Upload photos through the private check-in endpoint.
+  - Send ready attachment IDs during final submission.
+  - Replace IndexedDB/localStorage completion with backend state.
+  - Require an explicit readiness choice without requiring READY.
+  - Show upload/submission errors, existing record, and retry states.
+  - Update supported image accept values and notes maxLength.
+  - Add structured issue fields only if item creation is exposed.
+  - Remove device-only success copy after server integration.
+
+No backend work should silently assume the current frontend is already
+wired to these endpoints. Do not change check-out behavior as a side effect.
+
+8. REQUIRED ACCEPTANCE / INTEGRATION TESTS
+------------------------------------------------------------
+1. Eligible tenant submits READY, NEEDS_ATTENTION, and NOT_SURE successfully.
+2. Unconfirmed arrival, missing readiness, inactive lease, and early
+   property-local move-in date fail with clear errors.
+3. Notes/photos may be empty; general photos need no InspectionItem.
+4. Structured issues require real area and itemName; one issue can have
+   several photos without duplicate item creation.
+5. Another tenant/organization cannot read, submit, delete, upload, or
+   download evidence for this lease, including through generic CRUD.
+6. Submission cannot link attachments from a different draft/lease.
+7. Unsupported, oversized, spoofed, malformed, and excessive images fail;
+   simultaneous uploads cannot exceed the 10-photo limit.
+8. Upload failure prevents false attachment success; DB finalization
+   failure leaves recoverable draft evidence without a success response.
+9. Retry after lost response returns the same saved submission; parallel
+   drafts/submissions create neither duplicate records nor notifications.
+10. Concurrent edits with stale versions fail rather than overwrite.
+11. Tenant cannot modify/delete submitted evidence; landlord review
+    preserves original tenant content and creates audit history.
+12. UTC timestamps and property-local date eligibility work across
+    time zones and daylight-saving boundaries.
+13. Lease.actualMoveInAt is updated only by valid submission and is not
+    overwritten on retries; contractual startDate is unchanged.
+14. Submitted notes/photo bytes remain readable from another device.
+15. Existing non-move-in inspections and historical records still work
+    after nullable-field/status migrations.
+16. Abandoned uploads are cleaned safely without deleting submitted
+    evidence; signed/proxied photo access remains permission-controlled.
+17. Landlord receives one durable notification and sees follow-up flags.
+
+IMPLEMENTATION STANDARD
+------------------------------------------------------------
+Reuse repository services, validators, authorization, audit, storage,
+outbox, and migrations. Use dedicated input/output DTOs instead of binding
+full database/navigation models. Keep code type-safe and changes scoped.
+Inspect existing backend behavior before making schema assumptions.
+Implement and test persistence end-to-end, not only controller routes.
