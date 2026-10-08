@@ -84,6 +84,7 @@ export default function HostingHeader() {
         {canViewCalendar && <button className={location.pathname === '/hosting/calendar' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/calendar')}><CalendarIcon /> Calendar</button>}
         {canViewListings && <button className={location.pathname.startsWith('/hosting/listings') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/listings')}><FileIcon /> Listings</button>}
         {canViewApplications && <button className={location.pathname.startsWith('/hosting/applications') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/applications')}><UsersIcon /> Applications</button>}
+        {canManageHosting && <button className={location.pathname.startsWith('/hosting/invitations') ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/invitations')}><FileIcon /> Invitations</button>}
         {canViewMessages && <button className={location.pathname === '/hosting/messages' ? 'is-active' : ''} type="button" onClick={() => navigate('/hosting/messages')}><InfoIcon /> Messages{hasUnreadMessages && <span aria-label="Unread messages" style={{ marginLeft: 6, color: '#c45135' }}>●</span>}</button>}
       </nav>
       <div className="hosting-header-actions">
@@ -98,6 +99,7 @@ export default function HostingHeader() {
             <VerificationProfileSummary />
             {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/earnings')}><BarChartIcon /> <span>Earnings and payouts</span></button>}
             {canManageHosting && <button type="button" role="menuitem" onClick={() => navigate('/hosting/listings/new')}><PlusIcon /> <span>Create a new listing</span></button>}
+            {canManageHosting && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/hosting/invitations'); }}><FileIcon /> <span>Tenant invitations</span></button>}
             <button type="button" role="menuitem" onClick={() => navigate('/account-settings')}><UserIcon /> <span>Account settings</span></button>
             <button type="button" role="menuitem" onClick={() => { setLanguageModalOpen(true); setMenuOpen(false); }}><GlobeIcon /> <span>Languages and currency</span></button>
             <button type="button" role="menuitem"><FileIcon /> <span>Hosting resources</span></button>

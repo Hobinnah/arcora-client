@@ -1,0 +1,106 @@
+.tenant-invitation-setup-main > h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 42px;
+  font-weight: 500;
+  line-height: 1.05;
+  margin: 7px 0 12px;
+}
+
+.tenant-invitation-setup-main > .tenant-lease-error {
+  margin-top: 18px;
+}
+
+.tenant-invitation-payment-method {
+  border: 1px solid var(--sand);
+  border-radius: 10px;
+  margin-top: 18px;
+  padding: 20px;
+}
+
+.tenant-invitation-setup-authorization {
+  background: #fbfaf7;
+  border: 1px solid var(--sand);
+  border-radius: 8px;
+  margin-top: 18px;
+  padding: 14px;
+}
+
+.tenant-invitation-payment-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.tenant-invitation-payment-heading h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.tenant-invitation-payment-heading p,
+.tenant-invitation-payment-complete {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.tenant-invitation-payment-heading > span {
+  background: #fbf1df;
+  border-radius: 999px;
+  color: #79581b;
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 6px 9px;
+}
+
+.tenant-invitation-payment-heading > span.is-complete {
+  background: #eef7f5;
+  color: var(--teal-dark);
+}
+
+.tenant-invitation-setup-fields {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.tenant-invitation-setup-fields .tenant-lease-primary {
+  justify-self: start;
+}
+
+.tenant-invitation-method-feedback {
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.tenant-invitation-method-feedback.is-success {
+  background: #eef7f5;
+  color: var(--teal-dark);
+}
+
+.tenant-invitation-method-feedback.is-error {
+  background: #fff1f1;
+  color: #9f2d2d;
+}
+
+.tenant-invitation-setup-continue {
+  margin-top: 24px;
+}
+
+@media (max-width: 600px) {
+  .tenant-invitation-setup-main > h1 {
+    font-size: 34px;
+  }
+
+  .tenant-invitation-payment-method {
+    padding: 16px;
+  }
+}
+.tenant-invitation-saved-quote {
+  grid-column: 1 / -1;
+}

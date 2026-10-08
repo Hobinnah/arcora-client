@@ -6,17 +6,15 @@ import { useAuth } from '../hooks/useAuth';
 import { getLandlordOrganization } from '../apis/useLandlordOrganization';
 import { countListingsByOrganization } from '../apis/useListing';
 import { useVerificationCenter } from '../apis/useVerificationCenter';
+import { fetchReceivedReviews, type ReceivedReview } from '../apis/useRating';
 import '../marketplace/MarketplaceHome.css';
 import './HostingPage.css';
 
-const followUps = [
-  { name: "Omolade", action: "Read Omolade's 5-star review", initials: 'O', tone: 'coral' },
-  { name: 'Kalyn', action: "Read Kalyn's 5-star review", initials: 'K', tone: 'violet' },
-  { name: 'Susan', action: "Read Susan's 5-star review", initials: 'S', tone: 'teal' },
-];
-
 export default function HostingPage() {
   const [view, setView] = useState<'today' | 'upcoming'>('today');
+  const [reviews, setReviews] = useState<ReceivedReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState('');
   const [checkingHostReadiness, setCheckingHostReadiness] = useState(true);
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -24,6 +22,14 @@ export default function HostingPage() {
   const roles = [...(currentUser?.roles ?? []), ...(currentUser?.user?.roles ?? [])].map((role) => role.toLowerCase());
   const isHost = roles.includes('landlord') || roles.includes('host');
   const verification = useVerificationCenter(userID);
+  useEffect(() => {
+    let cancelled = false;
+    fetchReceivedReviews()
+      .then((data) => { if (!cancelled) setReviews(data.filter((review) => review.subjectType.toUpperCase() === 'HOST')); })
+      .catch((error: unknown) => { if (!cancelled) setReviewsError(error instanceof Error ? error.message : 'We could not load your reviews.'); })
+      .finally(() => { if (!cancelled) setReviewsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => {
     if (!userID || !isHost || verification.loading) return;
     let cancelled = false;
@@ -73,9 +79,22 @@ export default function HostingPage() {
         </div>
         <div className="hosting-empty-state">
           <h1 id="hosting-title">You’re not hosting any reservations</h1>
-          <p>{view === 'today' ? 'You have 3 follow-ups' : 'No upcoming reservations'}</p>
-          {view === 'today' && <div className="hosting-followups">{followUps.map((item) => <article className="hosting-followup" key={item.name} onClick={() => navigate('/hosting/review', { state: { review: { name: item.name, stayRange: 'Aug 21 – 23', nights: 2, reviewTitle: `Read ${item.name}'s review`, reviewMessage: 'They gave your place 5 stars!', avatarInitials: item.initials } } })} style={{ cursor: 'pointer' }}><div className="hosting-stars" aria-label="5 stars">★★★★★</div><strong>{item.action}</strong><span className={`hosting-review-avatar ${item.tone}`}>{item.initials}</span><small>Hosted 1 day ago</small></article>)}</div>}
-          <button className="hosting-all-link" type="button">See all reservations</button>
+          <p>{view === 'today' ? 'Reservation activity will appear here when you have an active reservation.' : 'No upcoming reservations are available.'}</p>
+          <section className="hosting-reviews-section" aria-labelledby="hosting-reviews-title">
+            <h2 id="hosting-reviews-title">Reviews about your listings</h2>
+            {reviewsLoading ? <p role="status">Loading reviews…</p> : reviewsError ? <p role="alert">{reviewsError}</p> : reviews.length === 0 ? <p>No published reviews yet. Reviews remain private until both sides submit or 14 days pass.</p> : (
+              <div className="hosting-followups">
+                {reviews.map((review) => (
+                  <article className="hosting-followup" key={review.ratingID}>
+                    <div className="hosting-stars" aria-label={`${review.overallRating} out of 5 stars`}>{'★'.repeat(review.overallRating)}{'☆'.repeat(Math.max(0, 5 - review.overallRating))}</div>
+                    <strong>{review.reviewerName || 'Tenant'} · {review.listingTitle}</strong>
+                    <p>{review.reviewBody}</p>
+                    <button type="button" className="hosting-all-link" onClick={() => navigate(`/hosting/review?id=${encodeURIComponent(review.ratingID)}`)}>Read review</button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </section>
       <MarketplaceFooter />

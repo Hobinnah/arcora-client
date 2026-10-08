@@ -1,0 +1,30 @@
+.hosting-invitations-page { min-height: 100vh; }
+.hosting-invitations-content { margin: 0 auto; max-width: 1120px; padding: 54px 32px 90px; }
+.hosting-invitations-heading { align-items: end; display: flex; gap: 28px; justify-content: space-between; }
+.hosting-invitations-heading h1 { font-family: 'Playfair Display', serif; font-size: clamp(30px, 4vw, 48px); font-weight: 500; letter-spacing: -.8px; line-height: 1.05; margin: 6px 0 12px; }
+.hosting-invitations-heading p:not(.marketplace-eyebrow) { color: var(--muted); font-size: 13px; margin: 0; }
+.hosting-invitations-heading > button { background: var(--teal); border: 0; border-radius: 7px; color: #fff; cursor: pointer; font-size: 12px; font-weight: 700; padding: 13px 18px; white-space: nowrap; }
+.hosting-invitations-toolbar { align-items: center; border-bottom: 1px solid var(--sand); display: flex; gap: 20px; justify-content: space-between; margin-top: 32px; padding-bottom: 14px; }
+.hosting-invitations-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.hosting-invitations-filters button { background: transparent; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 9px 10px; }
+.hosting-invitations-filters button.is-active { background: #eaf4f1; color: var(--teal-dark); font-weight: 700; }
+.hosting-invitations-filters button span { background: rgba(23, 44, 43, .08); border-radius: 10px; margin-left: 7px; padding: 2px 6px; }
+.hosting-invitations-toolbar input { border: 1px solid var(--sand); border-radius: 7px; box-sizing: border-box; font: inherit; font-size: 12px; max-width: 260px; padding: 10px 12px; width: 100%; }
+.hosting-invitations-list { display: grid; gap: 12px; margin-top: 18px; }
+.hosting-invitation-card { background: var(--paper); border: 1px solid var(--sand); border-radius: 9px; padding: 18px 20px; }
+.hosting-invitation-card-heading { align-items: start; display: flex; gap: 20px; justify-content: space-between; }
+.hosting-invitation-card-heading h2 { font-size: 15px; margin: 0 0 5px; }
+.hosting-invitation-card-heading p { color: var(--muted); font-size: 11px; margin: 0; }
+.hosting-invitation-status { background: #f1f3f1; border-radius: 20px; color: #52615f; font-size: 10px; font-weight: 700; padding: 6px 10px; white-space: nowrap; }
+.hosting-invitation-status.status-pending, .hosting-invitation-status.status-invited { background: #fff3da; color: #8a5c12; }
+.hosting-invitation-status.status-accepted { background: #e4f3ee; color: #17634f; }
+.hosting-invitation-status.status-declined, .hosting-invitation-status.status-revoked { background: #fbe9e6; color: #9e3c2d; }
+.hosting-invitation-status.status-expired { background: #eceeed; color: #596461; }
+.hosting-invitation-card dl { border-top: 1px solid #eee9df; display: grid; gap: 14px 22px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 16px 0 0; padding-top: 14px; }
+.hosting-invitation-card dl div { display: grid; gap: 4px; min-width: 0; }
+.hosting-invitation-card dt { color: var(--muted); font-size: 10px; }
+.hosting-invitation-card dd { font-size: 11px; margin: 0; overflow-wrap: anywhere; }
+.hosting-invitations-empty { align-items: center; color: var(--muted); display: grid; gap: 7px; justify-items: center; margin-top: 30px; padding: 42px 20px; text-align: center; }
+.hosting-invitations-empty strong { color: var(--ink); font-size: 14px; }
+.hosting-invitations-empty.is-error { color: #9e3c2d; }
+@media (max-width: 700px) { .hosting-invitations-content { padding: 36px 20px 70px; }.hosting-invitations-heading { align-items: stretch; flex-direction: column; }.hosting-invitations-heading > button { align-self: start; }.hosting-invitations-toolbar { align-items: stretch; flex-direction: column; }.hosting-invitations-toolbar input { max-width: none; }.hosting-invitation-card dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

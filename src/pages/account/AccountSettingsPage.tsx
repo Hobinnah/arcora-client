@@ -1,293 +1,334 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomSelect from "../../components/CustomSelect";
-import { CameraIcon, IdCardIcon, MailIcon, PhoneIcon, ShieldIcon } from "../../components/Icons";
-import { useAuth } from "../../hooks/useAuth";
-import { useVerificationCenter, type VerificationStatus } from "../../apis/useVerificationCenter";
+import { useAccount } from "../../apis/useAccount";
 import { CANADA_PROVINCES, getLandlordOrganization, saveLandlordOrganization } from "../../apis/useLandlordOrganization";
+import { useVerificationCenter } from "../../apis/useVerificationCenter";
+import { useAuth } from "../../hooks/useAuth";
+import type { AccountProfile, AccountSettings as AccountSettingsData, ChangePasswordRequest } from "../../types/Account";
 import type { Organization } from "../../types/Organization";
 import { AccountSettingsHeader, AccountSettingsSidebar } from "./AccountSettingsNavigation";
 import { settingsItems, type SettingsItemKey } from "./AccountSettingsItems";
 import "../../marketplace/MarketplaceHome.css";
 import "./AccountSettingsPage.css";
 
-type Address = {
-  country: string;
-  postal: string;
-  street: string;
-  unit: string;
-  city: string;
-  province: string;
+const defaultPreferences: AccountSettingsData = {
+  emailNotifications: true,
+  smsNotifications: false,
+  language: "English",
+  timezone: "America/Regina",
+  currency: "CAD",
 };
 
-type SessionItem = {
-  id: string;
-  name: string;
-  isCurrent: boolean;
-  location?: string;
-  time: string;
-  icon: "desktop" | "mobile";
+const currencyNames: Record<string, string> = {
+  CAD: "Canadian dollar",
+  USD: "United States dollar",
+  EUR: "Euro",
+  GBP: "British pound",
 };
 
-const personalRows = ["Legal name", "Preferred first name", "Email address", "Phone numbers", "Identity verification", "Residential address", "Mailing address", "Emergency contact"];
-const initialSessions: SessionItem[] = [
-  { id: "s1", name: "Windows 10.0 · Chrome", isCurrent: true, location: "Saskatoon, Saskatchewan", time: "November 29, 2025 at 21:38", icon: "desktop" },
-  { id: "s2", name: "Android", isCurrent: false, location: "Saskatoon, Saskatchewan", time: "May 24, 2025 at 22:29", icon: "mobile" },
-  { id: "s3", name: "Session", isCurrent: false, time: "May 27, 2025 at 06:47", icon: "desktop" },
-  { id: "s4", name: "Session", isCurrent: false, time: "May 24, 2025 at 23:51", icon: "desktop" }
+const currencyCodes = Object.fromEntries(
+  Object.entries(currencyNames).map(([code, name]) => [name, code]),
+);
+
+const timezoneOptions = [
+  "America/Regina",
+  "America/Vancouver",
+  "America/Toronto",
+  "America/Halifax",
+  "UTC",
 ];
-const emptyAddress: Address = { country: "Canada", postal: "", street: "", unit: "", city: "", province: "" };
-
-function DesktopMonitorIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-      <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
-  );
-}
-
-function MobilePhoneIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-      <line x1="12" y1="18" x2="12.01" y2="18" />
-    </svg>
-  );
-}
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
-  const [activeKey, setActiveKey] = useState<SettingsItemKey>("personal");
-  const [editingRow, setEditingRow] = useState<string | null>(() => (new URLSearchParams(window.location.search).get("verify") === "identity" ? "Identity verification" : null));
-  const [savedRows, setSavedRows] = useState<Record<string, string>>({});
-  const [draftValue, setDraftValue] = useState("");
-  const [draftFirstName, setDraftFirstName] = useState("Obinna");
-  const [draftLastName, setDraftLastName] = useState("Eze");
-  const [address, setAddress] = useState<Address>(emptyAddress);
-  const [emergency, setEmergency] = useState({ name: "", relationship: "", language: "English", email: "", countryCode: "Canada (+1)", phone: "" });
   const { currentUser } = useAuth();
-  const userID = currentUser?.user?.id;
+  const { getProfile, getSettings, updateProfile, updateSettings, changePassword } = useAccount();
+  const userID = currentUser?.user?.id ?? currentUser?.user?.userId;
+  const isLandlord = [...(currentUser?.roles ?? []), ...(currentUser?.user?.roles ?? [])]
+    .some((role) => role.toLowerCase() === "landlord");
   const verification = useVerificationCenter(userID);
   const { ensureEmailVerified } = verification;
-  useEffect(() => { if (userID) ensureEmailVerified(); }, [userID, ensureEmailVerified]);
+  const [activeKey, setActiveKey] = useState<SettingsItemKey>("personal");
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileMessage, setProfileMessage] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [preferences, setPreferences] = useState(defaultPreferences);
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [preferencesError, setPreferencesError] = useState("");
+  const [preferencesMessage, setPreferencesMessage] = useState("");
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [organizationLoadedForUserID, setOrganizationLoadedForUserID] = useState<string | number | null>(null);
+  const [organizationSaving, setOrganizationSaving] = useState(false);
+  const [organizationError, setOrganizationError] = useState("");
+  const [organizationMessage, setOrganizationMessage] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const organizationLoading = activeKey === "organization" && isLandlord && Boolean(userID) && organizationLoadedForUserID !== userID;
 
-  // Organization state (landlords only)
-  const isLandlord = (currentUser?.user?.roles || []).some((role) => role.toLowerCase() === "landlord");
-  const [orgDraft, setOrgDraft] = useState<Organization | null>(null);
-  const [orgError, setOrgError] = useState("");
-  const [orgSaving, setOrgSaving] = useState(false);
-  const [orgSaved, setOrgSaved] = useState(false);
-  const orgFetchedRef = useRef(false);
   useEffect(() => {
-    if (activeKey !== "organization" || !userID || orgFetchedRef.current) return;
-    orgFetchedRef.current = true;
+    if (!userID) return;
+
+    let cancelled = false;
+    void ensureEmailVerified();
+    getProfile()
+      .then((response) => {
+        if (cancelled || !response.data) return;
+        const loadedProfile = response.data as AccountProfile;
+        setProfile(loadedProfile);
+        setFirstName(loadedProfile.firstName);
+        setLastName(loadedProfile.lastName);
+        setPhone(loadedProfile.phone ?? "");
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setProfileError(error instanceof Error ? error.message : "We could not load your profile.");
+      })
+      .finally(() => { if (!cancelled) setProfileLoading(false); });
+
+    getSettings()
+      .then((response) => {
+        if (!cancelled && response.data) setPreferences(response.data as AccountSettingsData);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setPreferencesError(error instanceof Error ? error.message : "We could not load your preferences.");
+      })
+      .finally(() => { if (!cancelled) setPreferencesLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [ensureEmailVerified, getProfile, getSettings, userID]);
+
+  useEffect(() => {
+    if (activeKey !== "organization" || !isLandlord || !userID) return;
+    let cancelled = false;
     getLandlordOrganization(userID)
-      .then((result) => setOrgDraft(result))
-      .catch(() => setOrgError("We couldn't load your organization details."));
-  }, [activeKey, userID]);
-  const updateOrgDraft = (patch: Partial<Organization>) => setOrgDraft((current) => (current ? { ...current, ...patch } : current));
-  const handleSaveOrganization = async () => {
-    if (!orgDraft) return;
-    setOrgSaving(true);
-    setOrgError("");
-    setOrgSaved(false);
+      .then((result) => {
+        if (!cancelled) {
+          setOrganization(result);
+          setOrganizationLoadedForUserID(userID);
+          setOrganizationError(result ? "" : "No organization is linked to this account.");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setOrganizationError(error instanceof Error ? error.message : "We could not load your organization.");
+          setOrganizationLoadedForUserID(userID);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [activeKey, isLandlord, userID]);
+
+  const saveProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setProfileSaving(true);
+    setProfileError("");
+    setProfileMessage("");
     try {
-      const saved = await saveLandlordOrganization(orgDraft);
-      setOrgDraft(saved);
-      setOrgSaved(true);
-    } catch {
-      setOrgError("We couldn't save your organization details. Please try again.");
+      const response = await updateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() });
+      if (response.data) setProfile(response.data as AccountProfile);
+      setProfileMessage("Profile changes saved.");
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "We could not save your profile.");
     } finally {
-      setOrgSaving(false);
+      setProfileSaving(false);
     }
   };
 
-  // Security state
-  const [securityTab, setSecurityTab] = useState<"login" | "shared">("login");
-  const [passwordLastUpdated, setPasswordLastUpdated] = useState("Last updated 4 years ago");
-  const [editingPassword, setEditingPassword] = useState(false);
-  const [currentPass, setCurrentPass] = useState("");
-  const [newPass, setNewPass] = useState("");
-  const [confirmPass, setConfirmPass] = useState("");
-  const [passkeyAdded, setPasskeyAdded] = useState(false);
-  const [addingPasskey, setAddingPasskey] = useState(false);
-  const [sessions, setSessions] = useState<SessionItem[]>(initialSessions);
-  const [taxTab, setTaxTab] = useState<"taxpayers" | "documents">("taxpayers");
-  const [taxDetailOpen, setTaxDetailOpen] = useState(false);
-  const [taxFormOpen, setTaxFormOpen] = useState(false);
-  const [gstForm, setGstForm] = useState({ businessName: "", gstNumber: "", qstNumber: "", firstNationsNumber: "", street: "", unit: "", city: "", province: "", postal: "" });
-  const [languageEditing, setLanguageEditing] = useState(false);
-  const [preferredLanguage, setPreferredLanguage] = useState("English");
-  const [currencyEditing, setCurrencyEditing] = useState(false);
-  const [preferredCurrency, setPreferredCurrency] = useState("Canadian dollar");
-  const [timezoneEditing, setTimezoneEditing] = useState(false);
-  const [timezone, setTimezone] = useState("(GMT-06:00) Saskatchewan");
-  const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true);
-  const [cookiePreferencesOpen, setCookiePreferencesOpen] = useState(false);
-  const [cookieSettings, setCookieSettings] = useState({ security: true, arcora: true, language: true, experience: true });
-  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
-  const [deleteCountry, setDeleteCountry] = useState("");
-  const [deleteReason, setDeleteReason] = useState("");
-  const [languageRegionOpen, setLanguageRegionOpen] = useState(false);
-  const [languageRegionTab, setLanguageRegionTab] = useState<"language" | "currency">("language");
-  const [translationEnabled, setTranslationEnabled] = useState(true);
-  const [paymentTab, setPaymentTab] = useState<"payments" | "payouts" | "service" | "donations">("payments");
-  const [paymentModal, setPaymentModal] = useState<"card" | "payout" | null>(null);
-  const [payoutMethod, setPayoutMethod] = useState("");
-  const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
-  useEffect(() => {
-    if (activeKey !== "payments") return;
-    const handlePaymentAction = (event: MouseEvent) => {
-      const button = (event.target as HTMLElement).closest("button");
-      if (button?.textContent?.trim() === "Manage payments") setPaymentHistoryOpen(true);
-    };
-    document.addEventListener("click", handlePaymentAction);
-    return () => document.removeEventListener("click", handlePaymentAction);
-  }, [activeKey]);
-  useEffect(() => {
-    if (activeKey !== "privacy") return;
-    const handleDeleteAction = (event: MouseEvent) => {
-      const button = (event.target as HTMLElement).closest("button");
-      if (button?.textContent?.includes("Delete my account")) setDeleteAccountOpen(true);
-    };
-    document.addEventListener("click", handleDeleteAction);
-    return () => document.removeEventListener("click", handleDeleteAction);
-  }, [activeKey]);
-  useEffect(() => {
-    if (activeKey !== "privacy") return;
-    const handleCookieAction = (event: MouseEvent) => {
-      const button = (event.target as HTMLElement).closest("button");
-      if (button?.textContent?.includes("Cookie preferences")) setCookiePreferencesOpen(true);
-    };
-    document.addEventListener("click", handleCookieAction);
-    return () => document.removeEventListener("click", handleCookieAction);
-  }, [activeKey]);
-  const active = settingsItems.find((item) => item.key === activeKey) || settingsItems[0];
-  const startEditing = (label: string, value: string) => { setEditingRow(label); setDraftValue(savedRows[label] || value); };
-  const saveRow = (label: string, value: string) => { setSavedRows((current) => ({ ...current, [label]: value })); setEditingRow(null); };
-
-  const handleLogoutSession = (id: string) => {
-    setSessions((current) => current.filter((s) => s.id !== id));
-  };
-
-  const handleSavePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPass && newPass === confirmPass) {
-      setPasswordLastUpdated("Last updated just now");
-      setEditingPassword(false);
-      setCurrentPass("");
-      setNewPass("");
-      setConfirmPass("");
+  const savePreferences = async (patch: Partial<AccountSettingsData>) => {
+    setPreferencesSaving(true);
+    setPreferencesError("");
+    setPreferencesMessage("");
+    try {
+      const response = await updateSettings({ ...preferences, ...patch });
+      if (response.data) setPreferences(response.data as AccountSettingsData);
+      setPreferencesMessage("Your preferences have been saved.");
+    } catch (error) {
+      setPreferencesError(error instanceof Error ? error.message : "We could not save your preferences.");
+    } finally {
+      setPreferencesSaving(false);
     }
   };
 
-  const handleAddPasskey = () => {
-    setPasskeyAdded(true);
-    setAddingPasskey(false);
+  const saveOrganization = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!organization) return;
+    setOrganizationSaving(true);
+    setOrganizationError("");
+    setOrganizationMessage("");
+    try {
+      const saved = await saveLandlordOrganization(organization);
+      setOrganization(saved);
+      setOrganizationMessage("Organization details saved.");
+    } catch (error) {
+      setOrganizationError(error instanceof Error ? error.message : "We could not save organization details.");
+    } finally {
+      setOrganizationSaving(false);
+    }
   };
-  const taxesPanel = <div className="account-settings-taxes">
-    <div className="account-settings-tabs" role="tablist" aria-label="Tax settings">
-      <button type="button" role="tab" aria-selected={taxTab === "taxpayers"} className={taxTab === "taxpayers" ? "is-selected" : ""} onClick={() => setTaxTab("taxpayers")}>Taxpayers</button>
-      <button type="button" role="tab" aria-selected={taxTab === "documents"} className={taxTab === "documents" ? "is-selected" : ""} onClick={() => setTaxTab("documents")}>Tax documents</button>
-    </div>
-    {taxTab === "documents" ? <section className="account-settings-tax-documents"><p>Tax documents required for filing taxes are available to review and download here.</p><p>You can also file taxes using detailed earnings info, available in the <a href="#earnings-summary">earnings summary</a>.</p>{[2025, 2024, 2023, 2022].map((year) => <section className="account-settings-tax-document-year" key={year}><h3>{year}</h3>{year === 2025 ? <button type="button" className="account-settings-tax-document-row"><span className="account-settings-document-icon" aria-hidden="true">▱</span><span><strong>Canada Income Summary</strong><small>Obinna Eze</small></span><span className="account-settings-tax-arrow" aria-hidden="true">›</span></button> : <p className="account-settings-tax-no-document">No tax document issued</p>}</section>)}<p className="account-settings-tax-prior">For tax documents issued prior to 2022, <a href="#contact">contact us</a>.</p><section className="account-settings-tax-help"><h3>Need help?</h3><p>Get answers to questions about taxes in our <a href="#help-center">Help Center</a>.</p></section></section> : <>
-      <section className="account-settings-tax-section account-settings-taxpayer-section">
-        <h3>Taxpayer information</h3>
-        <p>Tax info is required for most countries/regions. <a href="#tax-help">Learn more</a></p>
-        <button type="button" className="account-settings-taxpayer-row" onClick={() => setTaxDetailOpen(true)}><span><strong>Obinna Eze</strong><small>********12</small><small>Canada</small></span><span className="account-settings-tax-arrow" aria-hidden="true">›</span></button>
-        <button type="button" className="account-settings-tax-link">Add new tax info</button>
-      </section>
-      <section className="account-settings-tax-section"><h3>Value Added Tax (VAT)</h3><p>If you are VAT-registered, please add your VAT ID. <a href="#tax-help">Learn more</a></p><button type="button" className="account-settings-tax-action">Add VAT ID number</button></section>
-      <section className="account-settings-tax-section"><h3>Canada Goods and Services Tax (GST)</h3><p>Add your registered GST, HST, and other local tax ID numbers. <a href="#tax-help">Learn more</a></p><button type="button" className="account-settings-tax-action" onClick={() => setTaxFormOpen(true)}>Add GST ID number</button></section>
-      <section className="account-settings-tax-section account-settings-tax-help" id="tax-help"><h3>Need help?</h3><p>Get answers to questions about taxes in our <a href="#help-center">Help Center</a>.</p></section>
-    </>}
-  </div>;
-  const languagesPanel = <div className="account-settings-languages"><div className={`account-settings-language-row${languageEditing ? " is-editing" : ""}`}>{languageEditing ? <div className="account-settings-language-editor"><strong>Preferred language</strong><p>This updates what you read on Arcora, and how we communicate with you.</p><CustomSelect value={preferredLanguage} options={["English", "French", "Spanish"]} onChange={setPreferredLanguage} ariaLabel="Preferred language" /><button type="button" className="account-settings-primary-action" onClick={() => setLanguageEditing(false)}>Save</button></div> : <div><strong>Preferred language</strong><span>{preferredLanguage}</span></div>}<button type="button" className="account-settings-language-edit" disabled={currencyEditing || timezoneEditing} onClick={() => setLanguageEditing((current) => !current)}>{languageEditing ? "Cancel" : "Edit"}</button></div><div className={`account-settings-language-row${currencyEditing ? " is-editing" : languageEditing || timezoneEditing ? " is-disabled" : ""}`}>{currencyEditing ? <div className="account-settings-language-editor"><strong>Preferred currency</strong><p>This determines how prices are displayed throughout Arcora.</p><CustomSelect value={preferredCurrency} options={["Canadian dollar", "United States dollar", "Euro", "British pound"]} onChange={setPreferredCurrency} ariaLabel="Preferred currency" /><button type="button" className="account-settings-primary-action" onClick={() => setCurrencyEditing(false)}>Save</button></div> : <div><strong>Preferred currency</strong><span>{preferredCurrency}</span></div>}<button type="button" disabled={languageEditing || timezoneEditing} onClick={() => setCurrencyEditing((current) => !current)}>{currencyEditing ? "Cancel" : "Edit"}</button></div><div className={`account-settings-language-row${timezoneEditing ? " is-editing" : languageEditing || currencyEditing ? " is-disabled" : ""}`}>{timezoneEditing ? <div className="account-settings-language-editor"><strong>Time zone</strong><p>Your time zone helps us show accurate dates and times.</p><CustomSelect value={timezone} options={["(GMT-08:00) Pacific Time", "(GMT-07:00) Mountain Time", "(GMT-06:00) Saskatchewan", "(GMT-06:00) Central Time", "(GMT-05:00) Eastern Time", "(GMT-04:00) Atlantic Time", "(GMT-03:30) Newfoundland Time", "(GMT+00:00) Coordinated Universal Time", "(GMT+01:00) Central European Time", "(GMT+05:30) India Standard Time", "(GMT+08:00) China Standard Time", "(GMT+09:00) Japan Standard Time", "(GMT+10:00) Australian Eastern Time"]} onChange={setTimezone} ariaLabel="Time zone" /><button type="button" className="account-settings-primary-action" onClick={() => setTimezoneEditing(false)}>Save</button></div> : <div><strong>Time zone</strong><span>{timezone}</span></div>}<button type="button" disabled={languageEditing || currencyEditing} onClick={() => setTimezoneEditing((current) => !current)}>{timezoneEditing ? "Cancel" : "Edit"}</button></div></div>;
-  const privacyPanel = <div className="account-settings-privacy"><button type="button" className="account-settings-privacy-card"><strong>Request my personal data</strong><span aria-hidden="true">›</span></button><div className="account-settings-privacy-ai"><div><h3>Help improve AI-powered features</h3><p>When this is on, we use your data to develop and improve AI models that power certain features on Arcora. <a href="#privacy-help">Learn more</a></p></div><button type="button" role="switch" aria-checked={aiFeaturesEnabled} aria-label="Help improve AI-powered features" className={`account-settings-switch${aiFeaturesEnabled ? " is-on" : ""}`} onClick={() => setAiFeaturesEnabled((current) => !current)}><span /></button></div><button type="button" className="account-settings-privacy-card"><div><strong>Cookie preferences</strong><small>Control what type of cookies you'd like to allow on Arcora</small></div><span aria-hidden="true">›</span></button><button type="button" className="account-settings-privacy-card"><strong>Delete my account</strong><span aria-hidden="true">›</span></button><div className="account-settings-privacy-commitment"><span className="account-settings-privacy-lock" aria-hidden="true">♧</span><div><h3>Committed to privacy</h3><p>Arcora is committed to keeping your data protected. See details in our <a href="#privacy-policy">Privacy Policy</a>. To help us improve your experience, <a href="#feedback">share your feedback.</a></p></div></div></div>;
-  const languageOptions = [["English", "United States"], ["Azərbaycan dili", "Azərbaycan"], ["Bahasa Indonesia", "Indonesia"], ["Bosanski", "Bosna i Hercegovina"], ["Català", "Espanya"], ["Čeština", "Česká republika"], ["Crnogorski", "Crna Gora"], ["Dansk", "Danmark"], ["Deutsch", "Deutschland"], ["Deutsch", "Österreich"], ["Deutsch", "Schweiz"], ["Deutsch", "Luxemburg"], ["Eesti", "Eesti"], ["English", "Australia"], ["English", "Canada"], ["English", "Guyana"], ["English", "India"], ["English", "Ireland"], ["English", "New Zealand"], ["English", "Singapore"], ["English", "United Arab Emirates"], ["Español", "Argentina"], ["Español", "Belice"], ["Español", "Bolivia"], ["Español", "Chile"], ["Español", "Colombia"], ["Español", "Costa Rica"], ["Español", "Ecuador"], ["Español", "El Salvador"], ["Español", "España"]];
-  const currencyOptions = [["Canadian dollar", "CAD – $"], ["Australian dollar", "AUD – $"], ["Brazilian real", "BRL – R$"], ["Bulgarian lev", "BGN – лв."], ["Chilean peso", "CLP – $"], ["Chinese yuan", "CNY – ¥"], ["Colombian peso", "COP – $"], ["Costa Rican colon", "CRC – ₡"], ["Czech koruna", "CZK – Kč"], ["Danish krone", "DKK – kr"], ["Egyptian pound", "EGP – £"], ["Emirati dirham", "AED – د.إ"], ["Euro", "EUR – €"], ["Ghanaian cedi", "GHS – GH₵"], ["Hong Kong dollar", "HKD – $"], ["Hungarian forint", "HUF – Ft"], ["Indian rupee", "INR – ₹"], ["Indonesian rupiah", "IDR – Rp"], ["Israeli new shekel", "ILS – ₪"], ["Japanese yen", "JPY – ¥"], ["New Zealand dollar", "NZD – $"], ["Norwegian krone", "NOK – kr"], ["Pound sterling", "GBP – £"], ["Singapore dollar", "SGD – $"], ["South African rand", "ZAR – R"], ["United States dollar", "USD – $"]];
-  const paymentsPanel = <div className="account-settings-payments"><div className="account-settings-tabs account-settings-payment-tabs" role="tablist" aria-label="Payment settings">{[["payments", "Payments"], ["payouts", "Payouts"], ["service", "Service fee"], ["donations", "Donations"]].map(([key, label]) => <button type="button" role="tab" aria-selected={paymentTab === key} className={paymentTab === key ? "is-selected" : ""} key={key} onClick={() => setPaymentTab(key as typeof paymentTab)}>{label}</button>)}</div>{paymentTab === "payments" ? <><section className="account-settings-payment-section"><h3>Your payments</h3><p>Keep track of all your payments and refunds.</p><button type="button" className="account-settings-tax-action">Manage payments</button></section><section className="account-settings-payment-section"><h3>Payment methods</h3><p>Add and manage your payment methods using our secure payment system.</p><div className="account-settings-payment-methods">{[["Visa 3825", "Expiration: 06/2028"], ["Visa 5807", "Expiration: 07/2025"], ["Visa 5807", "Expiration: 07/2025"]].map(([name, expiry]) => <div className="account-settings-payment-method" key={`${name}-${expiry}`}><span className="account-settings-card-mark">VISA</span><span><strong>{name}</strong><small>{expiry}</small></span><button type="button" aria-label={`More options for ${name}`}>•••</button></div>)}</div><button type="button" className="account-settings-tax-action" onClick={() => setPaymentModal("card")}>Add payment method</button></section></> : paymentTab === "payouts" ? <section className="account-settings-payment-section"><h3>How you get paid</h3><p>You can send your money to one or more payout methods. To manage your payout method(s) or assign a taxpayer, use the edit menu next to each payout method.</p><div className="account-settings-payout-row"><span className="account-settings-bank-icon">▥</span><span><strong>Bank Account <small>DEFAULT</small></strong><small>Obinna Eze, Checking 8872 (CAD)</small></span><button type="button">Edit</button></div><button type="button" className="account-settings-tax-action" onClick={() => setPaymentModal("payout")}>Add payout method</button><div className="account-settings-payment-help"><h4>Need help?</h4><a href="#payout">When you'll get your payout <span>›</span></a><a href="#payout">How payouts work <span>›</span></a><a href="#payout">Go to your transaction history <span>›</span></a></div></section> : paymentTab === "service" ? <section className="account-settings-payment-section"><h3>Service fees</h3><p>Review the service fees applied to your reservations and payouts.</p></section> : <section className="account-settings-payment-section"><div className="account-settings-donation-notice"><strong>Host payout donations aren’t available</strong><span>These aren’t available to hosts in your location. You can show your support by making a one-time or monthly donation.</span><a href="#donations">Learn more</a></div><h2>Donate to Arcora.org</h2><p>Give a percentage of each payout to Arcora.org, a nonprofit that gives free, emergency housing to people affected by disasters or other emergencies. <a href="#donations">Learn more</a></p><h4>Choose a percentage to donate</h4><p>For example, a 3% donation of a $1000 CAD payout would be $30 CAD to Arcora.org.</p><div className="account-settings-donation-options"><button type="button">1%</button><button type="button">3%</button><button type="button">5%</button><button type="button">Other</button></div><button type="button" className="account-settings-tax-action" disabled>Save</button><h3>Frequently asked questions</h3>{["Why donate to Arcora.org?", "How does a host payout donation work?", "How can I manage my host payout donation?", "Can I donate from split payouts?", "Are there other ways to donate?", "Where are donations tax deductible?"].map((question) => <button type="button" className="account-settings-faq-row" key={question}>{question}<span>⌄</span></button>)}</section>}</div>;
-  if (activeKey === "taxes" && taxFormOpen) return <main className="account-settings-tax-form-page"><button type="button" className="account-settings-tax-form-close" aria-label="Close tax form" onClick={() => setTaxFormOpen(false)}>×</button><form className="account-settings-tax-form" onSubmit={(event) => { event.preventDefault(); setTaxFormOpen(false); }}><h1>Canada tax info</h1><p>Add your tax info to be exempt from Arcora tax charges for listings in Canada.</p><p>Under the Canadian Fall Economic Statement of 2020, if you do not provide your GST, HST, or QST Arcora is required to add these taxes to your bookings. <a href="#tax-help">Learn more</a></p><label>Taxpayer name<div className="account-settings-tax-name-fields"><input aria-label="First name" placeholder="First name\nObinna" value="Obinna" readOnly /><input aria-label="Last name" placeholder="Last name\nEze" value="Eze" readOnly /></div><small>Enter the taxpayer’s name as it appears in your CRA account.</small></label><label>Taxpayer business name (optional)<input placeholder="Business name" value={gstForm.businessName} onChange={(event) => setGstForm((current) => ({ ...current, businessName: event.target.value }))} /><small>Enter the business name as it appears in your CRA account. Provide the business address below.</small></label><fieldset><legend>Sales and services taxes</legend><input placeholder="GST/HST number" value={gstForm.gstNumber} onChange={(event) => setGstForm((current) => ({ ...current, gstNumber: event.target.value }))} /><small>Enter your Goods and Services Tax (GST) or Harmonized Sales Tax (HST) ID written as 9 digits, the letters RT, 4 digits.</small><input placeholder="QST number (Quebec only)" value={gstForm.qstNumber} onChange={(event) => setGstForm((current) => ({ ...current, gstNumber: event.target.value }))} /><small>Enter your Quebec Sales Tax (QST) ID written as 2 digits (must be 10, 12, or 40), 8 digits, the letters TQ, 4 digits.</small><input placeholder="First Nations number (optional)" value={gstForm.firstNationsNumber} onChange={(event) => setGstForm((current) => ({ ...current, firstNationsNumber: event.target.value }))} /><small>If you are a First Nations person, please enter your 10-digit registry number as found on your status card.</small></fieldset><fieldset><legend>Business or residential address</legend>{[["street", "Street address"], ["unit", "Apt, suite, etc. (if applicable)"], ["city", "City"], ["province", "Province / territory"], ["postal", "Postal code"]].map(([key, placeholder]) => <input key={key} placeholder={placeholder} value={gstForm[key as keyof typeof gstForm]} onChange={(event) => setGstForm((current) => ({ ...current, [key]: event.target.value }))} />)}<small>Enter an address for the taxpayer or business identified on this form.</small></fieldset><footer><button type="button" onClick={() => setTaxFormOpen(false)}>Back</button><button type="submit" disabled={!gstForm.gstNumber || !gstForm.street || !gstForm.city || !gstForm.province || !gstForm.postal}>Submit</button></footer></form></main>;
-  const securityPanel = <div className="account-settings-security">
-    <div className="account-settings-tabs" role="tablist" aria-label="Security settings">
-      <button type="button" role="tab" aria-selected={securityTab === "login"} className={securityTab === "login" ? "is-selected" : ""} onClick={() => setSecurityTab("login")}>Login</button>
-      <button type="button" role="tab" aria-selected={securityTab === "shared"} className={securityTab === "shared" ? "is-selected" : ""} onClick={() => setSecurityTab("shared")}>Shared access</button>
-    </div>
-    {securityTab === "shared" ? <div className="account-settings-shared-access"><h3>Shared access</h3><p className="account-settings-shared-intro">Review each request carefully before approving access. We’ll email your employee or co-worker a 4-digit code that lets them log into your account with their trusted device.</p><div className="account-settings-trust-card"><span className="account-settings-trust-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 4 27 8v8c0 6.6-4.7 10.3-11 12-6.3-1.7-11-5.4-11-12V8l11-4Z" fill="#ff385c" fillOpacity=".12" stroke="#ff385c" strokeWidth="1.5"/><rect x="10" y="14" width="12" height="11" rx="1" fill="#fff" stroke="#252525" strokeWidth="1.5"/><path d="M13 14v-2.5a3 3 0 0 1 6 0V14" stroke="#252525" strokeWidth="1.5"/></svg></span><div><h4>Adding devices from people you trust</h4><p>When you approve a request, you grant someone full access to your account. They’ll be able to change reservations and send messages on your behalf.</p></div></div></div> : <>
-      <section className="account-settings-security-section">
-        <div className="account-settings-section-heading"><div><span className="account-settings-kicker">01 / ACCESS</span><h3>Login</h3></div><span className="account-settings-section-note">Keep your account protected</span></div>
-        <div className="account-settings-security-row"><div><strong>Passkeys</strong><span>{passkeyAdded ? "Passkey added" : "Use your fingerprint, face, or PIN."}</span></div>{addingPasskey ? <button type="button" className="account-settings-dark-action" onClick={handleAddPasskey}>Confirm passkey</button> : <button type="button" onClick={() => setAddingPasskey(true)}>{passkeyAdded ? "Add another" : "Add"}</button>}</div>
-        <div className="account-settings-security-row">{editingPassword ? <form className="account-settings-password-form" onSubmit={handleSavePassword}><strong>Update password</strong><input type="password" aria-label="Current password" placeholder="Current password" value={currentPass} onChange={(event) => setCurrentPass(event.target.value)} required /><input type="password" aria-label="New password" placeholder="New password" value={newPass} onChange={(event) => setNewPass(event.target.value)} required /><input type="password" aria-label="Confirm new password" placeholder="Confirm new password" value={confirmPass} onChange={(event) => setConfirmPass(event.target.value)} required /><div><button type="submit" className="account-settings-dark-action">Save password</button><button type="button" className="account-settings-inline-cancel" onClick={() => setEditingPassword(false)}>Cancel</button></div></form> : <div><strong>Password</strong><span>{passwordLastUpdated}</span></div>}{!editingPassword && <button type="button" onClick={() => setEditingPassword(true)}>Update</button>}</div>
-      </section>
-      <section className="account-settings-security-section account-settings-devices-section">
-        <div className="account-settings-section-heading"><div><span className="account-settings-kicker">02 / ACTIVITY</span><h3>Device history</h3></div><span className="account-settings-section-note">{sessions.length} active {sessions.length === 1 ? "session" : "sessions"}</span></div>
-        <div className="account-settings-device-list">{sessions.map((session) => <div className="account-settings-device-row" key={session.id}><span className="account-settings-device-icon">{session.icon === "mobile" ? <MobilePhoneIcon /> : <DesktopMonitorIcon />}</span><div><strong>{session.name}</strong>{session.isCurrent && <small>Current session</small>}<span>{session.location ? `${session.location} · ` : ""}{session.time}</span></div>{!session.isCurrent && <button type="button" onClick={() => handleLogoutSession(session.id)}>Log out</button>}</div>)}</div>
-      </section>
-    </>}
-  </div>;
-  const orgSwitch = (label: string, hint: string, checked: boolean, onToggle: () => void) => <div className="account-settings-org-row account-settings-org-switch-row"><div><strong>{label}</strong><small>{hint}</small></div><button type="button" role="switch" aria-checked={checked} aria-label={label} className={`account-settings-switch${checked ? " is-on" : ""}`} onClick={onToggle}><span /></button></div>;
-  const organizationPanel = !orgDraft ? <p className="account-settings-org-loading">{orgError || "Loading your organization details..."}</p> : <div className="account-settings-organization">
-    <section className="account-settings-org-section">
-      <div className="account-settings-section-heading"><div><span className="account-settings-kicker">01 / PROFILE</span><h3>Business profile</h3></div><span className={`account-settings-org-status-pill account-settings-org-status-${orgDraft.status.toLowerCase()}`}>{orgDraft.status}</span></div>
-      <div className="account-settings-org-toggle" role="tablist" aria-label="Account type">
-        <button type="button" role="tab" aria-selected={orgDraft.isPersonal} className={orgDraft.isPersonal ? "is-selected" : ""} onClick={() => updateOrgDraft({ isPersonal: true, businessNumber: "" })}>Individual</button>
-        <button type="button" role="tab" aria-selected={!orgDraft.isPersonal} className={!orgDraft.isPersonal ? "is-selected" : ""} onClick={() => updateOrgDraft({ isPersonal: false })}>Business</button>
+
+  const savePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordSaving(true);
+    setPasswordError("");
+    setPasswordMessage("");
+    const request: ChangePasswordRequest = {
+      userName: currentUser?.user?.userName ?? "",
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    };
+    try {
+      await changePassword(request);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage("Password updated successfully.");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "We could not update your password.");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const activeItem = settingsItems.find((item) => item.key === activeKey) ?? settingsItems[0];
+  const frame = (title: string, content: React.ReactNode) => (
+    <main className="account-settings-page">
+      <AccountSettingsHeader />
+      <div className="account-settings-layout">
+        <AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => setActiveKey(key)} />
+        <section className="account-settings-content">
+          <h2>{title}</h2>
+          {content}
+        </section>
       </div>
-      <label className="account-settings-org-field">Legal name<input value={orgDraft.legalName} onChange={(event) => updateOrgDraft({ legalName: event.target.value })} /></label>
-      <label className="account-settings-org-field">Display name<input value={orgDraft.displayName} onChange={(event) => updateOrgDraft({ displayName: event.target.value })} /></label>
-      {!orgDraft.isPersonal && <label className="account-settings-org-field">Business number <span>(optional)</span><input value={orgDraft.businessNumber} onChange={(event) => updateOrgDraft({ businessNumber: event.target.value })} /></label>}
-      <div className="account-settings-org-split">
-        <label className="account-settings-org-field">Country<input value="Canada" readOnly disabled /></label>
-        <label className="account-settings-org-field">Province<CustomSelect value={CANADA_PROVINCES.find((province) => province.code === orgDraft.provinceCode)?.name || CANADA_PROVINCES[0].name} options={CANADA_PROVINCES.map((province) => province.name)} onChange={(value) => updateOrgDraft({ provinceCode: CANADA_PROVINCES.find((province) => province.name === value)?.code || orgDraft.provinceCode })} ariaLabel="Province" /></label>
+    </main>
+  );
+
+  if (activeKey === "personal") {
+    const personalContent = !userID ? <p className="account-settings-error" role="alert">Sign in to view and update account settings.</p> : profileLoading ? <p role="status">Loading your profile…</p> : !profile ? (
+      <p className="account-settings-error" role="alert">{profileError || "Profile details are unavailable."}</p>
+    ) : (
+      <>
+        {profileError && <p className="account-settings-error" role="alert">{profileError}</p>}
+        {profileMessage && <p className="account-settings-success" role="status">{profileMessage}</p>}
+        <form className="account-settings-profile-form" onSubmit={saveProfile}>
+          <label>Legal first name<input required maxLength={100} value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label>
+          <label>Legal last name<input required maxLength={100} value={lastName} onChange={(event) => setLastName(event.target.value)} /></label>
+          <label>Email address<input value={profile.email} readOnly aria-describedby="email-settings-note" /></label>
+          <small id="email-settings-note">Email changes require a verification flow that is not available yet.</small>
+          <label>Phone number<input type="tel" maxLength={30} value={phone} onChange={(event) => setPhone(event.target.value)} /><small>Include the international country calling code, for example +14155552671.</small></label>
+          <button className="account-settings-primary-action" type="submit" disabled={profileSaving}>{profileSaving ? "Saving…" : "Save profile"}</button>
+        </form>
+        <div className="account-settings-verification-summary">
+          <div><strong>Identity verification</strong><span>{verification.overallLabel}</span></div>
+          <button type="button" onClick={() => navigate("/verify-identity")}>{verification.identityVerified ? "View status" : "Continue verification"}</button>
+        </div>
+        <p className="account-settings-disabled-note">Preferred name, addresses, and emergency contacts can’t be edited here until their account endpoints are available.</p>
+      </>
+    );
+    return frame("Personal information", personalContent);
+  }
+
+  if (activeKey === "notifications") {
+    const content = !userID ? <p className="account-settings-error" role="alert">Sign in to view and update account settings.</p> : preferencesLoading ? <p role="status">Loading notification preferences…</p> : (
+      <div className="account-settings-preferences">
+        <p>Choose how Arcora sends account notifications. Each change is saved to your account.</p>
+        {preferencesError && <p className="account-settings-error" role="alert">{preferencesError}</p>}
+        {preferencesMessage && <p className="account-settings-success" role="status">{preferencesMessage}</p>}
+        {(["emailNotifications", "smsNotifications"] as const).map((key) => {
+          const label = key === "emailNotifications" ? "Email notifications" : "SMS notifications";
+          return <div className="account-settings-language-row" key={key}>
+            <div><strong>{label}</strong><span>{key === "emailNotifications" ? "Important account updates by email." : "Important account updates by text message."}</span></div>
+            <button type="button" role="switch" aria-checked={preferences[key]} aria-label={label} disabled={preferencesSaving} className={`account-settings-switch${preferences[key] ? " is-on" : ""}`} onClick={() => void savePreferences({ [key]: !preferences[key] })}><span /></button>
+          </div>;
+        })}
+        {preferencesSaving && <p role="status">Saving preferences…</p>}
       </div>
-      <label className="account-settings-org-field">Default currency<CustomSelect value={orgDraft.defaultCurrency || "CAD"} options={["CAD", "USD"]} onChange={(defaultCurrency) => updateOrgDraft({ defaultCurrency })} ariaLabel="Default currency" /></label>
-    </section>
-    <section className="account-settings-org-section">
-      <div className="account-settings-section-heading"><div><span className="account-settings-kicker">02 / BILLING</span><h3>Invoicing &amp; payments</h3></div></div>
-      <label className="account-settings-org-field">Time zone<CustomSelect value={orgDraft.timeZone || "(GMT-06:00) Saskatchewan"} options={["(GMT-08:00) Pacific Time", "(GMT-07:00) Mountain Time", "(GMT-06:00) Saskatchewan", "(GMT-06:00) Central Time", "(GMT-05:00) Eastern Time", "(GMT-04:00) Atlantic Time", "(GMT-03:30) Newfoundland Time"]} onChange={(timeZone) => updateOrgDraft({ timeZone })} ariaLabel="Time zone" /></label>
-      <div className="account-settings-org-split">
-        <label className="account-settings-org-field">Invoice prefix<input value={orgDraft.invoicePrefix} onChange={(event) => updateOrgDraft({ invoicePrefix: event.target.value })} placeholder="INV-" /></label>
-        <label className="account-settings-org-field">Receipt prefix<input value={orgDraft.receiptPrefix} onChange={(event) => updateOrgDraft({ receiptPrefix: event.target.value })} placeholder="RCT-" /></label>
+    );
+    return frame("Notifications", content);
+  }
+
+  if (activeKey === "languages") {
+    const content = preferencesLoading ? <p role="status">Loading your preferences…</p> : (
+      <div className="account-settings-preferences">
+        {preferencesError && <p className="account-settings-error" role="alert">{preferencesError}</p>}
+        {preferencesMessage && <p className="account-settings-success" role="status">{preferencesMessage}</p>}
+        <div className="account-settings-language-row">
+          <div><strong>Preferred language</strong><span>{preferences.language}</span></div>
+          <div className="account-settings-preference-edit"><CustomSelect value={preferences.language} options={["English", "French", "Spanish"]} onChange={(language) => void savePreferences({ language })} ariaLabel="Preferred language" /></div>
+        </div>
+        <div className="account-settings-language-row">
+          <div><strong>Preferred currency</strong><span>{currencyNames[preferences.currency] ?? preferences.currency}</span></div>
+          <div className="account-settings-preference-edit"><CustomSelect value={currencyNames[preferences.currency] ?? preferences.currency} options={Object.values(currencyNames)} onChange={(currency) => void savePreferences({ currency: currencyCodes[currency] ?? currency })} ariaLabel="Preferred currency" /></div>
+        </div>
+        <div className="account-settings-language-row">
+          <div><strong>Time zone</strong><span>{preferences.timezone}</span></div>
+          <div className="account-settings-preference-edit"><CustomSelect value={preferences.timezone} options={[...new Set([...timezoneOptions, preferences.timezone])]} onChange={(timezone) => void savePreferences({ timezone })} ariaLabel="Time zone" /></div>
+        </div>
+        {preferencesSaving && <p role="status">Saving preferences…</p>}
       </div>
-      <label className="account-settings-org-field">Payment provider<CustomSelect value={orgDraft.paymentProvider || "Not connected"} options={["Not connected", "Stripe"]} onChange={(value) => updateOrgDraft({ paymentProvider: value === "Not connected" ? "" : value })} ariaLabel="Payment provider" /></label>
-      {orgSwitch("Late fees", "Automatically apply a late fee to overdue rent.", orgDraft.lateFeeEnabled, () => updateOrgDraft({ lateFeeEnabled: !orgDraft.lateFeeEnabled }))}
-      {orgSwitch("Auto invoice generation", "Generate invoices automatically each billing cycle.", orgDraft.autoInvoiceGeneration, () => updateOrgDraft({ autoInvoiceGeneration: !orgDraft.autoInvoiceGeneration }))}
-      {orgSwitch("Auto payment retry", "Retry a failed rent payment automatically.", orgDraft.autoPaymentRetry, () => updateOrgDraft({ autoPaymentRetry: !orgDraft.autoPaymentRetry }))}
+    );
+    return frame("Languages & currency", content);
+  }
+
+  if (activeKey === "security") {
+    const content = (
+      <div className="account-settings-preferences">
+        <section className="account-settings-security-section">
+          <h3>Password</h3>
+          {passwordError && <p className="account-settings-error" role="alert">{passwordError}</p>}
+          {passwordMessage && <p className="account-settings-success" role="status">{passwordMessage}</p>}
+          <form className="account-settings-password-form" onSubmit={savePassword}>
+            <input type="password" autoComplete="current-password" aria-label="Current password" placeholder="Current password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+            <input type="password" autoComplete="new-password" aria-label="New password" placeholder="New password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
+            <input type="password" autoComplete="new-password" aria-label="Confirm new password" placeholder="Confirm new password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
+            <button className="account-settings-primary-action" type="submit" disabled={passwordSaving}>{passwordSaving ? "Updating…" : "Update password"}</button>
+          </form>
+        </section>
+        <section className="account-settings-security-section">
+          <h3>Passkeys and active sessions</h3>
+          <p className="account-settings-disabled-note">These controls are disabled until passkey and session-management endpoints are available. No mock devices or passkeys are shown.</p>
+          <button type="button" disabled title="Passkey enrollment is not available yet.">Add a passkey</button>
+          <button type="button" disabled title="Session management is not available yet.">Manage sessions</button>
+        </section>
+      </div>
+    );
+    return frame("Login & security", content);
+  }
+
+  if (activeKey === "organization" && isLandlord) {
+    const content = organizationLoading ? <p role="status">Loading organization settings…</p> : !organization ? (
+      <p className="account-settings-error" role="alert">{organizationError || "No organization is linked to this account."}</p>
+    ) : (
+      <form className="account-settings-organization" onSubmit={saveOrganization}>
+        {organizationError && <p className="account-settings-error" role="alert">{organizationError}</p>}
+        {organizationMessage && <p className="account-settings-success" role="status">{organizationMessage}</p>}
+        <label className="account-settings-org-field">Legal name<input required maxLength={100} value={organization.legalName} onChange={(event) => setOrganization({ ...organization, legalName: event.target.value })} /></label>
+        <label className="account-settings-org-field">Display name<input required maxLength={100} value={organization.displayName} onChange={(event) => setOrganization({ ...organization, displayName: event.target.value })} /></label>
+        {!organization.isPersonal && <label className="account-settings-org-field">Business number<input value={organization.businessNumber} onChange={(event) => setOrganization({ ...organization, businessNumber: event.target.value })} /></label>}
+        <label className="account-settings-org-field">Province<CustomSelect value={CANADA_PROVINCES.find((province) => province.code === organization.provinceCode)?.name ?? CANADA_PROVINCES[0].name} options={CANADA_PROVINCES.map((province) => province.name)} onChange={(value) => setOrganization({ ...organization, provinceCode: CANADA_PROVINCES.find((province) => province.name === value)?.code ?? organization.provinceCode })} ariaLabel="Province" /></label>
+        <label className="account-settings-org-field">Default currency<CustomSelect value={organization.defaultCurrency || "CAD"} options={["CAD", "USD"]} onChange={(defaultCurrency) => setOrganization({ ...organization, defaultCurrency })} ariaLabel="Default currency" /></label>
+        <label className="account-settings-org-field">Time zone<CustomSelect value={organization.timeZone || "America/Regina"} options={timezoneOptions} onChange={(timeZone) => setOrganization({ ...organization, timeZone })} ariaLabel="Organization time zone" /></label>
+        <button className="account-settings-primary-action" type="submit" disabled={organizationSaving}>{organizationSaving ? "Saving…" : "Save organization"}</button>
+      </form>
+    );
+    return frame("Organization", content);
+  }
+
+  const unavailableContent = (
+    <section className="account-settings-unavailable">
+      <h3>{activeItem.label} is not connected yet</h3>
+      <p>This feature needs a supported backend endpoint. Its controls are disabled, and no local-only changes will be presented as saved.</p>
+      <button type="button" disabled title="This feature is not connected to a backend endpoint.">Not available yet</button>
     </section>
-    <section className="account-settings-org-section">
-      <div className="account-settings-section-heading"><div><span className="account-settings-kicker">03 / TRUST</span><h3>Branding &amp; screening</h3></div><span className="account-settings-section-note">Ranking score: {orgDraft.rankingScore}</span></div>
-      <label className="account-settings-org-field">Brand logo URL<input value={orgDraft.brandLogoUrl} onChange={(event) => updateOrgDraft({ brandLogoUrl: event.target.value })} placeholder="https://" /></label>
-      {orgSwitch("Require background check", "Require tenants to pass a background check before approval.", orgDraft.requireBackgroundCheck, () => updateOrgDraft({ requireBackgroundCheck: !orgDraft.requireBackgroundCheck }))}
-    </section>
-    {orgError && <em className="account-settings-verify-error">{orgError}</em>}
-    <button type="button" className="account-settings-primary-action" disabled={!orgDraft.legalName.trim() || !orgDraft.displayName.trim() || orgSaving} onClick={handleSaveOrganization}>{orgSaving ? "Saving..." : orgSaved ? "Saved" : "Save changes"}</button>
-  </div>;
-  if (activeKey === "organization" && isLandlord) return <main className="account-settings-page account-settings-organization-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content"><h2>Organization</h2>{organizationPanel}</section></div></main>;
-  if (activeKey === "taxes" && taxDetailOpen) return <main className="account-settings-page account-settings-tax-detail-page"><AccountSettingsHeader /><section className="account-settings-tax-detail"><nav className="account-settings-tax-breadcrumb" aria-label="Tax information breadcrumb"><button type="button" onClick={() => setTaxDetailOpen(false)}>Account</button><span aria-hidden="true">›</span><button type="button" onClick={() => setTaxDetailOpen(false)}>Taxes</button><span aria-hidden="true">›</span><strong>Obinna Eze</strong></nav><h1>Obinna Eze</h1><h2>Tax info</h2><dl><div><dt>Date submitted</dt><dd>May 28, 2025</dd></div><div><dt>Tax country/region</dt><dd>Canada</dd></div><div><dt>Tax ID number</dt><dd>********12</dd></div><div><dt>Date of birth</dt><dd>Nov 25, 1990</dd></div><div><dt>Country/Region of birth</dt><dd>Nigeria</dd></div><div><dt>Primary residence address</dt><dd>123 Schmeiser Avenue, Saskatoon, Saskatchewan, CA</dd></div></dl><p className="account-settings-tax-detail-note">To update, first you’ll need to remove this tax info and then re-add it.</p><section className="account-settings-tax-detail-section"><h2>Need help?</h2><p>Get answers to questions about taxes in our <a href="#help-center">Help Center</a>.</p></section><section className="account-settings-tax-detail-section account-settings-tax-remove"><h2>Remove tax info</h2><p>If you no longer reside or have listings in Canada, remove tax info. Any previously added info may be reported for tax purposes.</p><button type="button">Remove</button></section></section></main>;
-  if (activeKey === "payments" && paymentModal) return <main className="account-settings-page account-settings-payment-modal-page"><div className="account-settings-payment-modal-backdrop" onClick={() => setPaymentModal(null)} /><section className="account-settings-payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title"><button type="button" className="account-settings-payment-modal-close" aria-label="Close" onClick={() => setPaymentModal(null)}>×</button>{paymentModal === "card" ? <><h2 id="payment-modal-title">Add card details</h2><p className="account-settings-card-types">VISA &nbsp; <span>● ●</span> &nbsp; AMEX</p><input placeholder="Card number" aria-label="Card number" /><div className="account-settings-card-split"><input placeholder="Expiration" aria-label="Expiration" /><input placeholder="CVV" aria-label="CVV" /></div><input placeholder="ZIP code" aria-label="ZIP code" /><CustomSelect value="Canada" options={["Canada", "United States", "United Kingdom"]} onChange={() => undefined} ariaLabel="Country/region" /><footer><button type="button" onClick={() => setPaymentModal(null)}>Cancel</button><button type="button" className="account-settings-tax-action" onClick={() => setPaymentModal(null)}>Done</button></footer></> : <><h2 id="payment-modal-title">Let's add a payout method</h2><p>To start, let us know where you'd like us to send your money.</p><CustomSelect value="Canada" options={["Canada", "United States"]} onChange={() => undefined} ariaLabel="Billing country/region" /><h4>How would you like to get paid?</h4>{["Bank account in CAD", "PayPal in CAD", "PayPal in USD", "Payoneer in USD"].map((method) => <button type="button" className={`account-settings-payout-choice${payoutMethod === method ? " is-selected" : ""}`} key={method} onClick={() => setPayoutMethod(method)}><span>{method}</span><span className="account-settings-radio" /></button>)}<footer><button type="button" onClick={() => setPaymentModal(null)}>Exit</button><button type="button" className="account-settings-tax-action" disabled={!payoutMethod} onClick={() => setPaymentModal(null)}>Continue</button></footer></>}</section></main>;
-  if (activeKey === "payments" && !paymentHistoryOpen) return <main className="account-settings-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content"><h2>Payments</h2>{paymentsPanel}</section></div></main>;
-  if (activeKey === "privacy" && cookiePreferencesOpen) return <main className="account-settings-page account-settings-cookie-page"><div className="account-settings-cookie-backdrop" /><section className="account-settings-cookie-modal" role="dialog" aria-modal="true" aria-labelledby="cookie-preferences-title"><header><button type="button" aria-label="Back to privacy" onClick={() => setCookiePreferencesOpen(false)}>←</button><h1 id="cookie-preferences-title">Your privacy</h1></header><div className="account-settings-cookie-content"><p>When you visit any website, it may store or retrieve information on your browser, mostly in the form of cookies. This information might be about you, your preferences or your device and is mostly used to make the site work as you expect it to. The information does not usually directly identify you, but it can give you a more personalized web experience. Because we respect your right to privacy, you can choose not to allow some types of cookies.</p><h2>Strictly Necessary Cookies</h2><p>These cookies are necessary for the website to function and can't be switched off in our systems. They are usually only set in response to actions you have taken which result in a request for services, such as setting your privacy preferences, logging in or filling in forms.</p>{[["security", "Security"], ["arcora", "Arcora"], ["language", "Language settings"], ["experience", "User Experience"]].map(([key, label]) => <div className="account-settings-cookie-row" key={key}><span>{label}</span><button type="button" role="switch" aria-checked={cookieSettings[key as keyof typeof cookieSettings]} className={`account-settings-cookie-switch${cookieSettings[key as keyof typeof cookieSettings] ? " is-on" : ""}`} onClick={() => setCookieSettings((current) => ({ ...current, [key]: !current[key as keyof typeof current] }))}><span>✓</span></button></div>)}</div><footer><button type="button" onClick={() => setCookiePreferencesOpen(false)}>Save</button></footer></section></main>;
-  if (activeKey === "privacy" && deleteAccountOpen) return <main className="account-settings-page account-settings-delete-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setDeleteAccountOpen(false); setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content account-settings-delete-content"><h2>Privacy</h2><div className="account-settings-delete-form"><h1>Delete your account</h1><p>Submit a request to delete your personal data. To confirm you're the true owner of this account, we may contact you at <strong>hobinnah@yahoo.com</strong>. We will only be able to proceed with your request once you follow the steps set out in the email.</p><h3>About account deletion requests:</h3><ul><li>If you have a checkout (as a guest or a host) within the past 60 days, your deletion request can’t be processed until the 60-day claim period has elapsed.</li><li>Once your request is processed, your personal data will be deleted except for certain information that we are legally required or permitted to retain, as outlined in our <a href="#privacy-policy">Privacy Policy</a>.</li><li>If you want to use Arcora in the future, you’ll need to set up a new account.</li><li>If you have any future reservations as a host or guest, they must first be cancelled in accordance with the applicable host cancellation policy before submitting your deletion request. Cancellation fees may apply. More information about cancellations can be found on our <a href="#help-center">Help Center</a>.</li></ul><label>Where do you reside?<CustomSelect value={deleteCountry || "Country"} options={["Canada", "United States", "United Kingdom", "Nigeria"]} onChange={setDeleteCountry} ariaLabel="Country" /></label><div className="account-settings-delete-disabled"><CustomSelect value="State" options={["State"]} onChange={() => undefined} ariaLabel="State" /></div><small>Required for United States residents only</small><label>Why are you deleting your account?<CustomSelect value={deleteReason || "Select reason (optional)"} options={["I no longer need the account", "Privacy concerns", "Other"]} onChange={setDeleteReason} ariaLabel="Deletion reason" /></label><footer><button type="button" onClick={() => setDeleteAccountOpen(false)}>Back</button><button type="button" disabled={!deleteCountry}>Next</button></footer></div></section></div></main>;
-  if (activeKey === "languages" && languageRegionOpen) return <main className="account-settings-page account-settings-language-modal-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setLanguageRegionOpen(false); setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content"><h2>Languages &amp; currency</h2>{languagesPanel}</section></div><div className="account-settings-language-backdrop" onClick={() => setLanguageRegionOpen(false)} /><section className="account-settings-language-modal" role="dialog" aria-modal="true" aria-label="Language and region settings"><button type="button" className="account-settings-language-close" aria-label="Close" onClick={() => setLanguageRegionOpen(false)}>×</button><div className="account-settings-language-tabs"><button type="button" className={languageRegionTab === "language" ? "is-selected" : ""} onClick={() => setLanguageRegionTab("language")}>Language and region</button><button type="button" className={languageRegionTab === "currency" ? "is-selected" : ""} onClick={() => setLanguageRegionTab("currency")}>Currency</button></div>{languageRegionTab === "language" ? <div className="account-settings-language-modal-content"><div className="account-settings-translation"><div><strong>Translation</strong><small>Automatically translate descriptions and reviews to English.</small></div><button type="button" role="switch" aria-checked={translationEnabled} className={`account-settings-switch${translationEnabled ? " is-on" : ""}`} onClick={() => setTranslationEnabled((current) => !current)}><span /></button></div><h2>Suggested language and region</h2><p className="account-settings-suggested-language"><strong>English</strong><span>United Kingdom</span></p><h2>Choose a language and region</h2><div className="account-settings-option-grid">{languageOptions.map(([language, region]) => <button type="button" className={preferredLanguage === language && region === "United States" ? "is-selected" : ""} key={`${language}-${region}`} onClick={() => { setPreferredLanguage(language); setLanguageRegionOpen(false); }}>{language}<small>{region}</small></button>)}</div></div> : <div className="account-settings-language-modal-content"><h2>Choose a currency</h2><div className="account-settings-option-grid">{currencyOptions.map(([currency, symbol]) => <button type="button" className={preferredCurrency === currency ? "is-selected" : ""} key={currency} onClick={() => { setPreferredCurrency(currency); setLanguageRegionOpen(false); }}>{currency}<small>{symbol}</small></button>)}</div></div>}</section></main>;
-  if (activeKey === "privacy") return <main className="account-settings-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content"><h2>Privacy</h2>{privacyPanel}</section></div></main>;
-  if (activeKey === "payments" && paymentHistoryOpen) return <main className="account-settings-page account-settings-payment-history-page"><AccountSettingsHeader /><section className="account-settings-payment-history"><button type="button" className="account-settings-payment-back" onClick={() => setPaymentHistoryOpen(false)}>‹ Payments</button><h1>Your payments</h1><h2>Completed</h2>{[["2025", "Paid Aug 24", "Visa 3825", "Edmonton · Aug 28–Aug 30", "$247.52"], ["2025", "Paid May 30", "Arcora Credit", "Saskatoon · May 27–May 31", "$78.75"], ["2022", "Paid May 10", "Visa 5807", "Saskatoon · May 26–Jun 15", "$1,285.73"], ["2022", "Paid Apr 15", "Google Pay", "Saskatoon · May 26–Jun 15", "$321.44"]].map(([year, title, method, detail, amount], index) => <div key={`${year}-${title}`} className="account-settings-payment-history-item">{(index === 0 || year !== [["2025", "Paid Aug 24"]][0][0]) && <h3>{year}</h3>}<span className="account-settings-payment-thumb" aria-hidden="true" /><span><strong>{title}</strong><small>{method}</small><small>{detail}</small></span><b>{amount}<small>CAD</small></b><span className="account-settings-tax-arrow" aria-hidden="true">›</span></div>)}</section></main>;
-  if (activeKey === "security") return <main className="account-settings-page account-settings-security-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content account-settings-security-content"><h2>Login &amp; security</h2>{securityPanel}</section></div></main>;
-  const editAddress = (label: string, mailing = false) => <><p>Where you live helps us keep your account secure.</p><div className="account-settings-address-editor"><label>Country / region<CustomSelect value={address.country} options={["Canada", "United States", "United Kingdom"]} onChange={(country) => setAddress((current) => ({ ...current, country }))} ariaLabel="Country / region" /></label><label>Postal code<input value={address.postal} onChange={(event) => setAddress((current) => ({ ...current, postal: event.target.value }))} /></label><label>Street address<input value={address.street} onChange={(event) => setAddress((current) => ({ ...current, street: event.target.value }))} /></label><label>{mailing ? "Apt, suite (optional)" : "Apt, suite, unit (if applicable)"}<input value={address.unit} onChange={(event) => setAddress((current) => ({ ...current, unit: event.target.value }))} /></label><div className="account-settings-address-split"><label>City<input value={address.city} onChange={(event) => setAddress((current) => ({ ...current, city: event.target.value }))} /></label><label>{mailing ? "State / Province / County / Region" : "Province / territory"}<input value={address.province} onChange={(event) => setAddress((current) => ({ ...current, province: event.target.value }))} /></label></div></div><button type="button" className="account-settings-primary-action" disabled={!address.postal || !address.street || !address.city || !address.province} onClick={() => saveRow(label, `${address.street}, ${address.city}, ${address.province} ${address.postal}`)}>Save</button></>;
-  const editEmergency = (label: string) => <><p>A trusted contact we can alert in an urgent situation.</p><div className="account-settings-existing-contact"><span>Chimuanya Eze</span><button type="button">Remove</button></div><div className="account-settings-emergency-editor"><label>Name<input value={emergency.name} onChange={(event) => setEmergency((current) => ({ ...current, name: event.target.value }))} placeholder="Name" /></label><label>Relationship<input value={emergency.relationship} onChange={(event) => setEmergency((current) => ({ ...current, relationship: event.target.value }))} placeholder="Relationship" /></label><label>Preferred language<CustomSelect value={emergency.language} options={["English", "French", "Spanish"]} onChange={(language) => setEmergency((current) => ({ ...current, language }))} ariaLabel="Preferred language" /></label><label>Email<input value={emergency.email} onChange={(event) => setEmergency((current) => ({ ...current, email: event.target.value }))} placeholder="Email" /></label><div className="account-settings-address-split"><label>Country code<CustomSelect value={emergency.countryCode} options={["Canada (+1)", "United States (+1)", "United Kingdom (+44)"]} onChange={(countryCode) => setEmergency((current) => ({ ...current, countryCode }))} ariaLabel="Country code" /></label><label>Phone number<input value={emergency.phone} onChange={(event) => setEmergency((current) => ({ ...current, phone: event.target.value }))} placeholder="Phone number" /></label></div></div><button type="button" className="account-settings-primary-action" onClick={() => saveRow(label, emergency.name)}>Save</button></>;
-  const verifyStatusLabel = (status: VerificationStatus) => status === "APPROVED" ? "Verified" : status === "UNDER_REVIEW" ? "Under review" : status === "REJECTED" ? "Rejected" : status === "PENDING" || status === "SUBMITTED" ? "Pending" : "Not started";
-  const verifyStatusClass = (status: VerificationStatus) => status === "APPROVED" ? "is-verified" : status === "UNDER_REVIEW" ? "is-review" : status === "REJECTED" ? "is-rejected" : status === "PENDING" || status === "SUBMITTED" ? "is-pending" : "is-not-started";
-  const editVerification = () => <>
-    <p>Verifying your identity builds trust with landlords and tenants across Arcora.</p>
-    <div className="account-settings-verify-sandbox-note"><ShieldIcon /><span>Phone and ID checks run in sandbox mode today &mdash; Persona and SMS provider contracts are pending, so results are simulated for review.</span></div>
-    <div className="account-settings-verify-list">
-      <div className="account-settings-verify-row"><span className="account-settings-verify-icon"><MailIcon /></span><div><strong>Email address</strong><small>Verified automatically when you sign in.</small></div><span className={`account-settings-verify-status ${verifyStatusClass(verification.emailStatus)}`}>{verifyStatusLabel(verification.emailStatus)}</span></div>
-      <div className="account-settings-verify-row"><span className="account-settings-verify-icon"><PhoneIcon /></span><div><strong>Phone number</strong><small>Confirmed via a one-time code.</small></div><span className={`account-settings-verify-status ${verifyStatusClass(verification.phoneStatus)}`}>{verifyStatusLabel(verification.phoneStatus)}</span></div>
-      <div className="account-settings-verify-row"><span className="account-settings-verify-icon"><IdCardIcon /></span><div><strong>Government ID</strong><small>Passport, driver's licence, or other photo ID.</small></div><span className={`account-settings-verify-status ${verifyStatusClass(verification.idStatus)}`}>{verifyStatusLabel(verification.idStatus)}</span></div>
-      <div className="account-settings-verify-row"><span className="account-settings-verify-icon"><CameraIcon /></span><div><strong>Selfie &amp; liveness</strong><small>Matched against your ID photo.</small></div><span className={`account-settings-verify-status ${verifyStatusClass(verification.selfieStatus)}`}>{verifyStatusLabel(verification.selfieStatus)}</span></div>
-    </div>
-    <button type="button" className="account-settings-primary-action" onClick={() => navigate("/verify-identity")}>{verification.identityVerified ? "View verification" : "Continue verification steps"}</button>
-  </>;
-  return <main className="account-settings-page"><AccountSettingsHeader /><div className="account-settings-layout"><AccountSettingsSidebar activeKey={activeKey} onSelect={(key) => { setActiveKey(key); setEditingRow(null); }} /><section className="account-settings-content"><h2>{active.label}</h2>{activeKey === "personal" ? <div className="account-settings-rows">{personalRows.map((label) => { const value = savedRows[label] || (label === "Legal name" ? "Obinna Eze" : label === "Preferred first name" ? "Obi" : label === "Email address" ? "h****@yahoo.com" : label === "Phone numbers" ? "+1 ***-***-0753" : label === "Identity verification" ? verification.overallLabel : "Provided"); return editingRow === label ? <div className="account-settings-row account-settings-row-editing" key={label}><div className="account-settings-edit-content"><strong>{label}</strong>{label === "Residential address" ? editAddress(label) : label === "Mailing address" ? editAddress(label, true) : label === "Emergency contact" ? editEmergency(label) : label === "Identity verification" ? editVerification() : label === "Legal name" ? <><p>Your calendar may be blocked for up to an hour while we verify your new legal name.</p><div className="account-settings-name-fields"><label>First name on ID<input value={draftFirstName} onChange={(event) => setDraftFirstName(event.target.value)} /></label><label>Last name on ID<input value={draftLastName} onChange={(event) => setDraftLastName(event.target.value)} /></label></div><button type="button" className="account-settings-primary-action" onClick={() => saveRow(label, `${draftFirstName} ${draftLastName}`)}>Save and continue</button></> : <><label className="account-settings-edit-field"><span>{label}</span><input value={draftValue} onChange={(event) => setDraftValue(event.target.value)} /></label><button type="button" className="account-settings-primary-action" onClick={() => saveRow(label, draftValue)}>Save and continue</button></>}</div><button type="button" className="account-settings-inline-cancel" onClick={() => setEditingRow(null)}>Cancel</button></div> : <div className="account-settings-row" key={label}><div><strong>{label}</strong><span>{value}</span></div>{label !== "Identity verification" && <button type="button" onClick={() => { if (label === "Residential address" || label === "Mailing address") setAddress(emptyAddress); startEditing(label, value); }}>Edit</button>}</div>; })}</div> : activeKey === "taxes" ? taxesPanel : activeKey === "languages" ? languagesPanel : <div className="account-settings-placeholder"><div className="account-settings-placeholder-icon">{active.icon}</div><h3>Manage your {active.label.toLowerCase()}</h3><p>Review and update the settings for your account.</p></div>}</section></div></main>;
+  );
+  return frame(activeItem.label, unavailableContent);
 }

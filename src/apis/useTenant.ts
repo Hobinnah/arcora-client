@@ -12,6 +12,11 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type CreateTenantInput = Omit<Tenant, "tenantID" | "user"> & {
+  tenantID?: string | null;
+  user?: Tenant["user"];
+};
+
 export type TenantsListParams = {
   pageSize?: number;
   pageNumber?: number;
@@ -100,7 +105,7 @@ export const getTenantByUserID = async (userID: number): Promise<Tenant | null> 
   }
 };
 
-export const createTenant = async (Tenant?: Tenant): Promise<Tenant> => {
+export const createTenant = async (Tenant?: CreateTenantInput): Promise<Tenant> => {
   try {
     const url = `${BASE_URL}api/tenant/createTenant`;
     const response = await axios.post(url, Tenant);
@@ -168,4 +173,3 @@ export const fireTenantAction = async (id?: string, status?: string): Promise<Te
     throw error;
   }
 };
-

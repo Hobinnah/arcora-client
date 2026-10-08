@@ -16,7 +16,7 @@ export default function HostVerificationPage() {
   const verification = useVerificationCenter(userID);
   const [authorityStarted, setAuthorityStarted] = useState(false);
   const [bankStarted, setBankStarted] = useState(false);
-  const hostName = `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || currentUser?.name || "Amara Cole";
+  const hostName = `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim() || currentUser?.name || "Host account";
   const initials = hostName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const identityStatus = verification.identityVerified ? "APPROVED" : verification.idStatus;
   const completeCount = [verification.emailStatus === "APPROVED", verification.phoneStatus === "APPROVED", identityStatus === "APPROVED", authorityStarted, bankStarted].filter(Boolean).length;

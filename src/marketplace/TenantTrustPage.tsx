@@ -19,7 +19,7 @@ export default function TenantTrustPage() {
   const [creditRequested, setCreditRequested] = useState(false);
   const [reportingConsent, setReportingConsent] = useState(false);
   const [reportingEnrolled, setReportingEnrolled] = useState(false);
-  const tenantName = `${tenant?.firstName || ""} ${tenant?.lastName || ""}`.trim() || currentUser?.name || "Obinna Eze";
+  const tenantName = `${tenant?.firstName || ""} ${tenant?.lastName || ""}`.trim() || currentUser?.name || "Tenant account";
   const tenantEmail = tenant?.email || "obinna@example.com";
   const initials = tenantName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const contactChecks = [

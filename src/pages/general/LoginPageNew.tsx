@@ -11,6 +11,7 @@ import TwoFactorAuth from '../../components/TwoFactorAuth';
 import { MenuIcon } from '../../components/Icons';
 import MarketplaceFooter from '../../marketplace/MarketplaceFooter';
 import AccountSetup from './AccountSetup';
+import { fetchPendingInvitationsForMe } from '../../apis/useTenantInvitation';
 import './LoginPageNew.css';
 
 const CODE_SENT_REGEX = /verification code has been sent|code has been sent|sent to your email/i;
@@ -60,11 +61,21 @@ export default function LoginPage() {
   const auth = useContext(AuthContext);
   const { redirectToUserDashboard } = useAuthRedirect();
 
-  const redirectAfterLogin = useCallback((profile: AuthResponse | null | undefined, rememberMe: boolean) => {
+  const redirectAfterLogin = useCallback(async (profile: AuthResponse | null | undefined, rememberMe: boolean) => {
     if (postLoginRedirect) {
       localStorage.removeItem('arcora:pending-invite');
       navigate(postLoginRedirect, { replace: true });
       return;
+    }
+    // Resume an accepted landlord invitation that has no lease yet, even on a new device.
+    try {
+      const pending = await fetchPendingInvitationsForMe(profile?.accessToken);
+      if (pending.length) {
+        navigate(`/tenant/invitation/setup?invitationId=${encodeURIComponent(pending[0].tenantInvitationID)}`, { replace: true });
+        return;
+      }
+    } catch {
+      // Fall through to the normal post-login destination.
     }
     const roles = [...(profile?.roles ?? []), ...(profile?.user?.roles ?? [])];
     const isTenant = Boolean(profile?.tenant?.tenantID)

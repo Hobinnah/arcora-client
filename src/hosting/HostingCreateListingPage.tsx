@@ -876,7 +876,7 @@ export default function HostingCreateListingPage() {
                       onChange={(event) =>
                         updateProperty("name", event.target.value)
                       }
-                      placeholder="e.g. Daisy's Inn"
+                      placeholder="Enter a listing name"
                     />
                   </label>
                   <label className="hosting-create-field">

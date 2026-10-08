@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CalendarIcon, FilterIcon, SearchIcon, UsersIcon } from '../components/Icons';
 import { fetchListings, searchListings } from '../apis/useListing';
 import { fetchUnitTypes } from '../apis/useUnitType';
-import { fallbackListings, normalizeListing, type MarketplaceListing } from './marketplaceData';
+import { normalizeListing, type MarketplaceListing } from './marketplaceData';
 import CustomSelect from '../components/CustomSelect';
 import type { UnitType } from '../types/UnitType';
 import MarketplaceHeader from './MarketplaceHeader';
@@ -16,7 +16,7 @@ const formatPrice = (price: number) => new Intl.NumberFormat('en-US').format(pri
 export default function MarketplaceResults() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const [listings, setListings] = useState<MarketplaceListing[]>(fallbackListings);
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [query, setQuery] = useState(params.get('where') ?? '');
   const [moveInDate, setMoveInDate] = useState(params.get('moveIn') ?? '');
   const [monthCount, setMonthCount] = useState(params.get('stayLengthMonths') ?? params.get('months') ?? '1');
@@ -27,6 +27,7 @@ export default function MarketplaceResults() {
   const [activeFilter, setActiveFilter] = useState('All homes');
   const [unitTypes, setUnitTypes] = useState<UnitType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [todayKey] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentPage, setCurrentPage] = useState(Number(params.get('page') ?? 1));
   const [totalCount, setTotalCount] = useState(0);
@@ -87,6 +88,13 @@ export default function MarketplaceResults() {
         if (!cancelled) {
           setListings(live);
           setTotalCount(response.totalCount ?? 0);
+          setLoadError('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setListings([]);
+          setTotalCount(0);
+          setLoadError(error instanceof Error ? error.message : 'We could not load available homes.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -172,8 +180,8 @@ export default function MarketplaceResults() {
       </section>
 
       <div className="results-layout">
-        <section className="results-list" aria-labelledby="results-heading"><div className="results-heading"><div><p className="marketplace-eyebrow">Monthly homes</p><h1 id="results-heading">{totalCount || visibleListings.length} homes{query ? ` in ${query}` : ' to explore'}</h1><p>{monthCount} month{monthCount === '1' ? '' : 's'} stays with transparent monthly pricing</p></div><button className="results-sort" type="button">Sort: Recommended</button></div>{loading && <div className="results-loading">Finding available homes...</div>}<div className="results-grid">{visibleListings.map((listing, index) => <article className="results-card" style={{ '--card-index': index } as React.CSSProperties} key={listing.id}><div className="results-card-image"><a href={getListingDetailUrl(listing.id)} aria-label={`View ${listing.title}`}><img src={listing.image} alt={listing.title} /></a>{listing.tag && <span>{listing.tag}</span>}<button type="button" aria-label="Save home" className={favorites.includes(listing.id) ? 'is-saved' : ''} onClick={() => toggleFavorite(listing.id)}>{favorites.includes(listing.id) ? '♥' : '♡'}</button></div><div className="results-card-copy"><div className="results-card-title"><h2>{listing.title}</h2><strong>★ {listing.rating || 'New'}</strong></div><p>{listing.location}</p><p>{listing.details}</p><div><b>${formatPrice(listing.price)}</b><span> / month</span><a href={getListingDetailUrl(listing.id)}>View home →</a></div></div></article>)}</div>{!loading && !visibleListings.length && <div className="results-empty">No homes match these filters. Try a wider location or another move-in date.</div>}<nav className="results-pagination" aria-label="Results pages"><button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)}>‹</button>{visiblePages.map((page) => <button className={page === currentPage ? 'is-current' : ''} type="button" key={page} aria-current={page === currentPage ? 'page' : undefined} onClick={() => goToPage(page)}>{page}</button>)}<button type="button" aria-label="Next page" disabled={currentPage === pageCount} onClick={() => goToPage(currentPage + 1)}>›</button></nav></section>
-        <aside className="results-map" aria-label="Map of available homes"><div className="results-map-grid" /><span className="results-map-label label-one">$1,850</span><span className="results-map-label label-two">$2,140</span><span className="results-map-label label-three">$2,675</span><span className="results-map-label label-four">$1,625</span><span className="results-map-pin pin-one" /><span className="results-map-pin pin-two" /><div className="results-map-controls"><button type="button" aria-label="Expand map">↗</button><button type="button" aria-label="Zoom in">+</button><button type="button" aria-label="Zoom out">−</button></div><div className="results-map-caption">Map preview · Select a home to explore its exact location</div></aside>
+        <section className="results-list" aria-labelledby="results-heading"><div className="results-heading"><div><p className="marketplace-eyebrow">Monthly homes</p><h1 id="results-heading">{totalCount || visibleListings.length} homes{query ? ` in ${query}` : ' to explore'}</h1><p>{monthCount} month{monthCount === '1' ? '' : 's'} stays with transparent monthly pricing</p></div><button className="results-sort" type="button" disabled>Sort: Recommended</button></div>{loading && <div className="results-loading">Finding available homes...</div>}{loadError && <div className="results-empty" role="alert">{loadError}</div>}<div className="results-grid">{visibleListings.map((listing, index) => <article className="results-card" style={{ '--card-index': index } as React.CSSProperties} key={listing.id}><div className="results-card-image"><a href={getListingDetailUrl(listing.id)} aria-label={`View ${listing.title}`}>{listing.image ? <img src={listing.image} alt={listing.title} /> : <span className="results-image-unavailable">Image unavailable</span>}</a>{listing.tag && <span>{listing.tag}</span>}<button type="button" aria-label="Save home" className={favorites.includes(listing.id) ? 'is-saved' : ''} onClick={() => toggleFavorite(listing.id)}>{favorites.includes(listing.id) ? '♥' : '♡'}</button></div><div className="results-card-copy"><div className="results-card-title"><h2>{listing.title}</h2><strong>{listing.rating > 0 ? `★ ${listing.rating}` : 'New'}</strong></div><p>{listing.location}</p><p>{listing.details}</p><div><b>${formatPrice(listing.price)}</b><span> / month</span><a href={getListingDetailUrl(listing.id)}>View home →</a></div></div></article>)}</div>{!loading && !loadError && !visibleListings.length && <div className="results-empty">No homes match these filters. Try a wider location or another move-in date.</div>}<nav className="results-pagination" aria-label="Results pages"><button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)}>‹</button>{visiblePages.map((page) => <button className={page === currentPage ? 'is-current' : ''} type="button" key={page} aria-current={page === currentPage ? 'page' : undefined} onClick={() => goToPage(page)}>{page}</button>)}<button type="button" aria-label="Next page" disabled={currentPage === pageCount} onClick={() => goToPage(currentPage + 1)}>›</button></nav></section>
+        <aside className="results-map" aria-label="Map of available homes"><div className="results-map-caption">Map locations will appear when listing coordinates are available.</div></aside>
       </div>
       <MarketplaceFooter />
     </main>

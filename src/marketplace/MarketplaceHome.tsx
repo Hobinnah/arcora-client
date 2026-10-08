@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CalendarIcon, UsersIcon } from '../components/Icons';
 import { fetchListings } from '../apis/useListing';
 import { fetchUnitTypes } from '../apis/useUnitType';
-import { fallbackListings, normalizeListing, type MarketplaceListing } from './marketplaceData';
+import { normalizeListing, type MarketplaceListing } from './marketplaceData';
 import type { UnitType } from '../types/UnitType';
 import CustomSelect from '../components/CustomSelect';
 import { useAuth } from '../hooks/useAuth';
@@ -24,7 +24,7 @@ export default function MarketplaceHome() {
     if (!userID || verification.loading || verification.identityVerified || hasSubmittedVerification) return;
     navigate('/verify-identity', { replace: true });
   }, [userID, verification.loading, verification.identityVerified, hasSubmittedVerification, navigate]);
-  const [listings, setListings] = useState<MarketplaceListing[]>(fallbackListings);
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [query, setQuery] = useState('');
   const [occupantsOpen, setOccupantsOpen] = useState(false);
   const [occupants, setOccupants] = useState({ adults: 1, children: 0, infants: 0, pets: 0 });
@@ -42,6 +42,8 @@ export default function MarketplaceHome() {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const [listingsError, setListingsError] = useState('');
   const pageSize = 10;
   const occupantsRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
@@ -57,12 +59,16 @@ export default function MarketplaceHome() {
             .map((listing, index) => normalizeListing(listing as unknown as Record<string, any>, index))
             .filter((listing): listing is MarketplaceListing => listing !== null)
           : [];
-        if (!cancelled && liveListings.length > 0) {
+        if (!cancelled) {
           setListings(liveListings);
           setTotalCount(response.totalCount ?? 0);
         }
       } catch (error) {
-        console.warn('Marketplace listings unavailable; using static fallback data.', error);
+        if (!cancelled) {
+          setListingsError(error instanceof Error ? error.message : 'We could not load available homes.');
+        }
+      } finally {
+        if (!cancelled) setListingsLoading(false);
       }
     };
     const loadUnitTypes = async () => {
@@ -230,6 +236,7 @@ export default function MarketplaceHome() {
             {['Under $2,000', 'Pet friendly', 'Furnished'].map((filter) => <button className={selectedFilters.includes(filter) ? 'is-selected' : ''} type="button" key={filter} onClick={() => toggleFilter(filter)}>{filter}</button>)}
           </div>
         )}
+        {listingsError && <p className="marketplace-empty" role="alert">{listingsError}</p>}
         <div className="marketplace-grid">
           {visibleListings.map((listing, index) => (
             <article className="marketplace-listing" style={{ '--card-index': index } as React.CSSProperties} key={listing.id} role="link" tabIndex={0} onClick={() => openListing(listing.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openListing(listing.id); } }}>
@@ -249,7 +256,7 @@ export default function MarketplaceHome() {
             </article>
           ))}
         </div>
-        {visibleListings.length === 0 && <div className="marketplace-empty">No homes match that search yet. Try a nearby city or neighborhood.</div>}
+        {!listingsLoading && !listingsError && visibleListings.length === 0 && <div className="marketplace-empty">No homes match that search yet. Try a nearby city or neighborhood.</div>}
         <nav className="marketplace-pagination" aria-label="Marketplace home pages">
           <button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)}>‹</button>
           {visiblePages.map((page) => <button className={page === currentPage ? 'is-current' : ''} type="button" key={page} aria-current={page === currentPage ? 'page' : undefined} onClick={() => goToPage(page)}>{page}</button>)}

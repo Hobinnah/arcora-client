@@ -8,7 +8,8 @@ import ListingDetail from './marketplace/ListingDetail.tsx';
 import ListingPhotos from './marketplace/ListingPhotos.tsx';
 import TenantApplicationsPage from './marketplace/TenantApplicationsPage.tsx';
 import TenantApplicationDetailPage from './marketplace/TenantApplicationDetailPage.tsx';
-import AcceptInvitationPage from './marketplace/AcceptInvitationPage.tsx';
+import TenantInvitationResponsePage from './marketplace/TenantInvitationResponsePage.tsx';
+import TenantInvitationSetupPage from './marketplace/TenantInvitationSetupPage.tsx';
 import GuarantorInvitationPage from './marketplace/GuarantorInvitationPage';
 import TenantLeaseReviewPage from './marketplace/TenantLeaseReviewPage.tsx';
 import TenantLeaseLifecyclePage from './marketplace/TenantLeaseLifecyclePage.tsx';
@@ -26,6 +27,7 @@ import HostingApplicationReviewPage from './hosting/HostingApplicationReviewPage
 import HostingApplicationMessagesPage from './hosting/HostingApplicationMessagesPage.tsx';
 import TenantApplicationMessagesPage from './marketplace/TenantApplicationMessagesPage.tsx';
 import HostingInviteTenantPage from './hosting/HostingInviteTenantPage.tsx';
+import HostingInvitationsPage from './hosting/HostingInvitationsPage.tsx';
 import HostEarningsPage from './hosting/HostEarningsPage.tsx';
 import HostCohostsPage from './hosting/HostCohostsPage.tsx';
 import CohostInvitationPage from './hosting/CohostInvitationPage.tsx';
@@ -224,7 +226,8 @@ const router = createBrowserRouter([
   { path: "/homes/:id/photos", element: <ListingPhotos />, errorElement: <NotFoundPage /> },
   { path: "/applications", element: <ProtectedRoute allowedRoles={['tenant', 'viewer', 'user', 'admin']}><TenantApplicationsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/applications/:id", element: <ProtectedRoute allowedRoles={['tenant', 'viewer', 'user', 'admin']}><TenantApplicationDetailPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
-  { path: "/accept-invite/:token", element: <AcceptInvitationPage />, errorElement: <NotFoundPage /> },
+  { path: "/tenant-invitation/respond", element: <TenantInvitationResponsePage />, errorElement: <NotFoundPage /> },
+  { path: "/tenant/invitation/setup", element: <ProtectedRoute allowedRoles={['tenant', 'viewer', 'user', 'admin']}><TenantInvitationSetupPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/guarantor-invite/:token", element: <GuarantorInvitationPage />, errorElement: <NotFoundPage /> },
   { path: "/cohost-invite", element: <CohostInvitationPage />, errorElement: <NotFoundPage /> },
   { path: "/cohost-invite/:token", element: <CohostInvitationPage />, errorElement: <NotFoundPage /> },
@@ -244,6 +247,7 @@ const router = createBrowserRouter([
   { path: "/hosting/applications", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="applications"><HostingApplicationsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/hosting/applications/:id", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="applications"><HostingApplicationReviewPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/hosting/invitations/new", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="manage"><HostingInviteTenantPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
+  { path: "/hosting/invitations", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="manage"><HostingInvitationsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/hosting/earnings", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="manage"><HostEarningsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/hosting/payout-account", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="manage"><OrgPayoutAccountDetails /></ProtectedRoute>, errorElement: <NotFoundPage /> },
   { path: "/hosting/cohosts", element: <ProtectedRoute allowedRoles={hostAccessRoles} hostingPermission="manage"><HostCohostsPage /></ProtectedRoute>, errorElement: <NotFoundPage /> },

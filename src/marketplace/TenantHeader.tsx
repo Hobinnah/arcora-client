@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FileIcon, GlobeIcon, InfoIcon, MenuIcon, ShieldIcon, StarIcon, UserIcon } from '../components/Icons';
-import faceImg from '../assets/face.jpg';
 import VerificationProfileSummary from '../components/VerificationProfileSummary';
 import { useAuth } from '../hooks/useAuth';
 import { getTenantByUserID } from '../apis/useTenant';
@@ -15,6 +14,9 @@ export default function TenantHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { currentUser } = useAuth();
+  const profileName = `${currentUser?.user?.firstName ?? ""} ${currentUser?.user?.lastName ?? ""}`.trim() || currentUser?.user?.email || "Your account";
+  const profileInitials = profileName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+  const profileImage = currentUser?.user?.imageUrl;
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
 
   useEffect(() => {
@@ -75,10 +77,10 @@ export default function TenantHeader() {
       </nav>
       <div className="tenant-header-actions" ref={menuRef}>
         <button type="button" className="tenant-header-host-link" onClick={() => navigate('/login?redirect_url=/become-a-host')}>Become a host / landlord</button>
-        <button type="button" className="tenant-header-avatar" aria-label="Tenant profile" onClick={() => setMenuOpen((open) => !open)}><img src={faceImg} alt="" /></button>
+        <button type="button" className="tenant-header-avatar" aria-label="Tenant profile" onClick={() => setMenuOpen((open) => !open)}>{profileImage ? <img src={profileImage} alt="" /> : <span aria-hidden="true">{profileInitials}</span>}</button>
         <button type="button" className="tenant-header-menu" aria-label="Open tenant menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}><MenuIcon /></button>
         {menuOpen && <div className="tenant-header-popover">
-          <div className="tenant-header-profile"><span className="tenant-header-avatar"><img src={faceImg} alt="" /></span><span><strong>Obinna Eze</strong><small>Tenant account</small></span></div>
+          <div className="tenant-header-profile"><span className="tenant-header-avatar">{profileImage ? <img src={profileImage} alt="" /> : <span aria-hidden="true">{profileInitials}</span>}</span><span><strong>{profileName}</strong><small>Tenant account</small></span></div>
           <VerificationProfileSummary />
           {menuItems.map((item) => <button type="button" key={item.label} onClick={item.onClick}><span>{item.icon}</span>{item.label}</button>)}
         </div>}

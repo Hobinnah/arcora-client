@@ -12,6 +12,91 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type EligibleLeaseReview = {
+  leaseID: string;
+  listingTitle: string;
+  leaseEndedAt: string;
+  reviewMode: "stay" | "tenant";
+  subjectName: string;
+  hasSubmitted: boolean;
+};
+
+export type ReviewSubmission = {
+  leaseID: string;
+  overallRating: number;
+  paymentRating?: number;
+  communicationRating?: number;
+  propertyCareRating?: number;
+  responsivenessRating?: number;
+  accuracyRating?: number;
+  cleanlinessRating?: number;
+  reviewBody: string;
+};
+
+export type ReceivedReview = {
+  ratingID: string;
+  leaseID: string;
+  subjectType: string;
+  subjectReferenceID: string;
+  overallRating: number;
+  paymentRating?: number;
+  communicationRating?: number;
+  propertyCareRating?: number;
+  responsivenessRating?: number;
+  accuracyRating?: number;
+  cleanlinessRating?: number;
+  reviewBody: string;
+  publishedAt: string;
+  listingTitle: string;
+  reviewerName: string;
+};
+
+export const fetchEligibleLeaseReviews = async (): Promise<EligibleLeaseReview[]> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/reviews/eligible`);
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    handleApiError(error, "load eligible reviews");
+    throw error;
+  }
+};
+
+export const submitLeaseReview = async (review: ReviewSubmission): Promise<{
+  ratingID: string;
+  leaseID: string;
+  isPublic: boolean;
+  publishedAt: string | null;
+  releaseAt: string | null;
+}> => {
+  try {
+    const response = await axios.post(`${BASE_URL}api/reviews`, review);
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "submit review");
+    throw error;
+  }
+};
+
+export const fetchReceivedReviews = async (): Promise<ReceivedReview[]> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/reviews/received`);
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    handleApiError(error, "load received reviews");
+    throw error;
+  }
+};
+
+export const fetchReceivedReview = async (ratingID: string): Promise<ReceivedReview> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/reviews/received/${encodeURIComponent(ratingID)}`);
+    return response.data as ReceivedReview;
+  } catch (error) {
+    handleApiError(error, "load received review");
+    throw error;
+  }
+};
+
 export type RatingsListParams = {
   pageSize?: number;
   pageNumber?: number;
@@ -106,4 +191,3 @@ export const deleteRating = async (id: string): Promise<void> => {
     handleApiError(error, 'delete rating');
   }
 };
-

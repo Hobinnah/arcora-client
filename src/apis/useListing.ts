@@ -39,6 +39,109 @@ export type ListingSearchParams = {
   sortBy?: string;
 };
 
+export type AvailableLeaseTerm = {
+  term: number;
+  rent: number;
+  deposit: number;
+  currency: string;
+};
+
+export type AvailableListing = {
+  listingID: string;
+  organizationID: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  requestedLeaseTermMonths: number;
+  requestedMonthlyRentAmount: number;
+  requestedSecurityDepositAmount: number;
+  currency: string;
+  availableLeaseTerms: AvailableLeaseTerm[];
+};
+
+export type ListingAvailabilityConflict = {
+  sourceType?: string;
+  sourceId?: string;
+  startDate?: string;
+  endDate?: string;
+  startAt?: string;
+  endAt?: string;
+  dateRange?: { startDate?: string; endDate?: string };
+  status?: string;
+  reason?: string;
+};
+
+export type ListingAvailability = {
+  isAvailable: boolean;
+  dateBoundaryRule: string;
+  conflicts: ListingAvailabilityConflict[];
+};
+
+export type ListingAvailabilityParams = {
+  organizationId: string;
+  startDate: string;
+  leaseTermMonths: number;
+};
+
+export const fetchAvailableListings = async ({
+  organizationId,
+  startDate,
+  leaseTermMonths,
+}: ListingAvailabilityParams): Promise<AvailableListing[]> => {
+  try {
+    const params = new URLSearchParams({
+      organizationId,
+      startDate,
+      leaseTermMonths: String(leaseTermMonths),
+    });
+    const response = await axios.get(`${BASE_URL}api/listing/available?${params.toString()}`);
+    const body = response.data;
+    const payload = Array.isArray(body)
+      ? body
+      : body?.availableListings
+        ?? body?.listings
+        ?? body?.records
+        ?? (Array.isArray(body?.data) ? body.data : undefined)
+        ?? (Array.isArray(body?.data?.data) ? body.data.data : undefined)
+        ?? (Array.isArray(body?.data?.availableListings) ? body.data.availableListings : undefined)
+        ?? (Array.isArray(body?.data?.listings) ? body.data.listings : undefined)
+        ?? (Array.isArray(body?.data?.records) ? body.data.records : undefined);
+    if (!Array.isArray(payload)) {
+      throw new Error("The available listings response was not a list.");
+    }
+    return payload as AvailableListing[];
+  } catch (error) {
+    return handleApiError(error, "fetch available listings");
+  }
+};
+
+export const fetchListingAvailability = async (
+  listingID: string,
+  { organizationId, startDate, leaseTermMonths }: ListingAvailabilityParams,
+): Promise<ListingAvailability> => {
+  try {
+    const params = new URLSearchParams({
+      organizationId,
+      startDate,
+      leaseTermMonths: String(leaseTermMonths),
+    });
+    const response = await axios.get(
+      `${BASE_URL}api/listing/${encodeURIComponent(listingID)}/availability?${params.toString()}`,
+    );
+    const payload = (response.data?.data ?? response.data) as Partial<ListingAvailability>;
+    if (typeof payload.isAvailable !== "boolean") {
+      throw new Error("The listing availability response did not include isAvailable.");
+    }
+    return {
+      isAvailable: payload.isAvailable,
+      dateBoundaryRule: payload.dateBoundaryRule ?? "start occupied, end exclusive",
+      conflicts: Array.isArray(payload.conflicts) ? payload.conflicts : [],
+    };
+  } catch (error) {
+    return handleApiError(error, "validate listing availability");
+  }
+};
+
 export const searchListings = async ({
   where,
   stayLengthMonths,
@@ -248,4 +351,3 @@ export const fireListingAction = async (id?: string, status?: string): Promise<L
     throw error;
   }
 };
-

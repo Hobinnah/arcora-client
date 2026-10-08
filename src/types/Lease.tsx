@@ -22,6 +22,7 @@ export type Lease = {
     endDate: string;
     leaseTermMonths: number;
     baseRentAmount: number;
+    securityDepositAmount?: number;
     currency: string;
     gracePeriodDays: number;
     lateFeeFixedAmount: number;

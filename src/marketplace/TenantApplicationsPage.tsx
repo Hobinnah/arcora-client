@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TenantHeader from "./TenantHeader";
 import MarketplaceFooter from "./MarketplaceFooter";
-import { fallbackListings, normalizeListing, type MarketplaceListing } from "./marketplaceData";
+import { normalizeListing, type MarketplaceListing } from "./marketplaceData";
 import { getTenantByUserID } from "../apis/useTenant";
 import { fetchRentalApplications } from "../apis/useRentalApplication";
 import { fetchLeases } from "../apis/useLease";
@@ -28,6 +28,21 @@ type TenantApplicationCard = {
   code: string;
   nextAction: string;
 };
+
+const unavailableListing = (id: string): MarketplaceListing => ({
+  id,
+  title: "Listing details unavailable",
+  location: "Listing information could not be loaded",
+  price: 0,
+  type: "Rental",
+  isPetFriendly: false,
+  isFurnished: false,
+  image: "",
+  details: "",
+  rating: 0,
+  reviews: 0,
+  availableFrom: "",
+});
 
 const statusLabels: Record<ApplicationStatus, string> = {
   DRAFT: "Draft",
@@ -75,10 +90,10 @@ export default function TenantApplicationsPage() {
         const applicationCards = applicationResponse.data.map((application, index) => ({
           id: application.rentalApplicationID,
           recordType: "application" as const,
-          listing: normalizeListing((application.listing ?? {}) as unknown as Record<string, any>, index) ?? fallbackListings[index % fallbackListings.length],
+          listing: normalizeListing((application.listing ?? {}) as unknown as Record<string, any>, index) ?? unavailableListing(application.rentalApplicationID),
           status: (Object.keys(statusLabels).includes(application.status?.toUpperCase()) ? application.status.toUpperCase() : "UNDER_REVIEW") as ApplicationStatus,
-          capturedDate: application.capturedDate || application.submittedAt || new Date().toISOString(),
-          moveIn: application.desiredMoveInDate || new Date().toISOString(),
+          capturedDate: application.capturedDate || application.submittedAt || "",
+          moveIn: application.desiredMoveInDate || "",
           term: application.requestedLeaseTermMonths || 0,
           code: application.applicationCode || application.rentalApplicationID,
           nextAction: application.status?.toUpperCase() === "APPROVED" ? "Review and sign lease" : application.status?.toUpperCase() === "CHANGES_REQUESTED" ? "Review changes" : "View application",
@@ -86,10 +101,10 @@ export default function TenantApplicationsPage() {
         const leaseCards = leaseResponse.data.map((lease, index) => ({
           id: lease.leaseID,
           recordType: "lease" as const,
-          listing: normalizeListing((lease.listing ?? {}) as unknown as Record<string, any>, applicationCards.length + index) ?? fallbackListings[(applicationCards.length + index) % fallbackListings.length],
+          listing: normalizeListing((lease.listing ?? {}) as unknown as Record<string, any>, applicationCards.length + index) ?? unavailableListing(lease.leaseID),
           status: "APPROVED" as ApplicationStatus,
-          capturedDate: lease.capturedDate || lease.startDate || new Date().toISOString(),
-          moveIn: lease.startDate || new Date().toISOString(),
+          capturedDate: lease.capturedDate || lease.startDate || "",
+          moveIn: lease.startDate || "",
           term: lease.leaseTermMonths || 0,
           code: lease.leaseCode || lease.leaseNumber || lease.leaseID,
           nextAction: "View lease",
@@ -274,7 +289,7 @@ export default function TenantApplicationsPage() {
                   }}
                 >
                   <div className="tenant-application-card-image">
-                    <img src={listing.image} alt="" />
+                    {listing.image ? <img src={listing.image} alt="" /> : <div className="tenant-application-card-image-empty" aria-hidden="true">⌂</div>}
                     <span
                       className={`tenant-application-status tenant-application-status-${application.status.toLowerCase()}`}
                     >
@@ -300,7 +315,7 @@ export default function TenantApplicationsPage() {
                       </span>
                       <span>
                         <small>Lease</small>
-                        {application.term} months
+                        {application.term > 0 ? `${application.term} months` : "Not provided"}
                       </span>
                     </div>
                     <div className="tenant-application-card-footer">

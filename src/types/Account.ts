@@ -39,12 +39,8 @@ export interface UpdateProfileRequest {
   firstName?: string;
   /** User's last name */
   lastName?: string;
-  /** User's email address */
-  email?: string;
   /** User's phone number */
   phone?: string;
-  /** Profile picture file */
-  avatar?: File;
 }
 
 /**
@@ -55,12 +51,30 @@ export interface AccountSettingsRequest {
   emailNotifications?: boolean;
   /** SMS notification preferences */
   smsNotifications?: boolean;
-  /** Two-factor authentication enabled */
-  twoFactorAuth?: boolean;
   /** Preferred language */
   language?: string;
   /** Timezone preference */
   timezone?: string;
+  /** Preferred currency code */
+  currency?: string;
+}
+
+export interface AccountProfile {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  emailConfirmed: boolean;
+  phoneNumberConfirmed: boolean;
+}
+
+export interface AccountSettings {
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  language: string;
+  timezone: string;
+  currency: string;
 }
 
 /**

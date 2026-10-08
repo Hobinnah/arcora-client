@@ -12,6 +12,121 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type HostSecurityDeposit = {
+  securityDepositID: string;
+  leaseID?: string | null;
+  tenantID: string;
+  organizationID: string;
+  requiredAmount: number;
+  receivedAmount: number;
+  appliedAmount: number;
+  returnedAmount: number;
+  heldAmount: number;
+  currency: string;
+  status: string;
+  dueDate?: string | null;
+  heldAt?: string | null;
+  closedAt?: string | null;
+  tenantDisplayName?: string | null;
+  tenantEmail?: string | null;
+  leaseDisplay?: string | null;
+  listingDisplay?: string | null;
+};
+
+export type HostSecurityDepositList = {
+  data: HostSecurityDeposit[];
+  totalCount: number;
+  summary: {
+    heldAmountTotal: number;
+    returnsDueAmountTotal: number;
+    reviewNeededCount: number;
+  };
+};
+
+export const fetchHostSecurityDeposits = async ({
+  pageSize = 100,
+  pageNumber = 1,
+  status,
+}: {
+  pageSize?: number;
+  pageNumber?: number;
+  status?: string;
+} = {}): Promise<HostSecurityDepositList> => {
+  try {
+    const response = await axios.get<HostSecurityDepositList>(`${BASE_URL}api/hosting/securitydeposits`, {
+      params: { pageSize, pageNumber, status },
+    });
+    if (!Array.isArray(response.data?.data)) {
+      throw new Error("The hosting security deposit response was not in the expected format.");
+    }
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "fetch hosting security deposits");
+    throw error;
+  }
+};
+
+export const uploadSecurityDepositEvidence = async (
+  securityDepositID: string,
+  file: File,
+): Promise<{ attachmentID: string; fileName: string }> => {
+  const formData = new FormData();
+  formData.append("File", file);
+  try {
+    const response = await axios.post(
+      `${BASE_URL}api/hosting/securitydeposits/${encodeURIComponent(securityDepositID)}/evidence`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    const attachmentID = response.data?.attachmentID ?? response.data?.AttachmentID;
+    if (!attachmentID) throw new Error("Evidence uploaded, but the API did not return its attachment ID.");
+    return { attachmentID: String(attachmentID), fileName: response.data?.fileName ?? file.name };
+  } catch (error) {
+    handleApiError(error, "upload security deposit evidence");
+    throw error;
+  }
+};
+
+export type SecurityDepositDeductionInput = {
+  description: string;
+  amount: number;
+  evidenceAttachmentIDs: string[];
+};
+
+export const sendSecurityDepositSettlementNotice = async (
+  securityDepositID: string,
+  request: { deductions: SecurityDepositDeductionInput[]; currency: string },
+  idempotencyKey: string,
+) => {
+  try {
+    const response = await axios.post(
+      `${BASE_URL}api/securitydeposit/${encodeURIComponent(securityDepositID)}/settlement-notice`,
+      request,
+      { headers: { "Idempotency-Key": idempotencyKey } },
+    );
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "send security deposit settlement notice");
+    throw error;
+  }
+};
+
+export const returnSecurityDeposit = async (
+  securityDepositID: string,
+  request: { amount: number; currency: string; idempotencyKey: string },
+) => {
+  try {
+    const response = await axios.post(
+      `${BASE_URL}api/securitydeposit/${encodeURIComponent(securityDepositID)}/return`,
+      request,
+    );
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "record security deposit return");
+    throw error;
+  }
+};
+
 export type SecurityDepositsListParams = {
   pageSize?: number;
   pageNumber?: number;
@@ -147,4 +262,3 @@ export const fireSecurityDepositAction = async (id?: string, status?: string): P
     throw error;
   }
 };
-

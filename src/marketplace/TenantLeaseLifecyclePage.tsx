@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getLease } from '../apis/useLease';
 import { getListing } from '../apis/useListing';
+import {
+  createCheckInDraft, deleteCheckInPhoto, getLeaseCheckIn, submitLeaseCheckIn, uploadCheckInPhoto,
+  type CheckInAttachment, type CheckInDraft, type CheckInInspection, type LeaseCheckIn,
+  type OccupancyReadiness, type SubmitCheckIn,
+} from '../apis/useLeaseCheckIn';
 import { CheckIcon, FileIcon, ShieldIcon, TrashIcon } from '../components/Icons';
 import type { Lease } from '../types/Lease';
 import type { Listing } from '../types/Listing';
@@ -11,72 +16,38 @@ import './TenantLeaseExperience.css';
 
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
-const CHECK_IN_DATABASE = 'arcora-tenant-check-ins';
-const CHECK_IN_STORE = 'checkIns';
-
-type OccupancyCondition = 'ready' | 'needs-attention' | 'not-sure';
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+type OccupancyCondition = OccupancyReadiness;
 
 type IssuePhoto = {
   id: string;
-  file: File;
+  file?: File;
   previewUrl: string;
   caption: string;
+  attachmentID?: string;
+  name: string;
+  ownsPreview: boolean;
 };
 
-type StoredCheckIn = {
-  leaseId: string;
-  submittedAt: string;
-  arrived: true;
-  occupancy: OccupancyCondition | '';
-  notes: string;
-  photos: Array<{
-    name: string;
-    mimeType: string;
-    caption: string;
-    file: Blob;
-  }>;
-};
+function recordPhotos(record: CheckInInspection): IssuePhoto[] {
+  const attachments = new Map<string, CheckInAttachment>();
+  [...record.attachments, ...record.items.flatMap((item) => item.attachments)]
+    .forEach((attachment) => attachments.set(attachment.attachmentID, attachment));
+  return Array.from(attachments.values()).map((attachment) => ({
+    id: attachment.attachmentID,
+    attachmentID: attachment.attachmentID,
+    previewUrl: attachment.downloadUrl ?? '',
+    caption: attachment.description ?? '',
+    name: attachment.fileName ?? 'Issue photo',
+    ownsPreview: false,
+  }));
+}
 
 function formatLeaseDate(value?: string): string | undefined {
   if (!value) return undefined;
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return undefined;
   return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
-}
-
-function saveCheckIn(record: StoredCheckIn): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const openRequest = indexedDB.open(CHECK_IN_DATABASE, 1);
-
-    openRequest.onupgradeneeded = () => {
-      const database = openRequest.result;
-      if (!database.objectStoreNames.contains(CHECK_IN_STORE)) {
-        database.createObjectStore(CHECK_IN_STORE, { keyPath: 'leaseId' });
-      }
-    };
-
-    openRequest.onerror = () => reject(openRequest.error ?? new Error('Could not open local check-in storage.'));
-    openRequest.onblocked = () => reject(new Error('Local check-in storage is blocked by another open tab. Close other Arcora tabs and try again.'));
-    openRequest.onsuccess = () => {
-      const database = openRequest.result;
-      const transaction = database.transaction(CHECK_IN_STORE, 'readwrite');
-
-      transaction.oncomplete = () => {
-        database.close();
-        resolve();
-      };
-      transaction.onerror = () => {
-        database.close();
-        reject(transaction.error ?? new Error('Could not save the check-in record.'));
-      };
-      transaction.onabort = () => {
-        database.close();
-        reject(transaction.error ?? new Error('Saving the check-in record was cancelled.'));
-      };
-
-      transaction.objectStore(CHECK_IN_STORE).put(record);
-    };
-  });
 }
 
 export default function TenantLeaseLifecyclePage() {
@@ -96,6 +67,13 @@ export default function TenantLeaseLifecyclePage() {
   const [loadedLeaseId, setLoadedLeaseId] = useState('');
   const [leaseLoadError, setLeaseLoadError] = useState('');
   const [listingLoadError, setListingLoadError] = useState('');
+  const [checkIn, setCheckIn] = useState<LeaseCheckIn | null>(null);
+  const [draft, setDraft] = useState<CheckInDraft | null>(null);
+  const [savedInspection, setSavedInspection] = useState<CheckInInspection | null>(null);
+  const [savingMessage, setSavingMessage] = useState('');
+  const [removingPhoto, setRemovingPhoto] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const submitAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const photosRef = useRef(photos);
 
@@ -105,9 +83,22 @@ export default function TenantLeaseLifecyclePage() {
     const loadLeaseDetails = async () => {
       try {
         if (!leaseId) throw new Error('A lease ID is required to load check-in details.');
-        const lease = await getLease(leaseId);
+        const [lease, currentCheckIn] = await Promise.all([
+          getLease(leaseId),
+          isMoveIn ? getLeaseCheckIn(leaseId) : Promise.resolve(null),
+        ]);
         if (cancelled) return;
         setLeaseRecord(lease);
+        setCheckIn(currentCheckIn);
+        const inspection = currentCheckIn?.inspection;
+        setSavedInspection(inspection ?? null);
+        setComplete(Boolean(inspection?.submittedAt));
+        setDraft(inspection && !inspection.submittedAt ? { inspectionID: inspection.inspectionID, version: inspection.version } : null);
+        setNotes(inspection?.notes ?? '');
+        setOccupancy(inspection?.occupancyReadiness ?? '');
+        setConfirmed(Boolean(inspection?.arrivalConfirmedAt));
+        photosRef.current.filter((photo) => photo.ownsPreview).forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+        setPhotos(inspection ? recordPhotos(inspection) : []);
         setLeaseLoadError('');
         setListingLoadError('');
 
@@ -137,14 +128,14 @@ export default function TenantLeaseLifecyclePage() {
 
     void loadLeaseDetails();
     return () => { cancelled = true; };
-  }, [leaseId]);
+  }, [leaseId, isMoveIn, refreshKey]);
 
   useEffect(() => {
     photosRef.current = photos;
   }, [photos]);
 
   useEffect(() => () => {
-    photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+    photosRef.current.filter((photo) => photo.ownsPreview).forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
   }, []);
 
   const addPhotos = (files: FileList | null) => {
@@ -159,8 +150,8 @@ export default function TenantLeaseLifecyclePage() {
         errors.push(`You can add up to ${MAX_PHOTOS} photos.`);
         return;
       }
-      if (!file.type.startsWith('image/')) {
-        errors.push(`${file.name} is not an image.`);
+      if (!IMAGE_TYPES.includes(file.type)) {
+        errors.push(`${file.name}: please choose a JPEG, PNG, or WebP image.`);
         return;
       }
       if (file.size > MAX_PHOTO_SIZE) {
@@ -173,6 +164,8 @@ export default function TenantLeaseLifecyclePage() {
         file,
         previewUrl: URL.createObjectURL(file),
         caption: '',
+        name: file.name,
+        ownsPreview: true,
       });
     });
 
@@ -185,11 +178,20 @@ export default function TenantLeaseLifecyclePage() {
     setPhotos((current) => current.map((photo) => photo.id === id ? { ...photo, caption } : photo));
   };
 
-  const removePhoto = (id: string) => {
+  const removePhoto = async (id: string) => {
     const photo = photos.find((item) => item.id === id);
-    if (photo) URL.revokeObjectURL(photo.previewUrl);
-    setPhotos((current) => current.filter((item) => item.id !== id));
+    if (!photo || isSaving || removingPhoto) return;
     setPhotoError('');
+    setRemovingPhoto(id);
+    try {
+      if (photo.attachmentID) await deleteCheckInPhoto(leaseId, photo.attachmentID);
+      if (photo.ownsPreview) URL.revokeObjectURL(photo.previewUrl);
+      setPhotos((current) => current.filter((item) => item.id !== id));
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : 'Could not remove the photo. Please try again.');
+    } finally {
+      setRemovingPhoto(null);
+    }
   };
 
   const listing = listingRecord ?? leaseRecord?.listing;
@@ -211,41 +213,82 @@ export default function TenantLeaseLifecyclePage() {
     address?.provinceCode,
     address?.postalCode,
   ].filter((part): part is string => Boolean(part?.trim())).join(', ');
-  const moveInDate = formatLeaseDate(leaseRecord?.startDate);
+  const moveInDate = formatLeaseDate(checkIn?.eligibility.moveInDate ?? leaseRecord?.startDate);
   const listingPhotos = listing?.listingPhotos ?? [];
   const coverPhoto = listingPhotos.find((photo) => photo.isCoverPhoto && photo.url)
     ?? [...listingPhotos].filter((photo) => photo.url).sort((first, second) => first.displayOrder - second.displayOrder)[0];
   const isLoadingLease = loadedLeaseId !== leaseId;
 
   const submit = async () => {
-    if (!confirmed || isSaving) return;
+    if (!confirmed || isSaving || removingPhoto || (isMoveIn && (!occupancy || !checkIn?.eligibility.canSubmit))) return;
     setSubmitError('');
     setIsSaving(true);
 
     try {
-      const submittedAt = new Date().toISOString();
       if (isMoveIn) {
-        await saveCheckIn({
-          leaseId,
-          submittedAt,
-          arrived: true,
-          occupancy,
+        if (!occupancy) throw new Error('Please choose the home’s condition.');
+        setSavingMessage('Preparing check-in…');
+        const currentDraft = draft ?? await createCheckInDraft(leaseId);
+        setDraft(currentDraft);
+        const uploaded: SubmitCheckIn['photos'] = [];
+        for (const [index, photo] of photos.entries()) {
+          let attachmentID = photo.attachmentID;
+          if (!attachmentID) {
+            if (!photo.file) throw new Error(`The file for ${photo.name} is missing. Please add it again.`);
+            setSavingMessage(`Uploading photo ${index + 1} of ${photos.length}…`);
+            const attachment = await uploadCheckInPhoto(leaseId, currentDraft.inspectionID, photo.file, photo.id, photo.caption);
+            attachmentID = attachment.attachmentID;
+            const uploadedID = attachmentID;
+            setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, attachmentID: uploadedID } : item));
+          }
+          uploaded.push({ attachmentID, description: photo.caption });
+        }
+        const request: SubmitCheckIn = {
+          ...currentDraft,
+          arrivalConfirmed: true,
+          occupancyReadiness: occupancy,
           notes,
-          photos: photos.map(({ file, caption }) => ({
-            name: file.name,
-            mimeType: file.type,
-            caption,
-            file,
+          photos: uploaded,
+          items: (savedInspection?.items ?? []).map((item) => ({
+            clientItemID: item.inspectionItemID,
+            area: item.area,
+            itemName: item.itemName,
+            condition: item.condition,
+            notes: item.notes,
+            attachmentIDs: item.attachments.map((attachment) => attachment.attachmentID).filter((id) => uploaded.some((photo) => photo.attachmentID === id)),
           })),
-        });
+        };
+        const fingerprint = JSON.stringify(request);
+        if (submitAttempt.current?.fingerprint !== fingerprint) {
+          submitAttempt.current = { fingerprint, key: crypto.randomUUID() };
+        }
+        setSavingMessage('Submitting check-in…');
+        const inspection = await submitLeaseCheckIn(leaseId, request, submitAttempt.current.key);
+        setSavedInspection(inspection);
+      } else {
+        localStorage.setItem(`arcora:${mode}:${leaseId}`, new Date().toISOString());
       }
-
-      localStorage.setItem(`arcora:${mode}:${leaseId}`, submittedAt);
       setComplete(true);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'We could not save your check-in. Please try again.');
+      if (isMoveIn) {
+        try {
+          const latest = await getLeaseCheckIn(leaseId);
+          setCheckIn(latest);
+          if (latest.inspection?.submittedAt) {
+            setSavedInspection(latest.inspection);
+            setComplete(true);
+            setSubmitError('');
+          } else if (latest.inspection) {
+            setDraft({ inspectionID: latest.inspection.inspectionID, version: latest.inspection.version });
+          }
+        } catch (recoveryError) {
+          setSubmitError((current) => `${current} Could not verify the saved status: ${recoveryError instanceof Error ? recoveryError.message : 'Please retry.'}`);
+        }
+      }
     } finally {
       setIsSaving(false);
+      setSavingMessage('');
     }
   };
 
@@ -265,6 +308,7 @@ export default function TenantLeaseLifecyclePage() {
           <p className="marketplace-eyebrow">Lease details unavailable</p>
           <h1>We couldn’t load this home.</h1>
           <p role="alert">{leaseLoadError || 'No lease details were returned for this lease.'}</p>
+          <button type="button" className="tenant-lease-primary" onClick={() => setRefreshKey((value) => value + 1)}>Retry loading</button>
           <button type="button" className="tenant-lease-secondary" onClick={() => navigate(`/tenant/leases/${leaseId}/review`)}>Back to lease details</button>
         </div>
       </section>
@@ -285,8 +329,28 @@ export default function TenantLeaseLifecyclePage() {
           <p className="marketplace-eyebrow">{isMoveIn ? 'Check-in complete' : 'Check-out submitted'}</p>
           <h1>{isMoveIn ? 'Welcome to your new home.' : 'Your check-out is recorded.'}</h1>
           <p>{isMoveIn
-            ? `Your move-in details and ${photos.length} ${photos.length === 1 ? 'photo have' : 'photos have'} been saved on this device.`
+            ? 'Your arrival, condition notes, and photos are saved to your lease and shared with your landlord.'
             : 'We have recorded your move-out details. Your landlord will review the final condition and deposit next steps.'}</p>
+          {isMoveIn && savedInspection && <div className="tenant-lease-submitted-record">
+            <dl>
+              <div><dt>Submitted</dt><dd>{savedInspection.submittedAt ? new Date(savedInspection.submittedAt).toLocaleString() : 'Recorded'}</dd></div>
+              <div><dt>Home condition</dt><dd>{savedInspection.occupancyReadiness === 'READY' ? 'Ready for occupancy' : savedInspection.occupancyReadiness === 'NEEDS_ATTENTION' ? 'Needs attention' : 'Not sure yet'}</dd></div>
+            </dl>
+            {savedInspection.requiresFollowUp && <p>Your check-in is flagged for landlord follow-up.</p>}
+            {savedInspection.notes && <p className="tenant-lease-record-notes">{savedInspection.notes}</p>}
+            <div className="tenant-lease-photo-grid">
+              {recordPhotos(savedInspection).map((photo) => <article className="tenant-lease-photo-item" key={photo.id}>
+                {photo.previewUrl
+                  ? <a href={photo.previewUrl} target="_blank" rel="noreferrer"><img className="tenant-lease-record-photo" src={photo.previewUrl} alt={photo.caption || photo.name} /></a>
+                  : <p>Preview unavailable for {photo.name}.</p>}
+                <p>{photo.caption || photo.name}</p>
+              </article>)}
+            </div>
+            {savedInspection.reviews.map((review) => <article className="tenant-lease-record-review" key={review.inspectionReviewID}>
+              <strong>Landlord review: {review.status}</strong>
+              {review.comments && <p>{review.comments}</p>}
+            </article>)}
+          </div>}
           <button type="button" className="tenant-lease-primary" onClick={() => navigate('/applications')}>Go to my account</button>
         </section> : <>
           <p className="marketplace-eyebrow">{isMoveIn ? 'Move-in day' : 'Leaving your home'}</p>
@@ -296,8 +360,11 @@ export default function TenantLeaseLifecyclePage() {
               ? 'Confirm that you have arrived and tell us about the home’s condition. Add notes and photos of anything that needs attention.'
               : 'Record your departure and share any final notes with your landlord before you leave.'}
           </p>
+          {isMoveIn && checkIn && !checkIn.eligibility.canSubmit && <p className="tenant-lease-signing-message" role="status">
+            {checkIn.eligibility.message || 'Check-in is not currently available for this lease.'}
+          </p>}
 
-          <section className="tenant-lease-check-card">
+          <fieldset className="tenant-lease-check-card tenant-lease-check-form" disabled={isSaving || Boolean(removingPhoto) || (isMoveIn && !checkIn?.eligibility.canSubmit)}>
             <div className="tenant-lease-check-heading">
               <div>
                 <span className="marketplace-eyebrow">{isMoveIn ? 'Today' : 'Final step'}</span>
@@ -329,16 +396,16 @@ export default function TenantLeaseLifecyclePage() {
               <legend>How is the home’s condition?</legend>
               <p>Choose what best describes the home. You can still complete check-in if something needs attention.</p>
               <div className="tenant-lease-condition-options">
-                <label className={occupancy === 'ready' ? 'is-selected' : ''}>
-                  <input type="radio" name="home-condition" value="ready" checked={occupancy === 'ready'} onChange={() => setOccupancy('ready')} />
+                <label className={occupancy === 'READY' ? 'is-selected' : ''}>
+                  <input type="radio" name="home-condition" value="READY" checked={occupancy === 'READY'} onChange={() => setOccupancy('READY')} />
                   <span><strong>Ready for occupancy</strong><small>The home looks ready to live in.</small></span>
                 </label>
-                <label className={occupancy === 'needs-attention' ? 'is-selected' : ''}>
-                  <input type="radio" name="home-condition" value="needs-attention" checked={occupancy === 'needs-attention'} onChange={() => setOccupancy('needs-attention')} />
+                <label className={occupancy === 'NEEDS_ATTENTION' ? 'is-selected' : ''}>
+                  <input type="radio" name="home-condition" value="NEEDS_ATTENTION" checked={occupancy === 'NEEDS_ATTENTION'} onChange={() => setOccupancy('NEEDS_ATTENTION')} />
                   <span><strong>Needs attention</strong><small>I found something to report.</small></span>
                 </label>
-                <label className={occupancy === 'not-sure' ? 'is-selected' : ''}>
-                  <input type="radio" name="home-condition" value="not-sure" checked={occupancy === 'not-sure'} onChange={() => setOccupancy('not-sure')} />
+                <label className={occupancy === 'NOT_SURE' ? 'is-selected' : ''}>
+                  <input type="radio" name="home-condition" value="NOT_SURE" checked={occupancy === 'NOT_SURE'} onChange={() => setOccupancy('NOT_SURE')} />
                   <span><strong>Not sure yet</strong><small>I need more time to look around.</small></span>
                 </label>
               </div>
@@ -348,6 +415,7 @@ export default function TenantLeaseLifecyclePage() {
               {isMoveIn ? 'Notes about the home' : 'Notes for your landlord'}
               <textarea
                 value={notes}
+                maxLength={1000}
                 onChange={(event) => setNotes(event.target.value)}
                 placeholder={isMoveIn ? 'Describe anything you noticed, such as a leak, damage, or a missing item.' : 'Share any final notes'}
               />
@@ -365,21 +433,21 @@ export default function TenantLeaseLifecyclePage() {
                 <input
                   ref={photoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   multiple
                   onChange={(event) => addPhotos(event.target.files)}
                   aria-label="Add photos of issues in the unit"
                 />
                 <span className="tenant-lease-photo-picker-icon" aria-hidden="true">+</span>
                 <strong>Add photos</strong>
-                <small>Choose multiple images · up to 10 MB each</small>
+                <small>JPEG, PNG, or WebP · up to 10 MB each</small>
               </label>
               {photoError && <p className="tenant-lease-photo-error" role="alert">{photoError}</p>}
               {photos.length > 0 && <div className="tenant-lease-photo-grid">
                 {photos.map((photo, index) => <article className="tenant-lease-photo-item" key={photo.id}>
                   <div className="tenant-lease-photo-preview">
-                    <img src={photo.previewUrl} alt={`Issue photo ${index + 1}: ${photo.file.name}`} />
-                    <button type="button" onClick={() => removePhoto(photo.id)} aria-label={`Remove ${photo.file.name}`}>
+                    {photo.previewUrl ? <img src={photo.previewUrl} alt={`Issue photo ${index + 1}: ${photo.name}`} /> : <p>Preview unavailable. You can remove this photo or reload to refresh it.</p>}
+                    <button type="button" onClick={() => void removePhoto(photo.id)} aria-label={`Remove ${photo.name}`}>
                       <TrashIcon />
                     </button>
                   </div>
@@ -387,6 +455,7 @@ export default function TenantLeaseLifecyclePage() {
                     <span>Where is this? <small>(optional)</small></span>
                     <input
                       value={photo.caption}
+                      maxLength={1000}
                       onChange={(event) => updatePhotoCaption(photo.id, event.target.value)}
                       placeholder="e.g. Kitchen ceiling"
                     />
@@ -394,10 +463,12 @@ export default function TenantLeaseLifecyclePage() {
                 </article>)}
               </div>}
             </section>}
-          </section>
+          </fieldset>
 
           {submitError && <p className="tenant-lease-submit-error" role="alert">{submitError}</p>}
-          <button type="button" className="tenant-lease-primary" disabled={!confirmed || isSaving} onClick={submit}>
+          {savingMessage && <p role="status" className="tenant-lease-signing-message">{savingMessage}</p>}
+          {isMoveIn && !occupancy && <p className="tenant-lease-selection-hint">Confirm arrival and choose the home’s condition to complete check-in.</p>}
+          <button type="button" className="tenant-lease-primary" disabled={!confirmed || isSaving || Boolean(removingPhoto) || (isMoveIn && (!occupancy || !checkIn?.eligibility.canSubmit))} onClick={submit}>
             <CheckIcon /> {isSaving ? 'Saving…' : isMoveIn ? 'Complete check-in' : 'Submit check-out'}
           </button>
         </>}
@@ -420,7 +491,7 @@ export default function TenantLeaseLifecyclePage() {
           <ShieldIcon />
           <strong>{isMoveIn ? 'A clear starting record' : 'A clear handoff'}</strong>
           <p>{isMoveIn
-            ? 'Your notes and photos are saved with your check-in on this device, so you can keep a record of the home’s starting condition.'
+            ? 'Your submitted notes and photos become a shared record of the home’s starting condition. You can report issues without certifying that the home is ready.'
             : 'Your landlord will use this record to coordinate the final inspection and deposit review.'}</p>
         </div>
       </aside>

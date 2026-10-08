@@ -1,52 +1,202 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { useAuth } from "../hooks/useAuth";
 import { ShieldIcon } from "../components/Icons";
 import CustomSelect from "../components/CustomSelect";
 import TenantDatePicker from "../marketplace/TenantDatePicker";
 import HostingHeader from "./HostingHeader";
 import MarketplaceFooter from "../marketplace/MarketplaceFooter";
-import { saveDemoInvitation } from "./tenantInvitationDemo";
+import {
+  fetchAvailableListings,
+  fetchListingAvailability,
+  fetchListings,
+  type AvailableListing,
+  type ListingAvailabilityConflict,
+} from "../apis/useListing";
+import { getLandlordOrganization } from "../apis/useLandlordOrganization";
+import { createTenantInvitation } from "../apis/useTenantInvitation";
+import type { Listing } from "../types/Listing";
 import "./HostingApplicationsPage.css";
 
-const formatMoney = (value: string) => `$${Number(value.replace(/[^0-9]/g, "") || 0).toLocaleString("en-US")}`;
-const rawMoney = (value: string) => value.replace(/[^0-9]/g, "");
+const todayISO = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+};
+const addMonths = (dateValue: string, months: number) => {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const targetMonth = month - 1 + months;
+  const targetYear = year + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+  const endDay = Math.min(day, lastDay);
+  return `${targetYear}-${String(normalizedMonth + 1).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`;
+};
+const dayBefore = (dateValue: string) => {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day - 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+};
+const formatMoney = (value: number, currency: string) => {
+  const currencyCode = /^[A-Z]{3}$/.test(currency) ? currency : "USD";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: currencyCode }).format(value || 0);
+};
+const formatDate = (value?: string) => {
+  if (!value) return "Not set";
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleDateString();
+};
 
 export default function HostingInviteTenantPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const listingId = searchParams.get("listingId");
-  const selectedListing = listingId === "daisys-inn" ? "Daisy's Inn · Saskatoon, Canada" : "Sunlit loft near the river · Unit 4B";
+  const listingId = searchParams.get("listingId") ?? "";
+  const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
+  const userID = Number(currentUser?.user?.id ?? currentUser?.user?.userId);
+  const directOrganizationID = currentUser?.organization?.organizationID
+    ?? currentUser?.memberOrganizations?.find((member) => member.organization)?.organization?.organizationID;
+  const organizationQuery = useQuery({
+    queryKey: ["hostingInviteOrganization", userID],
+    queryFn: async () => {
+      if (!Number.isFinite(userID)) throw new Error("Your user account could not be identified.");
+      const organization = await getLandlordOrganization(userID);
+      if (!organization?.organizationID) throw new Error("Your hosting organization could not be identified.");
+      return organization.organizationID;
+    },
+    enabled: !directOrganizationID && Number.isFinite(userID),
+  });
+  const organizationID = directOrganizationID || organizationQuery.data || "";
+  const [requestedListingId, setRequestedListingId] = useState(listingId);
+  const [startDate, setStartDate] = useState(todayISO);
+  const [leaseTermMonths, setLeaseTermMonths] = useState(1);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [step, setStep] = useState(1);
   const [source, setSource] = useState<"existing" | "new">("new");
   const [sent, setSent] = useState(false);
   const [tenant, setTenant] = useState({ name: "", email: "", phoneCountryCode: "+1", phone: "" });
-  const selectedListingDetails = listingId === "daisys-inn" ? { title: "Daisy's Inn", location: "Saskatoon, Canada", image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=85" } : { title: "Sunlit loft near the river", location: "Austin, Texas", image: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=600&q=85" };
-  const [lease, setLease] = useState({
-    property: selectedListing,
-    startDate: "Sep 1, 2026",
-    term: "6 months",
-    rent: "1850",
-    deposit: "1850",
+  const inventoryQuery = useQuery({
+    queryKey: ["hostingInviteListingInventory", organizationID],
+    queryFn: () => fetchListings({ pageSize: 1000, pageNumber: 0, organizationID }),
+    enabled: Boolean(organizationID),
   });
+  const inventory: Listing[] = inventoryQuery.data?.data ?? [];
+  const availableListingsQuery = useQuery({
+    queryKey: ["hostingInviteAvailableListings", organizationID, startDate, leaseTermMonths],
+    queryFn: () => fetchAvailableListings({ organizationId: organizationID, startDate, leaseTermMonths }),
+    enabled: Boolean(organizationID && startDate),
+  });
+  const availableListings: AvailableListing[] = availableListingsQuery.data ?? [];
+  const requestedListingIsAvailable = availableListings.some((listing) => listing.listingID === requestedListingId);
+  const selectedListingId = requestedListingId && requestedListingIsAvailable
+    ? requestedListingId
+    : requestedListingId ? "" : availableListings[0]?.listingID ?? "";
+  const selectedInventoryListing = inventory.find((listing) => listing.listingID === selectedListingId) ?? null;
+  const availableListing = availableListings.find((listing) => listing.listingID === selectedListingId) ?? null;
+  const selectedListing = selectedInventoryListing ?? availableListing;
+  const availabilityQuery = useQuery({
+    queryKey: ["hostingInviteListingAvailability", organizationID, selectedListingId, startDate, leaseTermMonths],
+    queryFn: () => fetchListingAvailability(selectedListingId, {
+      organizationId: organizationID,
+      startDate,
+      leaseTermMonths,
+    }),
+    enabled: Boolean(organizationID && selectedListingId && startDate),
+  });
+  const listingOptions = availableListings.map((listing) =>
+    `${listing.title || "Listing"} · ${listing.listingID}`,
+  );
+  const selectedListingOption = selectedListing
+    ? `${selectedListing.title || "Listing"} · ${selectedListing.listingID}`
+    : availableListing?.title || "";
+  const coverPhotoUrl = selectedInventoryListing?.listingPhotos?.find((photo) => photo.isCoverPhoto)?.url;
+  const conflicts = availabilityQuery.data?.conflicts ?? [];
+  const price = availableListing?.requestedMonthlyRentAmount ?? 0;
+  const securityDeposit = availableListing?.requestedSecurityDepositAmount ?? 0;
+  const currency = availableListing?.currency || "USD";
+  const isLoadingAvailability = availableListingsQuery.isFetching || availabilityQuery.isFetching;
+  const today = todayISO();
+  const listingAvailableFrom = selectedInventoryListing?.availableFrom?.slice(0, 10);
+  const calendarMinDate = listingAvailableFrom && listingAvailableFrom > today ? listingAvailableFrom : today;
+  const calendarMaxDate = selectedInventoryListing?.availableTo?.slice(0, 10) || undefined;
+  const organizationError = organizationQuery.error instanceof Error
+    ? organizationQuery.error.message
+    : !organizationID && !organizationQuery.isLoading
+      ? "Your hosting organization could not be identified."
+      : "";
+  const availabilityError = availableListingsQuery.error instanceof Error
+    ? availableListingsQuery.error.message
+    : availabilityQuery.error instanceof Error
+      ? availabilityQuery.error.message
+      : "";
+  const availabilityReady = Boolean(
+    availableListing &&
+    !isLoadingAvailability &&
+    availabilityQuery.isSuccess &&
+    availabilityQuery.data.isAvailable,
+  );
+  const hasDateConflict = (date: Date) => {
+    const candidateStart = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const candidateEnd = addMonths(candidateStart, leaseTermMonths);
+    return conflicts.some((conflict) => {
+      const conflictStart = (conflict.startDate ?? conflict.startAt ?? conflict.dateRange?.startDate)?.slice(0, 10);
+      const conflictEnd = (conflict.endDate ?? conflict.endAt ?? conflict.dateRange?.endDate)?.slice(0, 10);
+      return Boolean(conflictStart && conflictEnd && candidateStart < conflictEnd && candidateEnd > conflictStart);
+    });
+  };
+  const conflictMessage = (conflict: ListingAvailabilityConflict) =>
+    conflict.reason
+    || `${conflict.sourceType || "Availability"} conflict: ${formatDate(conflict.startDate ?? conflict.startAt ?? conflict.dateRange?.startDate)}–${formatDate(conflict.endDate ?? conflict.endAt ?? conflict.dateRange?.endDate)}`;
   const updateTenant = (field: keyof typeof tenant, value: string) =>
     setTenant((current) => ({ ...current, [field]: value }));
-  const updateLease = (field: keyof typeof lease, value: string) =>
-    setLease((current) => ({ ...current, [field]: value }));
-  const sendInvitation = () => {
-    saveDemoInvitation({
-      token: "demo-lease-invite",
-      tenantName: tenant.name,
-      email: tenant.email,
-      phone: tenant.phone ? `${tenant.phoneCountryCode} ${tenant.phone}` : "",
-      property: lease.property,
-      startDate: lease.startDate,
-      term: lease.term,
-      rent: lease.rent,
-      deposit: lease.deposit,
-      status: "PENDING",
-      createdAt: new Date().toISOString(),
-    });
-    setSent(true);
+
+  const sendInvitation = async () => {
+    if (!selectedListingId || !organizationID || !availabilityReady) return;
+    setIsSending(true);
+    setSendError("");
+    try {
+      const capturedBy = `${currentUser?.user?.firstName || ""} ${currentUser?.user?.lastName || ""}`.trim();
+      await createTenantInvitation({
+        organizationID,
+        listingID: selectedListingId,
+        startDate,
+        leaseTermMonths,
+        rentalApplicationID: null,
+        name: tenant.name,
+        invitationPurpose: "Direct lease invitation",
+        email: tenant.email,
+        phoneNumber: tenant.phone ? `${tenant.phoneCountryCode} ${tenant.phone}` : "",
+        tokenHash: "",
+        status: "PENDING",
+        expiresAt: null,
+        capturedBy,
+        capturedDate: new Date().toISOString().split("T")[0],
+      });
+      setSent(true);
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const payload = error.response.data as {
+          message?: string;
+          conflicts?: ListingAvailabilityConflict[];
+          availability?: { conflicts?: ListingAvailabilityConflict[] };
+        } | undefined;
+        const writeConflicts = payload?.conflicts ?? payload?.availability?.conflicts ?? [];
+        setSendError([
+          payload?.message || "This listing is no longer available for the selected dates.",
+          ...writeConflicts.map(conflictMessage),
+        ].join(" "));
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["hostingInviteAvailableListings"] }),
+          queryClient.invalidateQueries({ queryKey: ["hostingInviteListingAvailability"] }),
+        ]);
+      } else {
+        setSendError(error instanceof Error ? error.message : "Unable to send the invitation.");
+      }
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -63,11 +213,11 @@ export default function HostingInviteTenantPage() {
           {!sent ? (
             <>
               <div className="hosting-invite-heading">
-                <p className="marketplace-eyebrow">New lease relationship</p>
+                <p className="marketplace-eyebrow">Lease invitation</p>
                 <h1>Invite a tenant directly.</h1>
                 <p>
-                  For a lease that did not start with an Arcora application, set
-                  up the terms and send a secure invitation.
+                  Choose an available listing, lease start date, and term. Arcora
+                  will check the entire date range before you send an invitation.
                 </p>
               </div>
               <div className="hosting-invite-progress">
@@ -112,13 +262,15 @@ export default function HostingInviteTenantPage() {
                   </div>
                   {source === "existing" ? (
                     <label>
-                      Search by email, phone, or tenant code
+                      Tenant email address
                       <input
-                        placeholder="Email, phone, or tenant code"
+                        type="email"
+                        placeholder="tenant@example.com"
                         value={tenant.name}
-                        onChange={(event) =>
-                          updateTenant("name", event.target.value)
-                        }
+                        onChange={(event) => {
+                          updateTenant("name", event.target.value);
+                          updateTenant("email", event.target.value);
+                        }}
                       />
                     </label>
                   ) : (
@@ -153,12 +305,11 @@ export default function HostingInviteTenantPage() {
                       </label>
                     </div>
                   )}
+                  {organizationError && <p role="alert">{organizationError}</p>}
                   <button
                     type="button"
                     className="hosting-invite-primary"
-                    disabled={
-                      !tenant.name || (source === "new" && !tenant.email)
-                    }
+                    disabled={!tenant.name || !tenant.email}
                     onClick={() => setStep(2)}
                   >
                     Continue to lease terms →
@@ -167,70 +318,72 @@ export default function HostingInviteTenantPage() {
               )}
               {step === 2 && (
                 <section className="hosting-invite-section">
-                  <h2>Set the lease terms</h2>
+                  <h2>Lease terms</h2>
                   <p>
-                    This creates a lease relationship without requiring a prior
-                    rental application.
+                    Only listings available for the entire requested period are
+                    shown.
                   </p>
+                  {organizationError && <p role="alert">{organizationError}</p>}
+                  {availabilityError && <p role="alert">{availabilityError}</p>}
+                  {(organizationQuery.isLoading || inventoryQuery.isLoading || isLoadingAvailability) && (
+                    <p>Checking listing availability…</p>
+                  )}
+                  {availableListingsQuery.isSuccess && availableListings.length === 0 && (
+                    <p role="status">
+                      No listings are available for {formatDate(startDate)} and a {leaseTermMonths}-month term. Try another date or term.
+                    </p>
+                  )}
                   <div className="hosting-invite-form-grid">
                     <label>
-                      Property and unit
+                      Available listing
                       <CustomSelect
-                        value={lease.property}
-                        options={[
-                          "Daisy's Inn · Saskatoon, Canada",
-                          "Sunlit loft near the river · Unit 4B",
-                          "Garden home with a quiet patio · Unit 2",
-                        ]}
-                        onChange={(value) => updateLease("property", value)}
-                        ariaLabel="Property and unit"
+                        value={selectedListingOption || "Select a listing"}
+                        options={listingOptions}
+                        onChange={(value) => {
+                          const listing = availableListings.find((item) =>
+                            `${item.title || "Listing"} · ${item.listingID}` === value,
+                          );
+                          if (listing) setRequestedListingId(listing.listingID);
+                        }}
+                        ariaLabel="Listing"
                       />
                     </label>
                     <label>
                       Lease start date
                       <TenantDatePicker
-                        value={lease.startDate}
-                        onChange={(value) => updateLease("startDate", value)}
+                        value={startDate}
+                        onChange={setStartDate}
                         ariaLabel="Lease start date"
+                        minDate={calendarMinDate}
+                        maxDate={calendarMaxDate}
+                        isDateDisabled={hasDateConflict}
                       />
                     </label>
                     <label>
                       Lease term
                       <CustomSelect
-                        value={lease.term}
-                        options={[
-                          "Month to month",
-                          "6 months",
-                          "12 months",
-                          "24 months",
-                        ]}
-                        onChange={(value) => updateLease("term", value)}
-                        ariaLabel="Lease term"
+                        value={`${leaseTermMonths} ${leaseTermMonths === 1 ? "month" : "months"}`}
+                        options={Array.from({ length: 12 }, (_, index) => `${index + 1} ${index === 0 ? "month" : "months"}`)}
+                        onChange={(value) => setLeaseTermMonths(Number.parseInt(value, 10))}
+                        ariaLabel="Lease term in months"
                       />
                     </label>
                     <label>
                       Monthly rent
-                      <input
-                        inputMode="numeric"
-                        value={formatMoney(lease.rent)}
-                        onChange={(event) =>
-                          updateLease("rent", rawMoney(event.target.value))
-                        }
-                        onFocus={(event) => updateLease("rent", rawMoney(event.target.value))}
-                      />
+                      <input readOnly value={availableListing ? formatMoney(price, currency) : "Set an available date range"} />
                     </label>
                     <label>
                       Security deposit
-                      <input
-                        inputMode="numeric"
-                        value={formatMoney(lease.deposit)}
-                        onChange={(event) =>
-                          updateLease("deposit", rawMoney(event.target.value))
-                        }
-                        onFocus={(event) => updateLease("deposit", rawMoney(event.target.value))}
-                      />
+                      <input readOnly value={availableListing ? formatMoney(securityDeposit, currency) : "Set an available date range"} />
                     </label>
                   </div>
+                  {availabilityQuery.data && (
+                    <p role={availabilityReady ? "status" : "alert"}>
+                      {availabilityReady
+                        ? `Available for the full ${leaseTermMonths}-month lease: ${formatDate(startDate)}–${formatDate(dayBefore(addMonths(startDate, leaseTermMonths)))}.`
+                        : `These dates are unavailable for the full ${leaseTermMonths}-month term.${conflicts.length ? ` ${conflicts.map(conflictMessage).join(" ")}` : ""}`}
+                    </p>
+                  )}
                   <div className="hosting-invite-note">
                     <ShieldIcon />
                     <span>
@@ -245,6 +398,7 @@ export default function HostingInviteTenantPage() {
                     <button
                       type="button"
                       className="hosting-invite-primary"
+                      disabled={!availabilityReady || isLoadingAvailability}
                       onClick={() => setStep(3)}
                     >
                       Review invitation →
@@ -267,24 +421,25 @@ export default function HostingInviteTenantPage() {
                     </div>
                     <div>
                       <span>Home</span>
-                      <strong>{lease.property}</strong>
+                      <strong>{selectedListing?.title || "Listing"}</strong>
                       <small>
-                        {lease.startDate} · {lease.term}
+                        {formatDate(startDate)} · {leaseTermMonths} {leaseTermMonths === 1 ? "month" : "months"}
                       </small>
                     </div>
                     <div>
                       <span>Monthly rent</span>
                       <strong>
-                        {formatMoney(lease.rent)}
+                        {availableListing ? formatMoney(price, currency) : "Not available"}
                       </strong>
                     </div>
                     <div>
                       <span>Security deposit</span>
                       <strong>
-                        {formatMoney(lease.deposit)}
+                        {availableListing ? formatMoney(securityDeposit, currency) : "Not available"}
                       </strong>
                     </div>
                   </div>
+                  {sendError && <p role="alert">{sendError}</p>}
                   <div className="hosting-invite-actions">
                     <button type="button" onClick={() => setStep(2)}>
                       Back
@@ -293,8 +448,9 @@ export default function HostingInviteTenantPage() {
                       type="button"
                       className="hosting-invite-primary"
                       onClick={sendInvitation}
+                      disabled={isSending || isLoadingAvailability || !availabilityReady}
                     >
-                      Send lease invitation
+                      {isSending ? "Sending…" : "Send lease invitation"}
                     </button>
                   </div>
                 </section>
@@ -303,17 +459,17 @@ export default function HostingInviteTenantPage() {
           ) : (
             <section className="hosting-invite-success">
               <span>✓</span>
-              <p className="marketplace-eyebrow">Invitation sent</p>
-              <h1>Lease invitation is on its way.</h1>
+              <p className="marketplace-eyebrow">Invitation created</p>
+              <h1>Your invitation is queued for delivery.</h1>
               <p>
-                The tenant will receive a secure invitation to review the terms
-                and complete their lease setup.
+                Email delivery is pending. The listing hold remains active until
+                the invitation expires. Track delivery and responses in Tenant invitations.
               </p>
               <div>
                 <span>Recipient</span>
                 <strong>{tenant.email || tenant.name}</strong>
                 <span>Lease start</span>
-                <strong>{lease.startDate}</strong>
+                <strong>{formatDate(startDate)}</strong>
                 <span>Status</span>
                 <strong>Pending acceptance</strong>
               </div>
@@ -329,11 +485,11 @@ export default function HostingInviteTenantPage() {
         </div>
         <aside className="hosting-invite-sidebar">
           <div className="hosting-invite-listing-card">
-            <img src={selectedListingDetails.image} alt="" />
+            {coverPhotoUrl && <img src={coverPhotoUrl} alt="" />}
             <div>
               <p className="marketplace-eyebrow">Selected listing</p>
-              <h3>{selectedListingDetails.title}</h3>
-              <span>{selectedListingDetails.location}</span>
+              <h3>{selectedListing?.title || (inventoryQuery.isLoading ? "Loading listings…" : "No available listing")}</h3>
+              <span>{selectedInventoryListing?.rentalUnit?.property?.address?.line1 || ""}</span>
             </div>
           </div>
           <div className="hosting-invite-handoff-card">

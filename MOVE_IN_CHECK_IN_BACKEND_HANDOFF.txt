@@ -7,6 +7,31 @@ the existing Inspection, InspectionItem, Attachment, and Lease domains.
 Deliver implementation, migrations, API documentation, and integration tests.
 Do not merely scaffold endpoints or return success without saving evidence.
 
+FRONTEND INTEGRATION STATUS
+------------------------------------------------------------
+The client now uses the implemented lease-scoped GET, draft, multipart
+photo upload, photo DELETE, and submit endpoints defined below.
+Verified against LeaseCheckInController.cs and LeaseCheckInDtos.cs.
+The check-in screen no longer writes IndexedDB/localStorage completion.
+Check-out retains its existing behavior and is not part of this integration.
+The client restores server draft evidence and submitted records, enforces
+server eligibility, requires an explicit readiness choice, and displays
+read-only submitted evidence and landlord reviews.
+Photo uploads are sequential, retain clientPhotoID on retries, and skip
+already successful uploads. Submission uses an Idempotency-Key retained
+for an identical request and performs GET recovery after a failed response.
+General notes/photos are supported without creating artificial issues.
+Structured issue entry and landlord review authoring are not added to
+the tenant screen; reviews returned by GET are displayed.
+
+Client regression command:
+  node --test tests/leaseCheckInApi.test.mjs
+Targeted lint:
+  npx eslint src/apis/useLeaseCheckIn.ts src/marketplace/TenantLeaseLifecyclePage.tsx tests/leaseCheckInApi.test.mjs
+
+The following sections describe the original handoff and required backend
+behavior; references to temporary browser storage below are historical.
+
 1. CURRENT CLIENT STATE AND VERIFIED CONTRACTS
 ------------------------------------------------------------
 The tenant screen is:

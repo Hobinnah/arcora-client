@@ -5,7 +5,7 @@ import { getListing } from '../apis/useListing';
 import { fetchListings } from '../apis/useListing';
 import { fetchAmenityCatalogs, getAmenityCatalog } from '../apis/useAmenityCatalog';
 import { fetchRatings } from '../apis/useRating';
-import { fallbackListings, type MarketplaceListing } from './marketplaceData';
+import type { MarketplaceListing } from './marketplaceData';
 import type { Rating } from '../types/Rating';
 import { useAuth } from '../hooks/useAuth';
 import MarketplaceHeader from './MarketplaceHeader';
@@ -70,6 +70,7 @@ export default function ListingDetail() {
   const [searchParams] = useSearchParams();
   const auth = useAuth();
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
+  const [loadError, setLoadError] = useState('');
   const [raw, setRaw] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [showMore, setShowMore] = useState(false);
@@ -90,9 +91,8 @@ export default function ListingDetail() {
     const load = async () => {
       const applyDetail = (detail: Record<string, any>) => {
         setRaw(detail);
-        const fb = fallbackListings.find((l) => l.id === id) ?? fallbackListings[0];
         const listingAddress = detail.rentalUnit?.property?.address;
-        const listingLocation = [listingAddress?.city, listingAddress?.provinceCode].filter(Boolean).join(', ') || fb.location;
+        const listingLocation = [listingAddress?.city, listingAddress?.provinceCode].filter(Boolean).join(', ');
         const apiPhotos = Array.isArray(detail.listingPhotos) ? [...detail.listingPhotos].sort((first, second) => Number(first.displayOrder ?? 0) - Number(second.displayOrder ?? 0)) : [];
         const apiDetails = [
           detail.bedrooms ? `${detail.bedrooms} bed${detail.bedrooms === 1 ? '' : 's'}` : '',
@@ -101,17 +101,17 @@ export default function ListingDetail() {
         ].filter(Boolean).join(' · ');
         setListing({
           id: String(detail.listingID ?? id),
-          title: detail.title ?? fb.title,
+          title: detail.title ?? 'Untitled listing',
           location: listingLocation,
-          price: detail.baseMonthlyRentAmount ?? fb.price,
-          type: detail.listingType?.name ?? fb.type,
+          price: Number(detail.baseMonthlyRentAmount ?? 0),
+          type: detail.listingType?.name ?? 'Rental',
           isPetFriendly: detail.isPetFriendly === true,
           isFurnished: detail.isFurnished === true || detail.IsFurnished === true,
           image: apiPhotos[0]?.url ?? apiPhotos[0]?.imageUrl ?? apiPhotos[0]?.image ?? '',
           details: apiDetails,
           rating: Number(detail.rating ?? 0),
           reviews: Number(detail.reviews ?? 0),
-          availableFrom: detail.availableFrom ?? fb.availableFrom,
+          availableFrom: detail.availableFrom ?? '',
           tag: typeof detail.displayTag === 'string' ? detail.displayTag : undefined,
         });
       };
@@ -123,8 +123,9 @@ export default function ListingDetail() {
             applyDetail(detail);
           }
         }
-      } catch {
+      } catch (initialError) {
         let recoveredLiveListing = false;
+        let recoveryError: unknown;
         try {
           if (id) {
             const response = await fetchListings({ pageSize: 1000, pageNumber: 0, statusFilter: 'PUBLISHED' });
@@ -134,11 +135,16 @@ export default function ListingDetail() {
               recoveredLiveListing = true;
             }
           }
-        } catch {
+        } catch (error) {
+          recoveryError = error;
         }
         if (!cancelled && !recoveredLiveListing) {
-          const fb = fallbackListings.find((l) => l.id === id) ?? fallbackListings[0];
-          setListing(fb);
+          const message = recoveryError instanceof Error
+            ? recoveryError.message
+            : initialError instanceof Error
+              ? initialError.message
+              : 'We could not load this listing. Please try again later.';
+          setLoadError(message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -204,15 +210,8 @@ export default function ListingDetail() {
     return () => { cancelled = true; };
   }, [id]);
 
-  useEffect(() => {
-    if (!listing && !loading) {
-      const fb = fallbackListings.find((l) => l.id === id) ?? fallbackListings[0];
-      setListing(fb);
-    }
-  }, [id, listing, loading]);
-
   if (loading) return <main className="marketplace"><div className="detail-loading">Loading listing...</div></main>;
-  if (!listing) return <main className="marketplace"><div className="detail-loading">Listing not found.</div></main>;
+  if (!listing) return <main className="marketplace"><div className="detail-loading" role="alert">{loadError || 'Listing not found.'}</div></main>;
 
   const bedrooms = (raw as any)?.bedrooms ?? 0;
   const bathrooms = (raw as any)?.bathrooms ?? 0;

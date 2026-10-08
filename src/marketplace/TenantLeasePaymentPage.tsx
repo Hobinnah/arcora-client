@@ -305,7 +305,7 @@ export default function TenantLeasePaymentPage() {
                   <input
                     value={padForm.accountHolderName}
                     onChange={(event) => setPadForm((current) => ({ ...current, accountHolderName: event.target.value }))}
-                    placeholder="Obinna Eze"
+                    placeholder="Name on card"
                   />
                 </label>
                 <div className="tenant-lease-form-row">
@@ -339,7 +339,7 @@ export default function TenantLeasePaymentPage() {
               <div className="tenant-lease-payment-form">
                 <label className="tenant-lease-form-field">
                   <span>Name on card</span>
-                  <input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="Obinna Eze" />
+                  <input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="Name on card" />
                 </label>
                 {publishableKey ? (
                   <Elements stripe={stripePromise(publishableKey)}>

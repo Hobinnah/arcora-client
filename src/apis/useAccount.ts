@@ -53,6 +53,7 @@ import type {
   ChangePasswordRequest,
   UpdateProfileRequest,
   AccountSettingsRequest,
+  AccountSettings,
   ForgotPasswordRequest,
   ConfirmEmailRequest,
   ResetPasswordRequest,
@@ -166,29 +167,6 @@ export const useAccount = () => {
         throw new Error(response.data?.message || 'Failed to change password');
       }
     } catch (error: any) {
-      console.error('❌ REQUEST FAILED - DETAILED ERROR INFO:');
-      console.error('Error type:', error.constructor.name);
-      console.error('Error message:', error.message);
-      console.error('Error code:', error.code);
-      console.error('Full axios error object:', error);
-      
-      if (error.response) {
-        console.error('🟡 Server responded with error:');
-        console.error('Status:', error.response.status);
-        console.error('Headers:', error.response.headers);
-        console.error('Data:', error.response.data);
-        console.error('Config URL:', error.response.config?.url);
-      } else if (error.request) {
-        console.error('🔴 No response from server:');
-        console.error('Request object:', error.request);
-        console.error('Request readyState:', error.request.readyState);
-        console.error('Request status:', error.request.status);
-      } else {
-        console.error('🚨 Request setup error:', error.message);
-      }
-      
-      console.error('Request config:', error.config);
-      
       let errorMessage = 'An unexpected error occurred';
       
       if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
@@ -655,6 +633,8 @@ export const useAccount = () => {
               // Handle validation errors
               const validationErrors = Object.values(responseData.errors).flat();
               errorMessage = validationErrors.join('. ');
+            } else if (Array.isArray(responseData)) {
+              errorMessage = responseData.filter((item: unknown): item is string => typeof item === 'string').join('. ');
             } else {
               errorMessage = 'Invalid registration data. Please check your information.';
             }
@@ -858,19 +838,9 @@ export const useAccount = () => {
       setIsLoading(true);
       setError(null);
 
-      const formData = new FormData();
-      
-      if (request.firstName) formData.append('firstName', request.firstName);
-      if (request.lastName) formData.append('lastName', request.lastName);
-      if (request.email) formData.append('email', request.email);
-      if (request.phone) formData.append('phone', request.phone);
-      if (request.avatar) formData.append('avatar', request.avatar);
-
-      // Note: Authorization header automatically added by axios interceptor
-      // Don't set Content-Type for FormData - browser will set it with boundary
       const response = await axios.put(
         `${env.API_BASE_URL}${apiPaths.updateProfile}`,
-        formData
+        request
       );
 
       if (response.data.success) {
@@ -943,6 +913,22 @@ export const useAccount = () => {
       } else {
         throw new Error(response.data.message || 'Failed to fetch profile');
       }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'An unexpected error occurred';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const getSettings = useCallback(async (): Promise<ApiResponse<AccountSettings>> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await axios.get(`${env.API_BASE_URL}${apiPaths.updateSettings}`);
+      if (response.data.success) return response.data;
+      throw new Error(response.data.message || 'Failed to fetch settings');
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'An unexpected error occurred';
       setError(errorMessage);
@@ -1124,6 +1110,7 @@ export const useAccount = () => {
     updateSettings,
     validatePasswordStrength,
     getProfile,
+    getSettings,
     deleteAccount,
     send2FACode,
     verify2FACode,

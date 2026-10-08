@@ -1,0 +1,91 @@
+TENANT INVITATION -> LEASE CREATION: BACKEND HANDOFF
+=====================================================
+
+Flow (client is already wired for this)
+---------------------------------------
+1. Landlord creates a tenant invitation (listing, start date, lease term, price, tenant name/email).
+2. Tenant clicks ACCEPT in the email -> client calls POST api/tenantinvitation/respond?token=...&response=ACCEPT
+3. Tenant logs in / signs up -> /tenant/invitation/setup?invitationId={tenantInvitationID}
+4. Tenant saves bank account (PAD) and card through api/PaymentOnboarding/* (unchanged).
+5. Once both are saved, client calls the NEW endpoint below to create the lease.
+6. Client sends tenant to /tenant/leases/{leaseID}/review to review and sign.
+   No money is charged until the lease is signed.
+
+
+CHANGE 1: respond must return the invitation ID on ACCEPT
+---------------------------------------------------------
+POST api/tenantinvitation/respond?token=...&response=ACCEPT
+Currently returns 200 with no body. Please return:
+
+  200 OK
+  {
+    "tenantInvitationID": "guid",
+    "status": "ACCEPTED"
+  }
+
+(The client also accepts tenantInvitationId / invitationID / invitationId.)
+
+
+CHANGE 2: NEW endpoint to create the lease from the invitation
+--------------------------------------------------------------
+POST api/tenantinvitation/{tenantInvitationID}/createLease
+Auth: required (the signed-in tenant).
+
+Request body:
+  { "tenantID": "guid" }
+
+Response (201 Created, or 200 OK if the lease already exists):
+  {
+    "leaseID": "guid",
+    "status": "PENDING_TENANT_SIGNATURE"
+  }
+
+Server-side rules
+  - Do NOT trust the client for any lease terms. Build the lease only from the stored
+    invitation and its listing.
+  - Validate:
+      * invitation exists and status = ACCEPTED (not expired / revoked / declined)
+      * tenantID belongs to the signed-in user
+      * the signed-in user's email matches invitation.email
+      * tenant has a verified CARD and a saved PAD method (PaymentOnboarding status)
+  - Idempotent: if invitation.leaseID is already set, return that lease instead of creating
+    another one.
+  - In one transaction:
+      * create the Lease
+      * set TenantInvitation.leaseID = new lease ID
+      * block the lease dates on the listing's availability calendar
+
+Lease field mapping (LeaseDto)
+  organizationID       <- invitation.organizationID (or listing.organizationID)
+  listingID            <- invitation.listingID
+  rentalUnitID         <- listing.rentalUnitID
+  tenancyTypeID        <- derived from listing / term (long-term vs short-term)
+  tenantID             <- request tenantID (validated)
+  rentalApplicationID  <- null
+  leaseCode/leaseNumber<- server-generated
+  status               <- PENDING_TENANT_SIGNATURE
+  startDate            <- invitation.startDate
+  leaseTermMonths      <- invitation.leaseTermMonths
+  endDate              <- startDate + leaseTermMonths
+  baseRentAmount       <- invitation price (term price from listingTermPrices / quoted price)
+  currency             <- listing.currency
+  gracePeriodDays, lateFeeFixedAmount, lateFeePercentage, autoRenew, renewalNoticeDays
+                       <- organization / listing defaults
+  capturedBy/Date      <- signed-in user / now
+
+Errors (ProblemDetails with a readable "detail"; the client shows it)
+  400  payment methods not saved / invitation not accepted / invitation expired
+  403  invitation does not belong to the signed-in user
+  404  invitation not found
+  409  dates no longer available
+
+
+Related backend items still open
+--------------------------------
+- respond returns "Invalid invitation token" (create currently receives tokenHash: "";
+  the server should generate the token and its hash).
+- Swagger TenantInvitationDto is missing organizationID, startDate, leaseTermMonths, and
+  price, which the client already sends on create and this endpoint needs.
+- Suggested lease statuses: PENDING_TENANT_SIGNATURE -> PENDING_LANDLORD_SIGNATURE ->
+  SIGNED -> ACTIVE (plus CANCELLED / EXPIRED).
+- First charge (deposit + first month) happens only after both parties have signed.

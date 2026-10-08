@@ -3,7 +3,7 @@ import { CardCvcElement, CardExpiryElement, CardNumberElement, Elements, useElem
 import { loadStripe } from "@stripe/stripe-js";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CheckIcon, FileIcon, PdfIcon, PencilIcon, ShieldIcon, TrashIcon } from "../components/Icons";
-import { fallbackListings, normalizeListing, type MarketplaceListing } from "./marketplaceData";
+import { normalizeListing, type MarketplaceListing } from "./marketplaceData";
 import { getListing } from "../apis/useListing";
 import { createTenant, getTenantByUserID, updateTenant } from "../apis/useTenant";
 import { deleteLeaseDocuments, fetchLeaseDocuments, uploadLeaseDocument } from "../apis/useLeaseDocuments";
@@ -95,7 +95,7 @@ function PaymentCardForm({
       </div>
       <label>
         Name on card
-        <input value={paymentCardName} onChange={(event) => setPaymentCardName(event.target.value)} placeholder="Obinna Eze" />
+        <input value={paymentCardName} onChange={(event) => setPaymentCardName(event.target.value)} placeholder="Name on card" />
       </label>
       {!stripe || !elements ? <small className="tenant-application-payment-loading" role="status">Loading secure Stripe card entry...</small> : null}
     </>
@@ -138,17 +138,30 @@ const sections: Section[] = [
   { key: "review", label: "Review & submit", detail: "Locked" },
 ];
 
+const emptyListing: MarketplaceListing = {
+  id: "",
+  title: "",
+  location: "",
+  price: 0,
+  type: "Rental",
+  isPetFriendly: false,
+  isFurnished: false,
+  image: "",
+  details: "",
+  rating: 0,
+  reviews: 0,
+  availableFrom: "",
+};
+
 export default function TenantApplicationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
-  const fallbackListing =
-    fallbackListings[
-      id === "app-1017" ? 2 : id === "app-0998" ? 1 : id === "app-0942" ? 3 : 0
-    ];
-  const [listing, setListing] = useState<MarketplaceListing>(fallbackListing);
-  const [depositAmount, setDepositAmount] = useState<number>(fallbackListing.price);
+  const [listing, setListing] = useState<MarketplaceListing>(emptyListing);
+  const [listingLoaded, setListingLoaded] = useState(false);
+  const [listingLoadError, setListingLoadError] = useState("");
+  const [depositAmount, setDepositAmount] = useState<number>(0);
   const [tenantPlacementFee, setTenantPlacementFee] = useState<number | null>(null);
   const moveInAmount = listing.price + depositAmount;
   const stripePadProcessingFee = Math.min(
@@ -191,23 +204,38 @@ export default function TenantApplicationDetailPage() {
   const [hasAppliedPersistedSteps, setHasAppliedPersistedSteps] = useState(false);
   
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setListingLoadError("This application does not have a listing ID.");
+      setListingLoaded(true);
+      return;
+    }
     let cancelled = false;
     getListing(id)
       .then((data) => {
-        if (cancelled || !data) return;
-        const listingData = data as unknown as Record<string, unknown>;
+        if (cancelled) return;
+        if (!data) {
+          setListingLoadError("We could not find the listing for this application.");
+          return;
+        }
+        const listingData = ((data as unknown as { data?: Record<string, unknown> }).data ?? data) as unknown as Record<string, unknown>;
         const normalized = normalizeListing(listingData, 0);
         if (normalized) {
           setListing(normalized);
+        } else {
+          setListingLoadError("The listing details are incomplete, so this application cannot be continued.");
         }
-        const deposit = listingData.securityDepositAmount ?? normalized?.price;
-        if (typeof deposit === "number") {
+        const deposit = Number(listingData.securityDepositAmount ?? 0);
+        if (Number.isFinite(deposit) && deposit >= 0) {
           setDepositAmount(deposit);
         }
       })
-      .catch(() => {
-        // Fallback listing remains as default if fetching fails or ID is a mock app ID
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setListingLoadError(error instanceof Error ? error.message : "We could not load the listing for this application.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setListingLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -357,6 +385,10 @@ export default function TenantApplicationDetailPage() {
     (tenantDescription ?? tenant?.description ?? "").trim(),
   );
   const tenantName = `${tenant?.user?.firstName ?? currentUser?.user?.firstName ?? ""} ${tenant?.user?.lastName ?? currentUser?.user?.lastName ?? ""}`.trim();
+  const tenantDisplayName = tenantName || "Your account";
+  const tenantInitial = tenantName[0]?.toUpperCase() || "?";
+  const tenantEmail = tenant?.user?.email ?? currentUser?.user?.email ?? "Email unavailable";
+  const tenantPhone = currentUser?.user?.phoneNumber ?? tenant?.phoneNumber ?? "Phone unavailable";
 
   const paramMoveIn = searchParams.get("moveIn");
   const paramStayLength = searchParams.get("stayLengthMonths");
@@ -366,10 +398,10 @@ export default function TenantApplicationDetailPage() {
         day: "numeric",
         year: "numeric",
       })
-    : "Sep 1, 2026";
+    : "Not selected";
   const leaseTermDisplay = paramStayLength
     ? `${paramStayLength} month${paramStayLength === "1" ? "" : "s"}`
-    : "6 months";
+    : "Not selected";
 
   const [activeSection, setActiveSection] = useState<SectionKey>("readiness");
   const [rulesAcknowledged, setRulesAcknowledged] = useState<boolean | null>(null);
@@ -1108,6 +1140,13 @@ export default function TenantApplicationDetailPage() {
     return () => { cancelled = true; };
   }, [applicationSubmitted, savedRentalApplicationCode, tenant?.tenantID]);
 
+  if (!listingLoaded) {
+    return <main className="tenant-application-detail-page"><TenantHeader /><section className="tenant-application-loading" role="status">Loading listing and application details…</section><MarketplaceFooter /></main>;
+  }
+  if (listingLoadError || !listing.id) {
+    return <main className="tenant-application-detail-page"><TenantHeader /><section className="tenant-application-loading" role="alert"><h1>Application unavailable</h1><p>{listingLoadError || "The listing details for this application are unavailable."}</p><button type="button" onClick={() => navigate("/applications")}>Back to applications</button></section><MarketplaceFooter /></main>;
+  }
+
   return (
     <main className="marketplace tenant-application-detail-page" data-active-section={activeSection} data-tenant-status={tenantStatus}>
       <TenantHeader />
@@ -1173,9 +1212,9 @@ export default function TenantApplicationDetailPage() {
                 authenticated account.
               </p>
               <div className="tenant-application-account-summary">
-                <span className="tenant-application-avatar">O</span>
+                <span className="tenant-application-avatar">{tenantInitial}</span>
                 <div>
-                  <strong>Obinna Eze</strong>
+                  <strong>{tenantDisplayName}</strong>
                   <small>Authenticated tenant profile</small>
                 </div>
                 <button
@@ -1235,10 +1274,10 @@ export default function TenantApplicationDetailPage() {
                 application.
               </p>
               <div className="tenant-application-account-summary">
-                <span className="tenant-application-avatar">O</span>
+                <span className="tenant-application-avatar">{tenantInitial}</span>
                 <div>
-                  <strong>Obinna Eze</strong>
-                  <small>hobinnah@yahoo.com · +1 ***-***-0753</small>
+                  <strong>{tenantDisplayName}</strong>
+                  <small>{tenantEmail} · {tenantPhone}</small>
                 </div>
                 <button
                   type="button"
@@ -1269,7 +1308,7 @@ export default function TenantApplicationDetailPage() {
               <p className="marketplace-eyebrow">Adult households details</p>
               <h3>Who will live in this home?</h3>
               <p className="tenant-application-panel-lead">Add the adults who will live with you. Your authenticated profile is already included as the primary tenant.</p>
-              <article className="tenant-application-occupant-card tenant-application-primary-occupant"><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">O</span><div><strong>Obinna Eze</strong><small>Primary tenant</small></div><span className="tenant-application-occupant-status">Financially responsible</span></div><div className="tenant-application-occupant-meta"><span>hobinnah@yahoo.com</span><span>+1 ***-***-0753</span></div></article>
+              <article className="tenant-application-occupant-card tenant-application-primary-occupant"><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">{tenantInitial}</span><div><strong>{tenantDisplayName}</strong><small>Primary tenant</small></div><span className="tenant-application-occupant-status">Financially responsible</span></div><div className="tenant-application-occupant-meta"><span>{tenantEmail}</span><span>{tenantPhone}</span></div></article>
               {occupants.length > 0 && <div className="tenant-application-occupant-grid">{occupants.map((occupant, index) => <article className="tenant-application-occupant-card" key={`${occupant.email}-${occupant.firstName}`}><div className="tenant-application-guarantor-card-header"><span className="tenant-application-avatar">{occupant.firstName[0]}</span><div><strong>{occupant.firstName} {occupant.lastName}</strong><small>{occupant.occupantType === "ADULT" ? "Adult" : occupant.occupantType}</small></div><span className="tenant-application-occupant-status">{occupant.isFinanciallyResponsible ? "Financially responsible" : "Not financially responsible"}</span><span className="tenant-application-occupant-actions"><button type="button" aria-label={`Edit ${occupant.firstName} ${occupant.lastName}`} title="Edit occupant" onClick={() => editOccupant(index)}><PencilIcon /></button><button type="button" aria-label={`Remove ${occupant.firstName} ${occupant.lastName}`} title="Remove occupant" onClick={() => removeOccupant(index)}><TrashIcon /></button></span></div><div className="tenant-application-occupant-meta"><span>{occupant.email || "No email provided"}</span><span>{occupant.phoneNumber || "No phone provided"}</span></div></article>)}</div>}
               <div className="tenant-application-occupant-form"><div className="tenant-application-form-grid"><label>First name<input required value={occupantForm.firstName} onChange={(event) => updateOccupant("firstName", event.target.value)} /></label><label>Last name<input required value={occupantForm.lastName} onChange={(event) => updateOccupant("lastName", event.target.value)} /></label><label>Date of birth<TenantDatePicker value={occupantForm.dateOfBirth} onChange={(value) => updateOccupant("dateOfBirth", value)} ariaLabel="Occupant date of birth" maxDate={getMaxAdultDateOfBirth()} /></label><label>Email<input required type="email" value={occupantForm.email} onChange={(event) => updateOccupant("email", event.target.value)} /></label><label className="tenant-application-phone-field">Phone number<div className="tenant-application-phone-input"><CustomSelect value={occupantForm.phoneCountryCode} options={["+1", "+44", "+234", "+33", "+49", "+61"]} onChange={(value) => updateOccupant("phoneCountryCode", value)} ariaLabel="Country calling code" /><input required type="tel" inputMode="tel" value={occupantForm.phoneNumber} onChange={(event) => updateOccupant("phoneNumber", event.target.value)} placeholder="Phone number" /></div></label></div><label className="tenant-application-current-toggle"><input type="checkbox" checked={occupantForm.isFinanciallyResponsible} onChange={(event) => updateOccupant("isFinanciallyResponsible", event.target.checked)} /><span><strong>Financially responsible</strong><small>This adult will be responsible for rent or other lease obligations.</small></span></label><button type="button" className="tenant-application-complete-button" disabled={!occupantForm.firstName || !occupantForm.lastName || !occupantForm.dateOfBirth || !occupantForm.email || !occupantForm.phoneNumber} onClick={addOccupant}>{editingOccupantIndex === null ? "Add adult occupant" : "Update adult occupant"}</button>{editingOccupantIndex !== null && <button type="button" className="tenant-application-occupant-cancel" onClick={() => { setEditingOccupantIndex(null); resetOccupantForm(); }}>Cancel edit</button>}<small className="tenant-application-guarantor-count">{occupants.length} additional adult{occupants.length === 1 ? "" : "s"} added</small></div>
               <div className="tenant-application-household-note"><ShieldIcon /><span>Only adults can be added here. The primary tenant remains the authenticated applicant.</span></div>
@@ -1343,8 +1382,7 @@ export default function TenantApplicationDetailPage() {
                   <small>Non-signable contract preview</small>
                 </div>
                 <p>
-                  Quiet hours are 10:00 PM to 8:00 AM. No smoking or parties are
-                  permitted.
+                  No listing-specific house rules have been provided by the host yet.
                 </p>
                 <button type="button" onClick={() => setContractPreviewOpen(true)}>Open full preview &gt;</button>
               </div>
@@ -1360,10 +1398,82 @@ export default function TenantApplicationDetailPage() {
               </label>
             </section>
           )}
-          {contractPreviewOpen && <div className="tenant-application-preview-overlay" onClick={() => setContractPreviewOpen(false)}><section className="tenant-application-preview-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-application-preview-title" onClick={(event) => event.stopPropagation()}><button type="button" className="tenant-application-preview-close" aria-label="Close contract preview" onClick={() => setContractPreviewOpen(false)}>×</button><p className="marketplace-eyebrow">Application preview</p><h3 id="tenant-application-preview-title">Rental contract &amp; house rules</h3><p className="tenant-application-panel-lead">Review the key terms before you authorize payment. This preview is informational and is not a signature step.</p><div className="tenant-application-preview-summary"><div><span>Lease term</span><strong>6 months</strong></div><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div></div><div className="tenant-application-preview-section"><h4>House rules</h4><ul><li>Quiet hours are 10:00 PM to 8:00 AM.</li><li>No smoking or parties are permitted.</li><li>All occupants must be listed on the application.</li><li>Keep shared areas clean and respect neighbours.</li></ul></div><div className="tenant-application-preview-section"><h4>Rental contract</h4><p>The final residential lease will confirm the parties, rent, deposit, term, maintenance responsibilities, and applicable local requirements. It will be available for signature after the application is approved.</p></div><button type="button" className="tenant-application-complete-button" onClick={() => setContractPreviewOpen(false)}>Close preview</button></section></div>}
+          {contractPreviewOpen && (
+            <div className="tenant-application-preview-overlay" onClick={() => setContractPreviewOpen(false)}>
+              <section className="tenant-application-preview-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-application-preview-title" onClick={(event) => event.stopPropagation()}>
+                <button type="button" className="tenant-application-preview-close" aria-label="Close contract preview" onClick={() => setContractPreviewOpen(false)}>×</button>
+                <p className="marketplace-eyebrow">Application preview</p>
+                <h3 id="tenant-application-preview-title">Rental contract &amp; house rules</h3>
+                <p className="tenant-application-panel-lead">Review the key terms before you authorize payment. This preview is informational and is not a signature step.</p>
+                <div className="tenant-application-preview-summary">
+                  <div><span>Lease term</span><strong>{leaseTermDisplay}</strong></div>
+                  <div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div>
+                  <div><span>Security deposit</span><strong>${depositAmount.toLocaleString()}</strong></div>
+                  <div><span>Move-in date</span><strong>{moveInDateDisplay}</strong></div>
+                </div>
+                <div className="tenant-application-preview-section">
+                  <h4>House rules</h4>
+                  <p>No listing-specific house rules have been provided by the host yet.</p>
+                </div>
+                <div className="tenant-application-preview-section">
+                  <h4>Rental contract</h4>
+                  <p>The final residential lease will confirm the parties, rent, deposit, term, maintenance responsibilities, and applicable local requirements. It will be available for signature after the application is approved.</p>
+                </div>
+                <button type="button" className="tenant-application-complete-button" onClick={() => setContractPreviewOpen(false)}>Close preview</button>
+              </section>
+            </div>
+          )}
           {activeSection === "review" && (
             <section className="tenant-application-panel tenant-application-review-panel">
-              {!applicationSubmitted ? <><p className="marketplace-eyebrow">Final check</p><h3>Review your application</h3><p className="tenant-application-panel-lead">Everything looks right? Review the details below, then submit your application to the landlord.</p><div className={`tenant-application-review-status ${missingSections.length === 0 ? "is-ready" : "is-incomplete"}`}><span>{missingSections.length === 0 ? "✓" : "!"}</span><div><strong>{missingSections.length === 0 ? "Ready to submit" : `${missingSections.length} required section${missingSections.length === 1 ? "" : "s"} remaining`}</strong><small>{missingSections.length === 0 ? "Your required information and authorizations are complete." : "Complete the remaining sections before submitting."}</small></div></div><div className="tenant-application-review-list">{requiredSections.map((sectionKey) => { const section = sections.find((item) => item.key === sectionKey); return <button type="button" className="tenant-application-review-row" key={sectionKey} onClick={() => setActiveSection(sectionKey)}><span className={isComplete(sectionKey) ? "is-complete" : ""}>{isComplete(sectionKey) ? "✓" : "!"}</span><div><strong>{section?.label}</strong><small>{isComplete(sectionKey) ? "Complete and ready" : "Needs your attention"}</small></div><b>Review</b></button>; })}<button type="button" className="tenant-application-review-row" onClick={() => setActiveSection("guarantor")}><span className="is-optional">i</span><div><strong>Guarantors</strong><small>{guarantors.length ? `${guarantors.length} invitation${guarantors.length === 1 ? "" : "s"} pending` : "None added"}</small></div><b>Review</b></button></div><div className="tenant-application-review-summary"><div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Security deposit</span><strong>${listing.price.toLocaleString()}</strong></div><div><span>Move-in date</span><strong>Sep 1, 2026</strong></div><div><span>Payment</span><strong>No charge today</strong></div></div><label className="tenant-application-consent-row"><input type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} /><span>I confirm that my application information is accurate and I understand that submitting is not signing the lease or charging my payment method.</span></label><button type="button" className="tenant-application-complete-button tenant-application-submit-button" disabled={missingSections.length > 0 || !reviewConfirmed} onClick={() => setSubmitModalOpen(true)}>Submit application</button></> : <div className="tenant-application-submitted"><span className="tenant-application-submitted-icon">✓</span><p className="marketplace-eyebrow">Application submitted</p><h3>You&apos;re all set.</h3><p className="tenant-application-panel-lead">Your application has been sent to the landlord for review. We&apos;ll let you know when there&apos;s an update.</p><div className="tenant-application-submitted-details"><span>Application code</span><strong>{savedRentalApplicationCode || "Pending"}</strong><span>Status</span><strong>Under review</strong><span>Submitted</span><strong>Just now</strong></div><button type="button" className="tenant-application-complete-button" onClick={() => navigate("/applications")}>View my applications</button></div>}
+              {!applicationSubmitted ? <>
+                <p className="marketplace-eyebrow">Final check</p>
+                <h3>Review your application</h3>
+                <p className="tenant-application-panel-lead">Everything looks right? Review the details below, then submit your application to the landlord.</p>
+                <div className={`tenant-application-review-status ${missingSections.length === 0 ? "is-ready" : "is-incomplete"}`}>
+                  <span>{missingSections.length === 0 ? "✓" : "!"}</span>
+                  <div>
+                    <strong>{missingSections.length === 0 ? "Ready to submit" : `${missingSections.length} required section${missingSections.length === 1 ? "" : "s"} remaining`}</strong>
+                    <small>{missingSections.length === 0 ? "Your required information and authorizations are complete." : "Complete the remaining sections before submitting."}</small>
+                  </div>
+                </div>
+                <div className="tenant-application-review-list">
+                  {requiredSections.map((sectionKey) => {
+                    const section = sections.find((item) => item.key === sectionKey);
+                    return <button type="button" className="tenant-application-review-row" key={sectionKey} onClick={() => setActiveSection(sectionKey)}>
+                      <span className={isComplete(sectionKey) ? "is-complete" : ""}>{isComplete(sectionKey) ? "✓" : "!"}</span>
+                      <div><strong>{section?.label}</strong><small>{isComplete(sectionKey) ? "Complete and ready" : "Needs your attention"}</small></div>
+                      <b>Review</b>
+                    </button>;
+                  })}
+                  <button type="button" className="tenant-application-review-row" onClick={() => setActiveSection("guarantor")}>
+                    <span className="is-optional">i</span>
+                    <div><strong>Guarantors</strong><small>{guarantors.length ? `${guarantors.length} invitation${guarantors.length === 1 ? "" : "s"} pending` : "None added"}</small></div>
+                    <b>Review</b>
+                  </button>
+                </div>
+                <div className="tenant-application-review-summary">
+                  <div><span>Monthly rent</span><strong>${listing.price.toLocaleString()}</strong></div>
+                  <div><span>Security deposit</span><strong>${depositAmount.toLocaleString()}</strong></div>
+                  <div><span>Move-in date</span><strong>{moveInDateDisplay}</strong></div>
+                  <div><span>Payment</span><strong>No charge today</strong></div>
+                </div>
+                <label className="tenant-application-consent-row">
+                  <input type="checkbox" checked={reviewConfirmed} onChange={(event) => setReviewConfirmed(event.target.checked)} />
+                  <span>I confirm that my application information is accurate and I understand that submitting is not signing the lease or charging my payment method.</span>
+                </label>
+                <button type="button" className="tenant-application-complete-button tenant-application-submit-button" disabled={missingSections.length > 0 || !reviewConfirmed} onClick={() => setSubmitModalOpen(true)}>Submit application</button>
+              </> : <div className="tenant-application-submitted">
+                <span className="tenant-application-submitted-icon">✓</span>
+                <p className="marketplace-eyebrow">Application submitted</p>
+                <h3>You&apos;re all set.</h3>
+                <p className="tenant-application-panel-lead">Your application has been sent to the landlord for review. We&apos;ll let you know when there&apos;s an update.</p>
+                <div className="tenant-application-submitted-details">
+                  <span>Application code</span><strong>{savedRentalApplicationCode || "Pending"}</strong>
+                  <span>Status</span><strong>Under review</strong>
+                  <span>Submitted</span><strong>{new Date().toLocaleDateString()}</strong>
+                </div>
+                <button type="button" className="tenant-application-complete-button" onClick={() => navigate("/applications")}>View my applications</button>
+              </div>}
             </section>
           )}
           {activeSection === "review" && applicationSubmitted && applicationConversation && (
@@ -1404,7 +1514,7 @@ export default function TenantApplicationDetailPage() {
                   </div>
                 </div>
               )}
-              <div className="tenant-application-pad-form"><h4>Connect your primary bank account</h4><p>Stripe will securely verify your Canadian bank account. Arcora will never see or store your banking credentials.</p><label>Account holder name<input value={paymentPadForm.accountHolderName} onChange={(event) => setPaymentPadForm((current) => ({ ...current, accountHolderName: event.target.value }))} placeholder="Obinna Eze" /></label><label>Institution number<input value={paymentPadForm.institutionNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, institutionNumber: event.target.value }))} placeholder="000" /></label><label>Transit number<input value={paymentPadForm.transitNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, transitNumber: event.target.value }))} placeholder="00000" /></label><label>Account number<input value={paymentPadForm.accountNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, accountNumber: event.target.value }))} placeholder="Account number" /></label></div>
+              <div className="tenant-application-pad-form"><h4>Connect your primary bank account</h4><p>Stripe will securely verify your Canadian bank account. Arcora will never see or store your banking credentials.</p><label>Account holder name<input value={paymentPadForm.accountHolderName} onChange={(event) => setPaymentPadForm((current) => ({ ...current, accountHolderName: event.target.value }))} placeholder="Account holder name" /></label><label>Institution number<input value={paymentPadForm.institutionNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, institutionNumber: event.target.value }))} placeholder="Institution number" /></label><label>Transit number<input value={paymentPadForm.transitNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, transitNumber: event.target.value }))} placeholder="Transit number" /></label><label>Account number<input value={paymentPadForm.accountNumber} onChange={(event) => setPaymentPadForm((current) => ({ ...current, accountNumber: event.target.value }))} placeholder="Account number" /></label></div>
               {isCardRegistered && (
                 <div className="tenant-application-saved-card">
                   <span className="tenant-application-card-brand">VISA</span>
@@ -1436,7 +1546,7 @@ export default function TenantApplicationDetailPage() {
                   <>
                     <label>
                       Name on card
-                      <input value={paymentCardName} onChange={(event) => setPaymentCardName(event.target.value)} placeholder="Obinna Eze" />
+                      <input value={paymentCardName} onChange={(event) => setPaymentCardName(event.target.value)} placeholder="Name on card" />
                     </label>
                   </>
                 )}
