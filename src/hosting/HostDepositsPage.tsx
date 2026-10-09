@@ -243,20 +243,19 @@ export default function HostDepositsPage() {
         currency: activeDeposit.currency || "CAD",
         idempotencyKey: getStoredIdempotencyKey(idempotencyStorageKey),
       });
-      clearStoredIdempotencyKey(idempotencyStorageKey);
-      setActionMessage(
-        `${money(activeDeposit.heldAmount, activeDeposit.currency)} was recorded as returned. `
-        + "Issue the refund through your payment provider separately; this action records it in Arcora.",
-      );
-      setDepositRecords((records) => records.map((record) => record.securityDepositID === activeDeposit.securityDepositID
-        ? {
-          ...record,
-          returnedAmount: result.returnedAmount,
-          heldAmount: Math.max(0, record.receivedAmount - record.appliedAmount - result.returnedAmount),
-          status: result.status,
-          closedAt: result.status === "RETURNED" ? new Date().toISOString() : record.closedAt,
-        }
-        : record));
+      const refundStatus = result.refundStatus?.toUpperCase();
+      if (refundStatus === "SUCCEEDED" || refundStatus === "PROCESSED") {
+        clearStoredIdempotencyKey(idempotencyStorageKey);
+        setActionMessage(`${money(activeDeposit.heldAmount, activeDeposit.currency)} was refunded successfully.`);
+      } else if (refundStatus === "PENDING" || refundStatus === "REQUIRES_ACTION") {
+        setActionMessage(`The ${money(activeDeposit.heldAmount, activeDeposit.currency)} refund is processing. The amount remains reserved until Stripe confirms the result.`);
+      } else {
+        clearStoredIdempotencyKey(idempotencyStorageKey);
+        setActionError(`The refund did not complete (${result.refundStatus || "unknown status"}). No amount was recorded as returned.`);
+      }
+      await reloadDeposits().catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "The refund was submitted, but the deposit list could not refresh.");
+      });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "We could not record the deposit return.");
     } finally {

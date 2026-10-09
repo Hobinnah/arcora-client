@@ -120,7 +120,16 @@ export const returnSecurityDeposit = async (
       `${BASE_URL}api/securitydeposit/${encodeURIComponent(securityDepositID)}/return`,
       request,
     );
-    return response.data;
+    return response.data as {
+      securityDepositID: string;
+      refundID: string;
+      securityDepositTransactionID: string;
+      returnedAmount: number;
+      heldAmount: number;
+      status: string;
+      refundStatus: string;
+      idempotentReplay: boolean;
+    };
   } catch (error) {
     handleApiError(error, "record security deposit return");
     throw error;
