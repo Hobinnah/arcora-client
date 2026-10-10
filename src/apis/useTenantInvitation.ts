@@ -32,6 +32,9 @@ export type CreateTenantInvitationInput = Pick<
   leaseID?: string;
   startDate?: string | null;
   leaseTermMonths?: number | null;
+  price?: number | null;
+  securityDepositAmount?: number | null;
+  currency?: string | null;
   rentalApplicationID?: string | null;
   tokenHash?: string;
   expiresAt?: string | null;

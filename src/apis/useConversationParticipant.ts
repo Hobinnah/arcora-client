@@ -12,6 +12,20 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const BASE_URL = env.API_BASE_URL;
 
+export type CreateConversationParticipantInput = Pick<
+  ConversationParticipant,
+  "conversationID" | "joinedAt" | "isMuted"
+> & {
+  conversationParticipantID?: string | null;
+  userID?: number | null;
+  tenantID?: string | null;
+  organizationMemberID?: string | null;
+  participantRole?: string | null;
+  leftAt?: string | null;
+  lastReadAt?: string | null;
+  capturedDate?: string | null;
+};
+
 export type ConversationParticipantsListParams = {
   pageSize?: number;
   pageNumber?: number;
@@ -75,10 +89,10 @@ export const getConversationParticipant = async (id?: string): Promise<Conversat
   }
 };
 
-export const createConversationParticipant = async (ConversationParticipant?: ConversationParticipant): Promise<ConversationParticipant> => {
+export const createConversationParticipant = async (participant: CreateConversationParticipantInput): Promise<ConversationParticipant> => {
   try {
-    const url = `${BASE_URL}api/conversationparticipant/createConversationParticipant`;
-    const response = await axios.post(url, ConversationParticipant);
+    const url = `${BASE_URL}api/ConversationParticipant/CreateConversationParticipant`;
+    const response = await axios.post(url, participant);
     return response.data as ConversationParticipant;
   } catch (error) {
     handleApiError(error, 'create conversationParticipant');
@@ -106,4 +120,3 @@ export const deleteConversationParticipant = async (id: string): Promise<void> =
     handleApiError(error, 'delete conversationParticipant');
   }
 };
-

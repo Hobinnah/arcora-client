@@ -106,9 +106,38 @@ export const fetchRentalApplications = async ({
   }
 };
 
+export const fetchRentalApplicationsByOrganization = async ({
+  organizationID,
+  pageSize = 200,
+  pageNumber = 1,
+}: {
+  organizationID: string;
+  pageSize?: number;
+  pageNumber?: number;
+}): Promise<{ data: Array<RentalApplication>; totalCount: number }> => {
+  try {
+    const response = await axios.get(`${BASE_URL}api/RentalApplication/GetByOrganization/by-organization`, {
+      params: { organizationID, PageSize: pageSize, PageNumber: pageNumber },
+    });
+    const responseData = response.data;
+    if (Array.isArray(responseData)) {
+      return { data: responseData as RentalApplication[], totalCount: responseData.length };
+    }
+    return {
+      data: responseData?.data ?? [],
+      totalCount: responseData?.totalCount ?? 0,
+    };
+  } catch (error) {
+    return handleApiError(error, 'fetch rental applications by organization');
+  }
+};
+
 export const getRentalApplication = async (id?: string): Promise<RentalApplication> => {
   try {
-    const url = `${BASE_URL}api/rentalapplication/getRentalApplicationById/${id}`;
+    if (!id) {
+      throw new Error("A rental application ID is required.");
+    }
+    const url = `${BASE_URL}api/RentalApplication/GetRentalApplicationByID/${encodeURIComponent(id)}`;
     const response = await axios.get(url);
     return response.data as RentalApplication;
   } catch (error) {
@@ -177,4 +206,3 @@ export const fireRentalApplicationAction = async (id?: string, status?: string):
     throw error;
   }
 };
-

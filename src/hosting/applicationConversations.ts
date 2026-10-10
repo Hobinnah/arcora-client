@@ -1,5 +1,5 @@
 import { fetchConversations, createConversation } from "../apis/useConversation";
-import { fetchConversationParticipants, createConversationParticipant } from "../apis/useConversationParticipant";
+import { fetchConversationParticipants, createConversationParticipant, type CreateConversationParticipantInput } from "../apis/useConversationParticipant";
 import { fetchConversationMessages, createConversationMessage } from "../apis/useConversationMessage";
 import type { Conversation } from "../types/Conversation";
 import type { ConversationParticipant } from "../types/ConversationParticipant";
@@ -37,10 +37,24 @@ export const buildApplicationCardMessage = (payload: ApplicationCardMessage): st
 
 export const applicationConversationSubject = (applicationCode: string) => `Application ${applicationCode}`;
 
-// Conversation has no rentalApplicationID/tenantID/organizationID FK; subject narrows the candidate,
-// participant rows (tenantID / organizationMemberID) confirm real identity before it's trusted.
+const fetchAllPages = async <T>(
+  fetchPage: (params: { pageSize: number; pageNumber: number }) => Promise<{ data: T[]; totalCount: number }>,
+): Promise<T[]> => {
+  const result: T[] = [];
+  for (let pageNumber = 0; ; pageNumber += 1) {
+    const { data, totalCount } = await fetchPage({ pageSize: 200, pageNumber });
+    result.push(...data);
+    if (result.length >= totalCount) return result;
+    if (data.length === 0) throw new Error("The list ended before all conversation records could be checked.");
+  }
+};
+
+export const fetchApplicationConversationParticipants = async (conversationID: string): Promise<ConversationParticipant[]> =>
+  (await fetchAllPages(fetchConversationParticipants)).filter((participant) => participant.conversationID === conversationID);
+
+// Subject narrows the application thread; participants confirm its tenant/member identity.
 const findConversationBySubject = async (applicationCode: string): Promise<Conversation | null> => {
-  const { data } = await fetchConversations({ pageSize: 200, pageNumber: 0 });
+  const data = await fetchAllPages(fetchConversations);
   return data.find((conversation) =>
     conversation.conversationType === APPLICATION_CONVERSATION_TYPE
     && conversation.subject === applicationConversationSubject(applicationCode)) ?? null;
@@ -49,40 +63,51 @@ const findConversationBySubject = async (applicationCode: string): Promise<Conve
 const ensureParticipant = async (
   conversationID: string,
   match: (participant: ConversationParticipant) => boolean,
-  build: () => Partial<ConversationParticipant>,
+  build: () => Pick<CreateConversationParticipantInput, "tenantID" | "userID" | "organizationMemberID" | "participantRole">,
 ): Promise<ConversationParticipant> => {
-  const { data } = await fetchConversationParticipants({ pageSize: 200, pageNumber: 0 });
-  const existing = data.find((participant) => participant.conversationID === conversationID && match(participant));
+  const participants = await fetchApplicationConversationParticipants(conversationID);
+  const existing = participants.find(match);
   if (existing) return existing;
-  return createConversationParticipant({ conversationID, joinedAt: new Date().toISOString(), ...build() } as ConversationParticipant);
+  const now = new Date().toISOString();
+  return createConversationParticipant({
+    conversationParticipantID: null,
+    conversationID,
+    joinedAt: now,
+    capturedDate: now,
+    isMuted: false,
+    userID: null,
+    tenantID: null,
+    organizationMemberID: null,
+    leftAt: null,
+    lastReadAt: null,
+    ...build(),
+  });
 };
 
 export const findApplicationConversationForTenant = async (tenantID: string, applicationCode: string): Promise<Conversation | null> => {
   const conversation = await findConversationBySubject(applicationCode);
   if (!conversation) return null;
-  const { data } = await fetchConversationParticipants({ pageSize: 200, pageNumber: 0 });
-  const belongsToTenant = data.some((participant) => participant.conversationID === conversation.conversationID && participant.tenantID === tenantID);
+  const data = await fetchApplicationConversationParticipants(conversation.conversationID);
+  const belongsToTenant = data.some((participant) => participant.tenantID === tenantID);
   return belongsToTenant ? conversation : null;
 };
 
 export const findApplicationConversationForOrganization = async (organizationMemberID: string, applicationCode: string): Promise<Conversation | null> => {
   const conversation = await findConversationBySubject(applicationCode);
   if (!conversation) return null;
-  const { data } = await fetchConversationParticipants({ pageSize: 200, pageNumber: 0 });
-  const belongsToOrg = data.some((participant) => participant.conversationID === conversation.conversationID && participant.organizationMemberID === organizationMemberID);
+  const data = await fetchApplicationConversationParticipants(conversation.conversationID);
+  const belongsToOrg = data.some((participant) => participant.organizationMemberID === organizationMemberID);
   return belongsToOrg ? conversation : null;
 };
 
 export const fetchApplicationConversationMessages = async (conversationID: string): Promise<ConversationMessage[]> => {
-  const { data } = await fetchConversationMessages({ pageSize: 200, pageNumber: 0 });
+  const data = await fetchAllPages(fetchConversationMessages);
   return data
     .filter((message) => message.conversationID === conversationID)
     .sort((a, b) => a.sentAt.localeCompare(b.sentAt));
 };
 
-// Called on tenant submit success: creates (or reuses) the thread and seeds the first message
-// so both tenant and landlord get an in-app alert immediately.
-export const ensureApplicationConversation = async (params: {
+type ApplicationConversationParams = {
   applicationID?: string;
   applicationCode: string;
   listingTitle: string;
@@ -97,10 +122,27 @@ export const ensureApplicationConversation = async (params: {
   note?: string;
   moveInDate?: string | null;
   viewUrl?: string;
-}): Promise<Conversation> => {
+};
+
+// Share in-flight setup across duplicate effects; cross-client uniqueness must be enforced by the API.
+const pendingApplicationConversations = new Map<string, Promise<Conversation>>();
+
+export const ensureApplicationConversation = async (params: ApplicationConversationParams): Promise<Conversation> => {
+  const key = JSON.stringify([params.applicationCode, params.tenantID, params.organizationMemberID]);
+  const pending = pendingApplicationConversations.get(key);
+  if (pending) return pending;
+  const request = createApplicationConversation(params);
+  pendingApplicationConversations.set(key, request);
+  try {
+    return await request;
+  } finally {
+    pendingApplicationConversations.delete(key);
+  }
+};
+
+const createApplicationConversation = async (params: ApplicationConversationParams): Promise<Conversation> => {
   const now = new Date().toISOString();
   let conversation = await findConversationBySubject(params.applicationCode);
-  const isNew = !conversation;
   if (!conversation) {
     conversation = await createConversation({
       conversationType: APPLICATION_CONVERSATION_TYPE,
@@ -114,7 +156,7 @@ export const ensureApplicationConversation = async (params: {
 
   await ensureParticipant(conversation.conversationID, (participant) => participant.tenantID === params.tenantID, () => ({
     tenantID: params.tenantID,
-    userID: params.userID,
+    userID: params.userID ?? null,
     participantRole: "TENANT",
   }));
   await ensureParticipant(conversation.conversationID, (participant) => participant.organizationMemberID === params.organizationMemberID, () => ({
@@ -122,7 +164,8 @@ export const ensureApplicationConversation = async (params: {
     participantRole: "LANDLORD",
   }));
 
-  if (isNew) {
+  const messages = await fetchApplicationConversationMessages(conversation.conversationID);
+  if (!messages.some((message) => message.messageType === "APPLICATION_CARD" && parseApplicationCardMessage(message.message))) {
     const message = buildApplicationCardMessage({
       type: "RENTAL_APPLICATION",
       applicationID: params.applicationID,

@@ -1,9 +1,11 @@
 TENANT INVITATION -> LEASE CREATION: BACKEND HANDOFF
 =====================================================
 
-Flow (client is already wired for this)
+Flow (client flow and backend contract)
 ---------------------------------------
-1. Landlord creates a tenant invitation (listing, start date, lease term, price, tenant name/email).
+1. For a rental application, landlord approval creates a tenant invitation linked by
+   rentalApplicationID and carrying the approved start date, term, proposed rent,
+   security deposit, and currency. Direct landlord invitations remain supported.
 2. Tenant clicks ACCEPT in the email -> client calls POST api/tenantinvitation/respond?token=...&response=ACCEPT
 3. Tenant logs in / signs up -> /tenant/invitation/setup?invitationId={tenantInvitationID}
 4. Tenant saves bank account (PAD) and card through api/PaymentOnboarding/* (unchanged).
@@ -54,6 +56,8 @@ Server-side rules
       * create the Lease
       * set TenantInvitation.leaseID = new lease ID
       * block the lease dates on the listing's availability calendar
+      * when rentalApplicationID is present, validate that the application belongs
+        to this tenant and listing and link the created lease to that application
 
 Lease field mapping (LeaseDto)
   organizationID       <- invitation.organizationID (or listing.organizationID)
@@ -61,14 +65,15 @@ Lease field mapping (LeaseDto)
   rentalUnitID         <- listing.rentalUnitID
   tenancyTypeID        <- derived from listing / term (long-term vs short-term)
   tenantID             <- request tenantID (validated)
-  rentalApplicationID  <- null
+  rentalApplicationID  <- invitation.rentalApplicationID (null for direct invitations)
   leaseCode/leaseNumber<- server-generated
   status               <- PENDING_TENANT_SIGNATURE
   startDate            <- invitation.startDate
   leaseTermMonths      <- invitation.leaseTermMonths
   endDate              <- startDate + leaseTermMonths
-  baseRentAmount       <- invitation price (term price from listingTermPrices / quoted price)
-  currency             <- listing.currency
+  baseRentAmount       <- invitation.price (persisted approved application quote)
+  securityDepositAmount<- invitation.securityDepositAmount
+  currency             <- invitation.currency (validated against listing.currency)
   gracePeriodDays, lateFeeFixedAmount, lateFeePercentage, autoRenew, renewalNoticeDays
                        <- organization / listing defaults
   capturedBy/Date      <- signed-in user / now
@@ -82,10 +87,21 @@ Errors (ProblemDetails with a readable "detail"; the client shows it)
 
 Related backend items still open
 --------------------------------
+- Rental-application offer persistence: accept and persist price, securityDepositAmount,
+  currency, and rentalApplicationID on the tenant invitation. Recheck availability
+  and authorize the landlord against the application/listing before creating the offer.
+  The client reuses an existing active invitation for the application to avoid duplicate
+  offers; the server should also enforce one active offer per application.
+- Application-to-lease linkage: the createLease endpoint must set Lease.rentalApplicationID
+  from the invitation as specified above. Do not accept an arbitrary application ID from
+  the tenant's createLease request. Return the linked lease through the application's
+  leases relationship (or a documented application lease field) so both sides can
+  navigate from the application to the resulting lease.
 - respond returns "Invalid invitation token" (create currently receives tokenHash: "";
   the server should generate the token and its hash).
-- Swagger TenantInvitationDto is missing organizationID, startDate, leaseTermMonths, and
-  price, which the client already sends on create and this endpoint needs.
+- Swagger TenantInvitationDto must include organizationID, startDate, leaseTermMonths,
+  price, securityDepositAmount, currency, and rentalApplicationID; the client sends and
+  relies on these quote/link fields.
 - Suggested lease statuses: PENDING_TENANT_SIGNATURE -> PENDING_LANDLORD_SIGNATURE ->
   SIGNED -> ACTIVE (plus CANCELLED / EXPIRED).
 - First charge (deposit + first month) happens only after both parties have signed.

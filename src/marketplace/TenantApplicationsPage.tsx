@@ -20,6 +20,7 @@ type ApplicationStatus =
 type TenantApplicationCard = {
   id: string;
   recordType: "application" | "lease";
+  leaseID?: string;
   listing: MarketplaceListing;
   status: ApplicationStatus;
   capturedDate: string;
@@ -87,18 +88,25 @@ export default function TenantApplicationsPage() {
           fetchLeases({ pageSize: 200, pageNumber: 0, tenantID: tenant.tenantID }),
         ]);
         if (cancelled) return;
-        const applicationCards = applicationResponse.data.map((application, index) => ({
-          id: application.rentalApplicationID,
-          recordType: "application" as const,
-          listing: normalizeListing((application.listing ?? {}) as unknown as Record<string, any>, index) ?? unavailableListing(application.rentalApplicationID),
-          status: (Object.keys(statusLabels).includes(application.status?.toUpperCase()) ? application.status.toUpperCase() : "UNDER_REVIEW") as ApplicationStatus,
-          capturedDate: application.capturedDate || application.submittedAt || "",
-          moveIn: application.desiredMoveInDate || "",
-          term: application.requestedLeaseTermMonths || 0,
-          code: application.applicationCode || application.rentalApplicationID,
-          nextAction: application.status?.toUpperCase() === "APPROVED" ? "Review and sign lease" : application.status?.toUpperCase() === "CHANGES_REQUESTED" ? "Review changes" : "View application",
-        }));
-        const leaseCards = leaseResponse.data.map((lease, index) => ({
+        const applicationCards = applicationResponse.data.map((application, index) => {
+          const linkedLease = leaseResponse.data.find((lease) => lease.rentalApplicationID === application.rentalApplicationID);
+          return {
+            id: application.rentalApplicationID,
+            recordType: "application" as const,
+            leaseID: linkedLease?.leaseID,
+            listing: normalizeListing((application.listing ?? {}) as unknown as Record<string, any>, index) ?? unavailableListing(application.rentalApplicationID),
+            status: (Object.keys(statusLabels).includes(application.status?.toUpperCase()) ? application.status.toUpperCase() : "UNDER_REVIEW") as ApplicationStatus,
+            capturedDate: application.capturedDate || application.submittedAt || "",
+            moveIn: application.desiredMoveInDate || "",
+            term: application.requestedLeaseTermMonths || 0,
+            code: application.applicationCode || application.rentalApplicationID,
+            nextAction: linkedLease
+              ? ["SIGNED", "ACTIVE"].includes(linkedLease.status.toUpperCase()) ? "View lease" : "Review and sign lease"
+              : application.status?.toUpperCase() === "APPROVED" ? "Review lease offer" : application.status?.toUpperCase() === "CHANGES_REQUESTED" ? "Review changes" : "View application",
+          };
+        });
+        const applicationIDs = new Set(applicationResponse.data.map((application) => application.rentalApplicationID));
+        const leaseCards = leaseResponse.data.filter((lease) => !lease.rentalApplicationID || !applicationIDs.has(lease.rentalApplicationID)).map((lease, index) => ({
           id: lease.leaseID,
           recordType: "lease" as const,
           listing: normalizeListing((lease.listing ?? {}) as unknown as Record<string, any>, applicationCards.length + index) ?? unavailableListing(lease.leaseID),
@@ -273,7 +281,9 @@ export default function TenantApplicationsPage() {
           <div className="tenant-application-card-grid">
             {applications.map((application) => {
               const listing = application.listing;
-              const recordPath = application.recordType === "lease"
+              const recordPath = application.leaseID
+                ? `/tenant/leases/${application.leaseID}/review`
+                : application.recordType === "lease"
                 ? `/tenant/leases/${application.id}/review`
                 : `/applications/${application.id}`;
               return (

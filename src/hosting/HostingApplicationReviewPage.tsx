@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { CheckIcon, ShieldIcon } from "../components/Icons";
 import { useAuth } from "../hooks/useAuth";
 import { getRentalApplication, updateRentalApplication } from "../apis/useRentalApplication";
+import { createTenantInvitation, fetchTenantInvitationsByOrganization } from "../apis/useTenantInvitation";
+import type { TenantInvitation } from "../types/TenantInvitation";
 import { fetchTenantEmployments } from "../apis/useTenantEmployment";
 import { fetchApplicationOccupants } from "../apis/useApplicationOccupant";
 import { fetchTenantGuarantors } from "../apis/useTenantGuarantor";
@@ -11,9 +13,9 @@ import { fetchFees } from "../apis/useFee";
 import { fetchTenants, getTenant } from "../apis/useTenant";
 import { fetchListingPhotos } from "../apis/useListingPhoto";
 import { env } from "../env";
-import { fetchConversationParticipants, updateConversationParticipant } from "../apis/useConversationParticipant";
+import { updateConversationParticipant } from "../apis/useConversationParticipant";
 import { getCurrentOrganizationMember } from "./organizationMemberIdentity";
-import { ensureApplicationConversation, fetchApplicationConversationMessages, findApplicationConversationForOrganization, parseApplicationCardMessage } from "./applicationConversations";
+import { ensureApplicationConversation, fetchApplicationConversationMessages, fetchApplicationConversationParticipants, parseApplicationCardMessage } from "./applicationConversations";
 import { normalizeRentalApplicationStatus, rentalApplicationStatusClass, rentalApplicationStatusLabels } from "./rentalApplicationStatus";
 import type { RentalApplication } from "../types/RentalApplication";
 import type { TenantEmployment } from "../types/TenantEmployment";
@@ -44,6 +46,11 @@ export default function HostingApplicationReviewPage() {
   const [listingPhotoUrl, setListingPhotoUrl] = useState("");
   const [hostPlacementFee, setHostPlacementFee] = useState<number | null>(null);
   const [isHostPlacementFeeLoading, setIsHostPlacementFeeLoading] = useState(true);
+  const [applicationInvitationLookup, setApplicationInvitationLookup] = useState<{
+    applicationID: string;
+    invitation: TenantInvitation | null;
+    error: string;
+  } | null>(null);
 
   const [modal, setModal] = useState<"approve" | "changes" | "decline" | null>(null);
   const [detailModal, setDetailModal] = useState<"employment" | "household" | "guarantors" | "documents" | "payment" | null>(null);
@@ -53,6 +60,7 @@ export default function HostingApplicationReviewPage() {
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [conversationError, setConversationError] = useState("");
 
   const landlordName = `${currentUser?.user?.firstName ?? ""} ${currentUser?.user?.lastName ?? ""}`.trim() || "Landlord";
 
@@ -151,36 +159,127 @@ export default function HostingApplicationReviewPage() {
   }, [currentUser?.user?.id, currentUser?.user?.userId]);
 
   useEffect(() => {
+    const organizationID = organizationMember?.organizationID;
+    const applicationID = application?.rentalApplicationID;
+    if (!organizationID || !applicationID) return;
+    let cancelled = false;
+    fetchTenantInvitationsByOrganization(organizationID)
+      .then((invitations) => {
+        if (cancelled) return;
+        const matchingInvitation = invitations
+          .filter((invitation) => invitation.rentalApplicationID === applicationID)
+          .sort((left, right) => right.capturedDate.localeCompare(left.capturedDate))[0] ?? null;
+        setApplicationInvitationLookup({ applicationID, invitation: matchingInvitation, error: "" });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setApplicationInvitationLookup({
+            applicationID,
+            invitation: null,
+            error: error instanceof Error ? error.message : "We could not check for an existing lease offer.",
+          });
+        }
+      })
+    return () => { cancelled = true; };
+  }, [application?.rentalApplicationID, organizationMember?.organizationID]);
+
+  useEffect(() => {
     if (!application?.applicationCode || !organizationMember?.organizationMemberID) return;
     let cancelled = false;
     (async () => {
-      let found = await findApplicationConversationForOrganization(organizationMember.organizationMemberID, application.applicationCode);
-      if (!found) {
-        found = await ensureApplicationConversation({
-          applicationCode: application.applicationCode,
-          listingTitle: application.listing?.title ?? "this listing",
-          tenantID: application.tenantID,
-          organizationMemberID: organizationMember.organizationMemberID,
-          capturedBy: landlordName,
-        });
-      }
-      if (cancelled || !found) return;
+      const found = await ensureApplicationConversation({
+        applicationID: application.rentalApplicationID,
+        applicationCode: application.applicationCode,
+        listingTitle: application.listing?.title ?? "this listing",
+        tenantID: application.tenantID,
+        organizationMemberID: organizationMember.organizationMemberID,
+        capturedBy: landlordName,
+      });
+      if (cancelled) return;
       setConversation(found);
       const thread = await fetchApplicationConversationMessages(found.conversationID);
       if (cancelled) return;
       setMessages(thread);
-      const { data: participants } = await fetchConversationParticipants({ pageSize: 200, pageNumber: 0 });
-      const participant = participants.find((item) => item.conversationID === found!.conversationID && item.organizationMemberID === organizationMember.organizationMemberID);
+      setConversationError("");
+      const participants = await fetchApplicationConversationParticipants(found.conversationID);
+      if (cancelled) return;
+      const participant = participants.find((item) => item.organizationMemberID === organizationMember.organizationMemberID);
       if (participant) await updateConversationParticipant({ ...participant, lastReadAt: new Date().toISOString() });
-    })();
+    })().catch((error: unknown) => {
+      console.error("Failed to load application conversation:", error);
+      if (!cancelled) setConversationError("We couldn't load application messages. Refresh the page to try again.");
+    });
     return () => { cancelled = true; };
-  }, [application?.applicationCode, application?.listing?.title, application?.tenantID, organizationMember?.organizationMemberID, landlordName]);
+  }, [application?.rentalApplicationID, application?.applicationCode, application?.listing?.title, application?.tenantID, organizationMember?.organizationMemberID, landlordName]);
 
   const confirmAction = async () => {
     if (!application || !modal) return;
+    let offerReady = false;
     setIsSavingDecision(true);
     setDecisionError("");
     try {
+      if (modal === "approve") {
+        const organizationID = organizationMember?.organizationID ?? application.listing?.organizationID;
+        const invitationEmail = applicantTenant?.user?.email ?? application.tenant?.user?.email;
+        const monthlyRent = application.proposedMonthlyRentAmount;
+        const startDate = application.desiredMoveInDate;
+        const leaseTermMonths = application.requestedLeaseTermMonths;
+        const securityDepositAmount = application.listing?.securityDepositAmount;
+        const currency = application.currency || application.listing?.currency;
+
+        if (!organizationID) throw new Error("This landlord account is not connected to an organization.");
+        if (!invitationEmail) throw new Error("The applicant does not have an email address for the lease offer.");
+        if (!startDate || !Number.isFinite(leaseTermMonths) || leaseTermMonths < 1) {
+          throw new Error("The application is missing a valid lease start date or term.");
+        }
+        if (!Number.isFinite(monthlyRent) || monthlyRent <= 0) {
+          throw new Error("The application is missing a valid proposed monthly rent.");
+        }
+        if (!Number.isFinite(securityDepositAmount) || securityDepositAmount < 0 || !currency) {
+          throw new Error("The listing is missing a valid security deposit or currency for the lease offer.");
+        }
+
+        const invitations = await fetchTenantInvitationsByOrganization(organizationID);
+        const existingInvitation = invitations
+          .filter((invitation) => invitation.rentalApplicationID === application.rentalApplicationID)
+          .sort((left, right) => right.capturedDate.localeCompare(left.capturedDate))[0] ?? null;
+        const reusableInvitation = existingInvitation
+          && !["REVOKED", "DECLINED", "EXPIRED", "CANCELLED"].includes(existingInvitation.status.toUpperCase())
+          ? existingInvitation
+          : null;
+        if (reusableInvitation && (
+          reusableInvitation.email.toLowerCase() !== invitationEmail.toLowerCase()
+          || reusableInvitation.startDate?.slice(0, 10) !== startDate.slice(0, 10)
+          || reusableInvitation.leaseTermMonths !== leaseTermMonths
+          || reusableInvitation.price !== monthlyRent
+          || reusableInvitation.securityDepositAmount !== securityDepositAmount
+          || reusableInvitation.currency?.toUpperCase() !== currency.toUpperCase()
+        )) {
+          throw new Error("An active lease offer already exists with different terms. Revoke that offer before sending a new one.");
+        }
+        const invitation = reusableInvitation ?? await createTenantInvitation({
+          organizationID,
+          listingID: application.listingID,
+          rentalApplicationID: application.rentalApplicationID,
+          startDate,
+          leaseTermMonths,
+          price: monthlyRent,
+          securityDepositAmount,
+          currency,
+          name: `${applicantTenant?.user?.firstName ?? application.tenant?.user?.firstName ?? ""} ${applicantTenant?.user?.lastName ?? application.tenant?.user?.lastName ?? ""}`.trim(),
+          invitationPurpose: "Rental application lease offer",
+          email: invitationEmail,
+          phoneNumber: applicantTenant?.phoneNumber ?? application.tenant?.phoneNumber ?? application.tenant?.user?.phoneNumber ?? "",
+          tokenHash: "",
+          status: "PENDING",
+          expiresAt: null,
+          capturedBy: landlordName,
+          capturedDate: new Date().toISOString(),
+        });
+        setApplicationInvitationLookup({ applicationID: application.rentalApplicationID, invitation, error: "" });
+        offerReady = true;
+      }
+
       const now = new Date().toISOString();
       const patch: RentalApplication = {
         ...application,
@@ -197,7 +296,10 @@ export default function HostingApplicationReviewPage() {
       setModal(null);
       setReason("");
     } catch (error) {
-      setDecisionError(error instanceof Error ? error.message : "We could not save this decision. Please try again.");
+      const message = error instanceof Error ? error.message : "We could not save this decision. Please try again.";
+      setDecisionError(offerReady && modal === "approve"
+        ? `The lease offer exists, but the application decision could not be saved: ${message} Retry approval to finish linking it.`
+        : message);
     } finally {
       setIsSavingDecision(false);
     }
@@ -224,6 +326,14 @@ export default function HostingApplicationReviewPage() {
   const securityDeposit = application.listing?.securityDepositAmount ?? 0;
   const approvalAmount = monthlyRent + securityDeposit;
   const paymentAuthorized = application.tenant?.isPADRegistered === true && application.tenant?.isCardRegistered === true;
+  const currentInvitationLookup = applicationInvitationLookup?.applicationID === application.rentalApplicationID
+    ? applicationInvitationLookup
+    : null;
+  const applicationInvitation = currentInvitationLookup?.invitation ?? null;
+  const isLoadingApplicationInvitation = Boolean(organizationMember?.organizationID && !currentInvitationLookup);
+  const invitationLoadError = currentInvitationLookup?.error ?? "";
+  const applicationInvitationIsActive = applicationInvitation
+    && !["REVOKED", "DECLINED", "EXPIRED", "CANCELLED"].includes(applicationInvitation.status.toUpperCase());
 
   return (
     <main className="marketplace hosting-review-application-page">
@@ -293,7 +403,7 @@ export default function HostingApplicationReviewPage() {
               <button type="button" className="hosting-review-snapshot-card" onClick={() => setDetailModal("household")}><div><strong>Household</strong><span className="hosting-review-snapshot-status is-ready">{(application.adultOccupantCount ?? 1)} adult{(application.adultOccupantCount ?? 1) === 1 ? "" : "s"}</span></div><p>Primary applicant: {applicantFirstName}</p><b>{occupants.length ? `${occupants.length} additional occupant${occupants.length === 1 ? "" : "s"}` : "No additional occupants listed"}</b><small>View details →</small></button>
               <button type="button" className="hosting-review-snapshot-card" onClick={() => setDetailModal("guarantors")}><div><strong>Guarantors</strong><span className="hosting-review-snapshot-status is-neutral">{guarantors.length || "None"}</span></div><p>{guarantors.length ? `${guarantors.length} guarantor${guarantors.length === 1 ? "" : "s"} on file` : "No guarantor has been added to this application."}</p><b>{guarantors.length ? guarantors.map((g) => g.status).join(", ") : "Not required for this review"}</b><small>View details →</small></button>
               <button type="button" className="hosting-review-snapshot-card" onClick={() => setDetailModal("documents")}><div><strong>Documents</strong><span className="hosting-review-snapshot-status is-ready">{documents.length} submitted</span></div><p>Identity verification and proof of income</p><b>{documents.length ? "Ready to review" : "None submitted"}</b><small>View details →</small></button>
-              <button type="button" className="hosting-review-snapshot-card" onClick={() => setDetailModal("payment")}><div><strong>Payment authorization</strong><span className={`hosting-review-snapshot-status ${paymentAuthorized ? "is-ready" : "is-pending"}`}>{paymentAuthorized ? "Authorized" : "Pending"}</span></div><p>PAD / ACSS debit <em>{application.tenant?.isPADRegistered ? "Authorized" : "Pending"}</em> · Card fallback <em>{application.tenant?.isCardRegistered ? "On file" : "Not on file"}</em></p><b>No charge until approval</b><small>View details →</small></button>
+              <button type="button" className="hosting-review-snapshot-card" onClick={() => setDetailModal("payment")}><div><strong>Payment authorization</strong><span className={`hosting-review-snapshot-status ${paymentAuthorized ? "is-ready" : "is-pending"}`}>{paymentAuthorized ? "Authorized" : "Pending"}</span></div><p>PAD / ACSS debit <em>{application.tenant?.isPADRegistered ? "Authorized" : "Pending"}</em> · Card fallback <em>{application.tenant?.isCardRegistered ? "On file" : "Not on file"}</em></p><b>No charge until lease signing</b><small>View details →</small></button>
             </div>
           </section>
           <section className="hosting-review-section">
@@ -320,7 +430,8 @@ export default function HostingApplicationReviewPage() {
               </div>
             </div>
             <div className="hosting-review-detail-list">
-              {messages.length === 0 && <div><span>No messages yet.</span></div>}
+              {conversationError && <div role="alert"><span>{conversationError}</span></div>}
+              {!conversationError && messages.length === 0 && <div><span>No messages yet.</span></div>}
               {messages.map((item) => {
                 const applicationCard = item.messageType === "APPLICATION_CARD" ? parseApplicationCardMessage(item.message) : null;
                 if (applicationCard) {
@@ -342,7 +453,7 @@ export default function HostingApplicationReviewPage() {
                 );
               })}
             </div>
-            <button type="button" className="hosting-review-message-button" onClick={() => navigate(`/hosting/messages/application/${conversation?.conversationID ?? ""}?application=${encodeURIComponent(application.rentalApplicationID)}`)}>
+            <button type="button" className="hosting-review-message-button" disabled={!conversation || Boolean(conversationError)} onClick={() => navigate(`/hosting/messages/application/${conversation?.conversationID ?? ""}?application=${encodeURIComponent(application.rentalApplicationID)}`)}>
               Send message
             </button>
           </section>
@@ -354,7 +465,7 @@ export default function HostingApplicationReviewPage() {
               <p className="marketplace-eyebrow">Rental listing</p>
               <h2>{application.listing?.title ?? "Listing"}</h2>
               <span>{listingLocation}</span>
-              <div className="hosting-review-listing-facts"><span><small>Monthly rent</small><strong>${monthlyRent.toLocaleString()}</strong></span>{securityDeposit > 0 && <span><small>Security deposit</small><strong>${securityDeposit.toLocaleString()}</strong></span>}<span><small>Host placement fee</small><strong>{isHostPlacementFeeLoading ? "Loading..." : hostPlacementFee === null ? "Unavailable" : `$${hostPlacementFee.toFixed(2)} + tax`}</strong></span><span><small>Due at approval</small><strong>${approvalAmount.toLocaleString()}</strong></span></div>
+              <div className="hosting-review-listing-facts"><span><small>Monthly rent</small><strong>${monthlyRent.toLocaleString()}</strong></span>{securityDeposit > 0 && <span><small>Security deposit</small><strong>${securityDeposit.toLocaleString()}</strong></span>}<span><small>Host placement fee</small><strong>{isHostPlacementFeeLoading ? "Loading..." : hostPlacementFee === null ? "Unavailable" : `$${hostPlacementFee.toFixed(2)} + tax`}</strong></span><span><small>Due after lease signing</small><strong>${approvalAmount.toLocaleString()}</strong></span></div>
             </div>
           </article>
           <div className="hosting-review-decision-card">
@@ -365,16 +476,28 @@ export default function HostingApplicationReviewPage() {
               clear action.
             </p>
             {decisionError && <p className="hosting-review-snapshot-note">{decisionError}</p>}
+            {invitationLoadError && <p className="hosting-review-snapshot-note" role="alert">{invitationLoadError}</p>}
             <button
               type="button"
               className="hosting-review-approve"
               onClick={() => setModal("approve")}
-              disabled={status === "APPROVED"}
+              disabled={isLoadingApplicationInvitation || isSavingDecision || (status === "APPROVED" && Boolean(applicationInvitationIsActive))}
             >
-              {status === "APPROVED"
-                ? "Application approved"
-                : "Approve application"}
+              {isLoadingApplicationInvitation
+                ? "Checking lease offer..."
+                : status === "APPROVED" && applicationInvitationIsActive
+                  ? applicationInvitation.status.toUpperCase() === "ACCEPTED"
+                    ? "Offer accepted"
+                    : applicationInvitation.leaseID
+                      ? "Lease created"
+                      : "Lease offer sent"
+                  : status === "APPROVED"
+                    ? "Send lease offer"
+                    : "Approve & send lease offer"}
             </button>
+            {applicationInvitationIsActive && <p className="hosting-review-snapshot-note" role="status">
+              Lease offer {applicationInvitation.status.toLowerCase()} for {applicationInvitation.email}. The applicant can accept it, finish payment setup, then review and sign the lease.
+            </p>}
             <button
               type="button"
               className="hosting-review-secondary"
@@ -393,8 +516,8 @@ export default function HostingApplicationReviewPage() {
           <div className="hosting-review-sidebar-note">
             <CheckIcon />
             <span>
-              Submitting a decision notifies the applicant. A lease is created
-              separately after approval.
+              Approving sends the applicant a lease offer. The lease is created
+              after they accept and complete payment setup, then signed by both parties.
             </span>
           </div>
         </aside>
@@ -409,7 +532,7 @@ export default function HostingApplicationReviewPage() {
             {detailModal === "household" && <div className="hosting-review-detail-list"><div><span>Primary tenant</span><strong>{applicantName}</strong></div><div><span>Adults listed</span><strong>{application.adultOccupantCount ?? 1}</strong></div>{occupants.map((occupant) => <div key={occupant.applicationOccupantID}><span>{occupant.firstName} {occupant.lastName}</span><strong>{occupant.occupantType}</strong></div>)}{occupants.length === 0 && <div><span>Additional occupants</span><strong>None listed</strong></div>}</div>}
             {detailModal === "guarantors" && (guarantors.length === 0 ? <div className="hosting-review-detail-empty"><strong>No guarantors added</strong><span>This application does not include a guarantor. No guarantor review is required.</span></div> : <div className="hosting-review-detail-list">{guarantors.map((guarantor) => <div className="hosting-review-guarantor-row" key={guarantor.tenantGuarantorID}><span><strong>{guarantor.firstName} {guarantor.lastName} · {guarantor.relationship}</strong><small>{guarantor.email || "Email not provided"} · {guarantor.phoneNumber || "Phone not provided"}</small></span><strong>{guarantor.status}</strong></div>)}</div>)}
             {detailModal === "documents" && <div className="hosting-review-detail-list">{documents.length === 0 ? <div><span>Documents</span><strong>None submitted</strong></div> : documents.map((document) => { const documentPath = document.url || document.storageReference; const documentTarget = document.url || (documentPath ? `${env.DOCUMENT_STORAGE_BASE_URL.replace(/\/$/, "")}/${document.storageContainer || "documents"}/${documentPath.replace(/^\/+/, "")}` : ""); return <a className={`hosting-review-document-link${documentTarget ? "" : "is-unavailable"}`} href={documentTarget || undefined} target="_blank" rel="noreferrer" key={document.leaseDocumentID}><span><strong>{document.originalFilename || document.documentType}</strong><small>{document.documentType}</small></span><strong className="is-ready">{documentTarget ? "View document" : document.documentStatus}</strong></a>; })}</div>}
-            {detailModal === "payment" && <div className="hosting-review-detail-list"><div><span>PAD / ACSS debit</span><strong className={paymentAuthorized ? "is-ready" : "is-warning"}>{paymentAuthorized ? "Authorized" : "Pending"}</strong></div><div><span>Card fallback</span><strong className={application.tenant?.isCardRegistered ? "is-ready" : "is-warning"}>{application.tenant?.isCardRegistered ? "On file" : "Not on file"}</strong></div><div><span>Charge timing</span><strong>Only after approval</strong></div></div>}
+            {detailModal === "payment" && <div className="hosting-review-detail-list"><div><span>PAD / ACSS debit</span><strong className={paymentAuthorized ? "is-ready" : "is-warning"}>{paymentAuthorized ? "Authorized" : "Pending"}</strong></div><div><span>Card fallback</span><strong className={application.tenant?.isCardRegistered ? "is-ready" : "is-warning"}>{application.tenant?.isCardRegistered ? "On file" : "Not on file"}</strong></div><div><span>Charge timing</span><strong>Only after both parties sign</strong></div></div>}
             <button type="button" className="hosting-review-modal-dismiss" onClick={() => setDetailModal(null)}>Close details</button>
           </section>
         </div>
@@ -435,21 +558,21 @@ export default function HostingApplicationReviewPage() {
             </button>
             <p className="marketplace-eyebrow">
               {modal === "approve"
-                ? "Confirm approval"
+                ? status === "APPROVED" ? "Send lease offer" : "Confirm approval"
                 : modal === "changes"
                   ? "Request changes"
                   : "Decline application"}
             </p>
             <h2>
               {modal === "approve"
-                ? "Approve this application?"
+                ? status === "APPROVED" ? "Send the lease offer?" : "Approve and send the lease offer?"
                 : modal === "changes"
                   ? "What needs another look?"
                   : "Decline this application?"}
             </h2>
             <p>
               {modal === "approve"
-                ? "The applicant will be notified. Confirm the proposed lease terms before creating a lease."
+                ? "Send the applicant a lease offer using the application's move-in date, term, and proposed rent. They can accept the offer and complete payment setup before the lease is created for signing."
                 : modal === "changes"
                   ? "Tell the applicant what they should update before you review again."
                   : "A short reason helps keep the decision clear and respectful."}
@@ -472,7 +595,7 @@ export default function HostingApplicationReviewPage() {
                   Host placement fee <b>{isHostPlacementFeeLoading ? "Loading..." : hostPlacementFee === null ? "Unavailable" : `$${hostPlacementFee.toFixed(2)} + tax`}</b>
                 </span>
                 <span>
-                  Due at approval <b>${approvalAmount.toLocaleString()}</b>
+                  Due after signing <b>${approvalAmount.toLocaleString()}</b>
                 </span>
               </div>
             ) : (
@@ -496,7 +619,7 @@ export default function HostingApplicationReviewPage() {
                 {isSavingDecision
                   ? "Saving..."
                   : modal === "approve"
-                    ? "Approve application"
+                    ? status === "APPROVED" ? "Send lease offer" : "Approve & send offer"
                     : modal === "changes"
                       ? "Send request"
                       : "Decline application"}
@@ -509,4 +632,3 @@ export default function HostingApplicationReviewPage() {
     </main>
   );
 }
-
